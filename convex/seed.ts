@@ -1,13 +1,11 @@
 import { mutation } from './_generated/server';
-import { requireAuthenticatedUser } from './lib/auth';
 
 export const seedDemoData = mutation({
   args: {},
   handler: async (ctx) => {
-    await requireAuthenticatedUser(ctx);
-
     const existingConversations = await ctx.db.query('conversations').collect();
     const existingInbox = await ctx.db.query('inboxItems').collect();
+    const existingAccessRecords = await ctx.db.query('accessRecords').collect();
 
     if (existingConversations.length === 0) {
       const alexId = await ctx.db.insert('conversations', {
@@ -139,6 +137,187 @@ export const seedDemoData = mutation({
         createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
         actions: [{ id: 'open-inbox', label: 'Review item', type: 'redirect', style: 'default' }]
       });
+    }
+
+    if (existingAccessRecords.length === 0) {
+      const seededAccessRecords = [
+        {
+          category: 'Business Suite',
+          platform: 'NAP',
+          fullName: '',
+          loginUrl: '',
+          username: '',
+          password: '',
+          listingUrl: '',
+          adminsAccess: '',
+          recoveryNumber: '',
+          status: 'Needs setup'
+        },
+        {
+          category: 'Business Suite',
+          platform: 'Google Account',
+          fullName: '',
+          loginUrl: 'https://accounts.google.com',
+          username: '',
+          password: '',
+          listingUrl: '',
+          adminsAccess: '',
+          recoveryNumber: '',
+          status: 'Partial'
+        },
+        {
+          category: 'Business Suite',
+          platform: 'Google Drive',
+          fullName: '',
+          loginUrl: 'https://drive.google.com',
+          username: '',
+          password: '',
+          listingUrl: '',
+          adminsAccess: '',
+          recoveryNumber: '',
+          status: 'Ready'
+        },
+        {
+          category: 'Business Suite',
+          platform: 'Google Workspace',
+          fullName: '',
+          loginUrl: 'https://admin.google.com',
+          username: '',
+          password: '',
+          listingUrl: '',
+          adminsAccess: '',
+          recoveryNumber: '',
+          status: 'Partial'
+        },
+        {
+          category: 'Business Suite',
+          platform: 'Zoom',
+          fullName: '',
+          loginUrl: 'https://zoom.us/signin',
+          username: '',
+          password: '',
+          listingUrl: '',
+          adminsAccess: '',
+          recoveryNumber: '',
+          status: 'Partial'
+        },
+        {
+          category: 'Subscriptions',
+          platform: 'Twinkl Subscription',
+          fullName: '',
+          loginUrl: 'https://www.twinkl.com',
+          username: '',
+          password: '',
+          listingUrl: '',
+          adminsAccess: '',
+          recoveryNumber: '',
+          status: 'Partial'
+        },
+        {
+          category: 'Subscriptions',
+          platform: 'A-Z Reading',
+          fullName: '',
+          loginUrl: 'https://www.kidsa-z.com',
+          username: '',
+          password: '',
+          listingUrl: '',
+          adminsAccess: '',
+          recoveryNumber: '',
+          status: 'Needs setup'
+        },
+        {
+          category: 'Subscriptions',
+          platform: 'White Rose',
+          fullName: '',
+          loginUrl: 'https://whiteroseeducation.com',
+          username: '',
+          password: '',
+          listingUrl: '',
+          adminsAccess: '',
+          recoveryNumber: '',
+          status: 'Needs setup'
+        },
+        {
+          category: 'Subscriptions',
+          platform: 'Canva',
+          fullName: '',
+          loginUrl: 'https://www.canva.com/login',
+          username: '',
+          password: '',
+          listingUrl: '',
+          adminsAccess: '',
+          recoveryNumber: '',
+          status: 'Ready'
+        },
+        {
+          category: 'Social Media',
+          platform: 'Facebook',
+          fullName: '',
+          loginUrl: 'https://www.facebook.com/login',
+          username: '',
+          password: '',
+          listingUrl: '',
+          adminsAccess: '',
+          recoveryNumber: '',
+          status: 'Partial'
+        },
+        {
+          category: 'Social Media',
+          platform: 'Instagram',
+          fullName: '',
+          loginUrl: 'https://www.instagram.com/accounts/login',
+          username: '',
+          password: '',
+          listingUrl: '',
+          adminsAccess: '',
+          recoveryNumber: '',
+          status: 'Partial'
+        },
+        {
+          category: 'Social Media',
+          platform: 'Twitter',
+          fullName: '',
+          loginUrl: 'https://x.com/i/flow/login',
+          username: '',
+          password: '',
+          listingUrl: '',
+          adminsAccess: '',
+          recoveryNumber: '',
+          status: 'Needs setup'
+        },
+        {
+          category: 'Social Media',
+          platform: 'TikTok',
+          fullName: '',
+          loginUrl: 'https://www.tiktok.com/login',
+          username: '',
+          password: '',
+          listingUrl: '',
+          adminsAccess: '',
+          recoveryNumber: '',
+          status: 'Needs setup'
+        },
+        {
+          category: 'Social Media',
+          platform: 'YouTube',
+          fullName: '',
+          loginUrl: 'https://studio.youtube.com',
+          username: '',
+          password: '',
+          listingUrl: '',
+          adminsAccess: '',
+          recoveryNumber: '',
+          status: 'Partial'
+        }
+      ] as const;
+
+      for (let index = 0; index < seededAccessRecords.length; index++) {
+        const record = seededAccessRecords[index];
+        await ctx.db.insert('accessRecords', {
+          ...record,
+          sortOrder: index + 1
+        });
+      }
     }
 
     return { ok: true };

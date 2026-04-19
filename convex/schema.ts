@@ -55,5 +55,26 @@ export default defineSchema({
     )
   })
     .index('by_createdAt', ['createdAt'])
-    .index('by_status', ['status', 'createdAt'])
+    .index('by_status', ['status', 'createdAt']),
+
+  accessRecords: defineTable({
+    category: v.union(
+      v.literal('Business Suite'),
+      v.literal('Subscriptions'),
+      v.literal('Social Media')
+    ),
+    platform: v.string(),
+    fullName: v.string(),
+    loginUrl: v.string(),
+    username: v.string(),
+    password: v.string(),
+    listingUrl: v.string(),
+    adminsAccess: v.string(),
+    recoveryNumber: v.string(),
+    status: v.union(v.literal('Needs setup'), v.literal('Partial'), v.literal('Ready')),
+    sortOrder: v.number()
+  })
+    .index('by_sortOrder', ['sortOrder'])
+    .index('by_category', ['category', 'sortOrder'])
+    .index('by_status', ['status', 'sortOrder'])
 });

@@ -12,7 +12,7 @@ export const accessInfoContent: InfobarContent = {
     {
       title: 'How the spreadsheet was normalized',
       description:
-        'The workbook is grouped into categories like Business Suite, Subscriptions, and Social Media. In the dashboard, those become filterable records instead of loose rows in a spreadsheet, which makes it much easier to search, sort, and later connect to Convex.',
+        'The workbook is grouped into categories like Business Suite, Subscriptions, and Social Media. In the dashboard, those become filterable records instead of loose rows in a spreadsheet, making it much easier to search, sort, and work from a real Convex-backed dataset.',
       links: []
     },
     {

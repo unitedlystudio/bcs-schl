@@ -3,7 +3,7 @@ export type AccessCategory = 'Business Suite' | 'Subscriptions' | 'Social Media'
 export type AccessStatus = 'Needs setup' | 'Partial' | 'Ready';
 
 export type AccessRecord = {
-  id: number;
+  id: string;
   category: AccessCategory;
   platform: string;
   fullName: string;

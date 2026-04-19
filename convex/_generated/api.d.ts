@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as access from '../access.js';
 import type * as conversations from '../conversations.js';
 import type * as inbox from '../inbox.js';
 import type * as lib_auth from '../lib/auth.js';
@@ -16,6 +17,7 @@ import type * as seed from '../seed.js';
 import type { ApiFromModules, FilterApi, FunctionReference } from 'convex/server';
 
 declare const fullApi: ApiFromModules<{
+  access: typeof access;
   conversations: typeof conversations;
   inbox: typeof inbox;
   'lib/auth': typeof lib_auth;
