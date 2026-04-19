@@ -1,4 +1,4 @@
-import { query } from './_generated/server';
+import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { requireAuthenticatedUser } from './lib/auth';
 
@@ -12,6 +12,77 @@ const ADMISSIONS_STAGES = [
   'Closed'
 ] as const;
 
+const ADMISSIONS_STATUSES = ['Active', 'Waiting', 'Won', 'Lost'] as const;
+
+function matchesSearch(
+  enquiry: {
+    studentName: string;
+    familyName: string;
+    classInterest: string;
+    guardianName: string;
+    guardianPhone: string;
+    stage: string;
+    status: string;
+    source: string;
+  },
+  search?: string
+) {
+  if (!search) {
+    return true;
+  }
+
+  const needle = search.toLowerCase();
+  return [
+    enquiry.studentName,
+    enquiry.familyName,
+    enquiry.classInterest,
+    enquiry.guardianName,
+    enquiry.guardianPhone,
+    enquiry.stage,
+    enquiry.status,
+    enquiry.source
+  ].some((value) => value.toLowerCase().includes(needle));
+}
+
+function normalizeEnquiry(input: {
+  studentName: string;
+  familyName?: string;
+  classInterest?: string;
+  guardianName?: string;
+  guardianPhone?: string;
+  source?: string;
+  enquiryDate: string;
+  stage: (typeof ADMISSIONS_STAGES)[number];
+  status: (typeof ADMISSIONS_STATUSES)[number];
+  notesSummary?: string;
+}) {
+  const studentName = input.studentName.trim();
+  const enquiryDate = input.enquiryDate.trim();
+
+  if (!studentName) {
+    throw new Error('Student name is required.');
+  }
+
+  if (!enquiryDate) {
+    throw new Error('Enquiry date is required.');
+  }
+
+  return {
+    studentName,
+    familyName: input.familyName?.trim() ?? '',
+    classInterest: input.classInterest?.trim() ?? '',
+    guardianName: input.guardianName?.trim() ?? '',
+    guardianPhone: input.guardianPhone?.trim() ?? '',
+    source: input.source?.trim() ?? '',
+    enquiryDate,
+    stage: input.stage,
+    status: input.status,
+    notesSummary: input.notesSummary?.trim() ?? '',
+    sortName: studentName,
+    updatedAt: Date.now()
+  };
+}
+
 export const list = query({
   args: { search: v.optional(v.string()) },
   handler: async (ctx, args) => {
@@ -23,21 +94,7 @@ export const list = query({
       .order('desc')
       .collect();
 
-    if (args.search) {
-      const needle = args.search.toLowerCase();
-      enquiries = enquiries.filter((enquiry) =>
-        [
-          enquiry.studentName,
-          enquiry.familyName,
-          enquiry.classInterest,
-          enquiry.guardianName,
-          enquiry.guardianPhone,
-          enquiry.stage,
-          enquiry.status,
-          enquiry.source
-        ].some((value) => value.toLowerCase().includes(needle))
-      );
-    }
+    enquiries = enquiries.filter((enquiry) => matchesSearch(enquiry, args.search));
 
     return enquiries.map((enquiry) => ({
       id: enquiry._id,
@@ -66,21 +123,7 @@ export const board = query({
       .order('desc')
       .collect();
 
-    if (args.search) {
-      const needle = args.search.toLowerCase();
-      enquiries = enquiries.filter((enquiry) =>
-        [
-          enquiry.studentName,
-          enquiry.familyName,
-          enquiry.classInterest,
-          enquiry.guardianName,
-          enquiry.guardianPhone,
-          enquiry.stage,
-          enquiry.status,
-          enquiry.source
-        ].some((value) => value.toLowerCase().includes(needle))
-      );
-    }
+    enquiries = enquiries.filter((enquiry) => matchesSearch(enquiry, args.search));
 
     const columns = ADMISSIONS_STAGES.map((stage) => {
       const items = enquiries
@@ -135,5 +178,95 @@ export const recent = query({
       stage: enquiry.stage,
       enquiryDate: enquiry.enquiryDate
     }));
+  }
+});
+
+export const getById = query({
+  args: { enquiryId: v.id('admissionsEnquiries') },
+  handler: async (ctx, args) => {
+    await requireAuthenticatedUser(ctx);
+
+    const enquiry = await ctx.db.get(args.enquiryId);
+    if (!enquiry) {
+      return null;
+    }
+
+    return {
+      id: enquiry._id,
+      studentName: enquiry.studentName,
+      familyName: enquiry.familyName,
+      classInterest: enquiry.classInterest,
+      guardianName: enquiry.guardianName,
+      guardianPhone: enquiry.guardianPhone,
+      source: enquiry.source,
+      enquiryDate: enquiry.enquiryDate,
+      stage: enquiry.stage,
+      status: enquiry.status,
+      notesSummary: enquiry.notesSummary
+    };
+  }
+});
+
+export const create = mutation({
+  args: {
+    studentName: v.string(),
+    familyName: v.optional(v.string()),
+    classInterest: v.optional(v.string()),
+    guardianName: v.optional(v.string()),
+    guardianPhone: v.optional(v.string()),
+    source: v.optional(v.string()),
+    enquiryDate: v.string(),
+    stage: v.union(
+      v.literal('New'),
+      v.literal('Contacted'),
+      v.literal('Tour Scheduled'),
+      v.literal('Application in Progress'),
+      v.literal('Decision Pending'),
+      v.literal('Enrolled'),
+      v.literal('Closed')
+    ),
+    status: v.union(v.literal('Active'), v.literal('Waiting'), v.literal('Won'), v.literal('Lost')),
+    notesSummary: v.optional(v.string())
+  },
+  handler: async (ctx, args) => {
+    await requireAuthenticatedUser(ctx);
+    const enquiryId = await ctx.db.insert('admissionsEnquiries', normalizeEnquiry(args));
+    return { enquiryId };
+  }
+});
+
+export const update = mutation({
+  args: {
+    enquiryId: v.id('admissionsEnquiries'),
+    studentName: v.string(),
+    familyName: v.optional(v.string()),
+    classInterest: v.optional(v.string()),
+    guardianName: v.optional(v.string()),
+    guardianPhone: v.optional(v.string()),
+    source: v.optional(v.string()),
+    enquiryDate: v.string(),
+    stage: v.union(
+      v.literal('New'),
+      v.literal('Contacted'),
+      v.literal('Tour Scheduled'),
+      v.literal('Application in Progress'),
+      v.literal('Decision Pending'),
+      v.literal('Enrolled'),
+      v.literal('Closed')
+    ),
+    status: v.union(v.literal('Active'), v.literal('Waiting'), v.literal('Won'), v.literal('Lost')),
+    notesSummary: v.optional(v.string())
+  },
+  handler: async (ctx, args) => {
+    await requireAuthenticatedUser(ctx);
+
+    const existing = await ctx.db.get(args.enquiryId);
+    if (!existing) {
+      throw new Error('Admissions enquiry not found.');
+    }
+
+    const normalized = normalizeEnquiry(args);
+    await ctx.db.patch(args.enquiryId, normalized);
+    return { enquiryId: args.enquiryId };
   }
 });

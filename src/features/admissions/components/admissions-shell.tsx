@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
+import { AdmissionsFormTrigger } from './admissions-form-sheet';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -42,12 +43,19 @@ export default function AdmissionsShell() {
           </CardDescription>
         </CardHeader>
         <CardContent className='grid gap-3'>
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder='Search by student, family, class, guardian, source, or stage'
-            className='max-w-xl'
-          />
+          <div className='flex flex-col gap-3 md:flex-row md:items-center'>
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder='Search by student, family, class, guardian, source, or stage'
+              className='max-w-xl'
+            />
+            <AdmissionsFormTrigger
+              buttonClassName='md:hidden'
+              buttonLabel='Add enquiry'
+              buttonVariant='outline'
+            />
+          </div>
           <div className='text-sm text-muted-foreground'>
             {hasSearch
               ? `${enquiries.length} enquiry${enquiries.length === 1 ? '' : 'ies'} match your search.`
@@ -78,8 +86,13 @@ export default function AdmissionsShell() {
             <div className='mt-1 text-sm text-muted-foreground'>
               {hasSearch
                 ? 'Try a broader search once more families move through the pipeline.'
-                : 'Seed or import the first enquiries to begin shaping the admissions workflow.'}
+                : 'Create the first enquiry so the admissions workflow can start tracking real families.'}
             </div>
+            {!hasSearch ? (
+              <div className='mt-4'>
+                <AdmissionsFormTrigger buttonLabel='Add first enquiry' />
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       ) : (
@@ -110,6 +123,14 @@ export default function AdmissionsShell() {
                           <div>Class interest: {item.classInterest || '—'}</div>
                           <div>Guardian: {item.guardianName || '—'}</div>
                           <div>Enquiry date: {item.enquiryDate || '—'}</div>
+                        </div>
+                        <div className='mt-4'>
+                          <AdmissionsFormTrigger
+                            enquiryId={item.id}
+                            buttonLabel='Update'
+                            buttonVariant='outline'
+                            buttonSize='sm'
+                          />
                         </div>
                       </div>
                     ))
@@ -157,8 +178,16 @@ export default function AdmissionsShell() {
                       </div>
                     ) : null}
                   </div>
-                  <div className='text-sm text-muted-foreground'>
-                    Enquiry date: {enquiry.enquiryDate || '—'}
+                  <div className='flex flex-col gap-3 lg:items-end'>
+                    <div className='text-sm text-muted-foreground'>
+                      Enquiry date: {enquiry.enquiryDate || '—'}
+                    </div>
+                    <AdmissionsFormTrigger
+                      enquiryId={enquiry.id}
+                      buttonLabel='Update'
+                      buttonVariant='outline'
+                      buttonSize='sm'
+                    />
                   </div>
                 </div>
               ))}
