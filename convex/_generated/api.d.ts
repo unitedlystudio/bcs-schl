@@ -11,6 +11,7 @@
 import type * as access from '../access.js';
 import type * as admissions from '../admissions.js';
 import type * as attendance from '../attendance.js';
+import type * as concerns from '../concerns.js';
 import type * as conversations from '../conversations.js';
 import type * as dashboard from '../dashboard.js';
 import type * as inbox from '../inbox.js';
@@ -25,6 +26,7 @@ declare const fullApi: ApiFromModules<{
   access: typeof access;
   admissions: typeof admissions;
   attendance: typeof attendance;
+  concerns: typeof concerns;
   conversations: typeof conversations;
   dashboard: typeof dashboard;
   inbox: typeof inbox;

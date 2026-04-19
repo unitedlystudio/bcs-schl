@@ -109,6 +109,10 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
     api.teachers.listForDirectory,
     student ? (student.academicYear ? { academicYear: student.academicYear } : {}) : 'skip'
   );
+  const concernCases = useQuery(
+    api.concerns.recentForStudent,
+    student ? { studentId: student.id as Id<'students'> } : 'skip'
+  );
 
   const homeroomTeacher = useMemo(() => {
     if (!student || !teachersQuery) {
@@ -264,6 +268,11 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
                 hint='Matched enquiries tied into this profile'
               />
               <ProfileMetric
+                label='Concern cases'
+                value={`${concernCases?.length ?? 0}`}
+                hint='Structured support / intervention cases on this student'
+              />
+              <ProfileMetric
                 label='Operational owner'
                 value={
                   homeroomTeacher
@@ -280,6 +289,7 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
           <TabsList>
             <TabsTrigger value='overview'>Overview</TabsTrigger>
             <TabsTrigger value='attendance'>Attendance</TabsTrigger>
+            <TabsTrigger value='concerns'>Concerns</TabsTrigger>
             <TabsTrigger value='admissions'>Admissions</TabsTrigger>
           </TabsList>
 
@@ -434,6 +444,57 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
                         </Badge>
                       </div>
                     ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value='concerns' className='space-y-4'>
+            <Card>
+              <CardHeader>
+                <CardTitle>Concern cases</CardTitle>
+                <CardDescription>
+                  Structured support and intervention work linked directly to this student record.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {!concernCases ? (
+                  <SectionEmpty
+                    title='Loading concern cases...'
+                    description='Fetching the latest support and intervention work for this student.'
+                  />
+                ) : concernCases.length === 0 ? (
+                  <SectionEmpty
+                    title='No concern cases for this student yet.'
+                    description='Create a structured case once support, behaviour, safeguarding, or intervention work needs follow-up.'
+                    ctaLabel='Open Concerns'
+                    href='/dashboard/concerns'
+                  />
+                ) : (
+                  <div className='space-y-3'>
+                    {concernCases.map((concern) => (
+                      <div key={concern.id} className='rounded-xl border border-border/60 p-4'>
+                        <div className='flex flex-wrap items-center gap-2'>
+                          <div className='font-medium'>{concern.title}</div>
+                          <Badge variant='outline'>{concern.category}</Badge>
+                          <Badge variant={concern.status === 'Resolved' ? 'default' : 'secondary'}>
+                            {concern.status}
+                          </Badge>
+                          <Badge variant='outline'>{concern.severity}</Badge>
+                        </div>
+                        <div className='mt-2 text-sm text-muted-foreground'>
+                          Owner: {concern.assignedTeacherName} • Visibility: {concern.visibility} •
+                          Next review: {formatField(concern.nextReviewDate)}
+                        </div>
+                        <div className='mt-3 text-sm'>{concern.summary}</div>
+                      </div>
+                    ))}
+                    <div>
+                      <Button asChild variant='outline' size='sm'>
+                        <Link href='/dashboard/concerns'>Open concerns workflow</Link>
+                      </Button>
+                    </div>
                   </div>
                 )}
               </CardContent>

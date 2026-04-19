@@ -118,6 +118,49 @@ export default defineSchema({
     .index('by_sortName', ['sortName'])
     .index('by_academicYear', ['academicYear', 'sortName']),
 
+  concernCases: defineTable({
+    studentId: v.id('students'),
+    title: v.string(),
+    category: v.union(
+      v.literal('Learning Support'),
+      v.literal('Behaviour'),
+      v.literal('Attendance'),
+      v.literal('Family'),
+      v.literal('Medical'),
+      v.literal('Safeguarding')
+    ),
+    severity: v.union(
+      v.literal('Low'),
+      v.literal('Medium'),
+      v.literal('High'),
+      v.literal('Critical')
+    ),
+    status: v.union(
+      v.literal('Open'),
+      v.literal('Monitoring'),
+      v.literal('Escalated'),
+      v.literal('Resolved')
+    ),
+    visibility: v.union(v.literal('Standard'), v.literal('Restricted')),
+    assignedTeacherId: v.optional(v.id('teachers')),
+    summary: v.string(),
+    nextReviewDate: v.optional(v.string()),
+    updatedAt: v.number(),
+    sortKey: v.string()
+  })
+    .index('by_student', ['studentId', 'updatedAt'])
+    .index('by_status', ['status', 'updatedAt'])
+    .index('by_severity', ['severity', 'updatedAt'])
+    .index('by_assignedTeacher', ['assignedTeacherId', 'updatedAt'])
+    .index('by_updatedAt', ['updatedAt']),
+
+  concernCaseUpdates: defineTable({
+    caseId: v.id('concernCases'),
+    note: v.string(),
+    authorLabel: v.string(),
+    createdAt: v.number()
+  }).index('by_case', ['caseId', 'createdAt']),
+
   admissionsEnquiries: defineTable({
     studentName: v.string(),
     familyName: v.string(),

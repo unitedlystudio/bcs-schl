@@ -25,6 +25,7 @@ export const seedDemoData = mutation({
     const existingAccess = await ctx.db.query('accessRecords').collect();
     const existingStudents = await ctx.db.query('students').collect();
     const existingTeachers = await ctx.db.query('teachers').collect();
+    const existingConcernCases = await ctx.db.query('concernCases').collect();
     const existingAdmissions = await ctx.db.query('admissionsEnquiries').collect();
     const existingAttendanceSessions = await ctx.db.query('attendanceSessions').collect();
 
@@ -368,6 +369,92 @@ export const seedDemoData = mutation({
       ] as const;
 
       await Promise.all(teachers.map((teacher) => ctx.db.insert('teachers', teacher)));
+    }
+
+    if (existingConcernCases.length === 0) {
+      const seededStudents = await ctx.db
+        .query('students')
+        .withIndex('by_sortName')
+        .order('asc')
+        .collect();
+      const seededTeachers = await ctx.db
+        .query('teachers')
+        .withIndex('by_sortName')
+        .order('asc')
+        .collect();
+      const studentByName = new Map(seededStudents.map((student) => [student.fullName, student]));
+      const teacherByName = new Map(seededTeachers.map((teacher) => [teacher.fullName, teacher]));
+
+      const concernCases = [
+        {
+          studentName: 'Naia Satria',
+          title: 'Onboarding readiness and document completion',
+          category: 'Learning Support',
+          severity: 'Medium',
+          status: 'Monitoring',
+          visibility: 'Standard',
+          assignedTeacherName: 'Alya Rahman',
+          summary:
+            'New starter is settling in well, but several onboarding documents and routine checks still need follow-up.',
+          nextReviewDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7).toISOString().slice(0, 10),
+          updates: [
+            {
+              authorLabel: 'Admissions handoff',
+              note: 'Family paperwork is still being completed, and class routines are being phased in gradually.'
+            }
+          ]
+        },
+        {
+          studentName: 'Kai Gen Delgado',
+          title: 'Asthma management plan visibility',
+          category: 'Medical',
+          severity: 'High',
+          status: 'Open',
+          visibility: 'Restricted',
+          assignedTeacherName: 'Marcus Tan',
+          summary:
+            'Operations needs a clearer shared plan for inhaler handling, PE participation, and escalation if symptoms increase.',
+          nextReviewDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 3).toISOString().slice(0, 10),
+          updates: [
+            {
+              authorLabel: 'Operations note',
+              note: 'Current record mentions asthma, but escalation guidance still needs to be captured more explicitly.'
+            }
+          ]
+        }
+      ] as const;
+
+      for (const concernCase of concernCases) {
+        const student = studentByName.get(concernCase.studentName);
+        if (!student) {
+          continue;
+        }
+
+        const teacher = teacherByName.get(concernCase.assignedTeacherName);
+        const updatedAt = Date.now();
+        const caseId = await ctx.db.insert('concernCases', {
+          studentId: student._id,
+          title: concernCase.title,
+          category: concernCase.category,
+          severity: concernCase.severity,
+          status: concernCase.status,
+          visibility: concernCase.visibility,
+          assignedTeacherId: teacher?._id,
+          summary: concernCase.summary,
+          nextReviewDate: concernCase.nextReviewDate,
+          updatedAt,
+          sortKey: `${updatedAt}::${concernCase.title.toLowerCase()}`
+        });
+
+        for (const update of concernCase.updates) {
+          await ctx.db.insert('concernCaseUpdates', {
+            caseId,
+            note: update.note,
+            authorLabel: update.authorLabel,
+            createdAt: updatedAt
+          });
+        }
+      }
     }
 
     if (existingAdmissions.length === 0) {

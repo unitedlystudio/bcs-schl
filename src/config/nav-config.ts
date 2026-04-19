@@ -78,6 +78,14 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
+        title: 'Concerns',
+        url: '/dashboard/concerns',
+        icon: 'warning',
+        isActive: false,
+        shortcut: ['c', 'o'],
+        items: []
+      },
+      {
         title: 'Inbox',
         url: '/dashboard/notifications',
         icon: 'notification',
