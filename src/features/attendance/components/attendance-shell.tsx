@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
+import { toast } from 'sonner';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
 const ATTENDANCE_STATUSES = ['Present', 'Late', 'Absent', 'Excused'] as const;
 
@@ -34,9 +36,14 @@ export default function AttendanceShell() {
   const classes = useQuery(api.attendance.listClasses, {});
   const recentSessions = useQuery(api.attendance.recentSessions, {});
   const setStudentStatus = useMutation(api.attendance.setStudentStatus);
+  const bulkSetStatus = useMutation(api.attendance.bulkSetStatus);
+  const updateSessionDetails = useMutation(api.attendance.updateSessionDetails);
   const [selectedDate, setSelectedDate] = useState(todayLabel);
   const [selectedClass, setSelectedClass] = useState('');
   const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
+  const [pendingBulkStatus, setPendingBulkStatus] = useState<string | null>(null);
+  const [isSavingSession, setIsSavingSession] = useState(false);
+  const [sessionNotes, setSessionNotes] = useState('');
 
   useEffect(() => {
     if (!selectedClass && classes && classes.length > 0) {
@@ -48,6 +55,10 @@ export default function AttendanceShell() {
     api.attendance.getSession,
     selectedClass ? { className: selectedClass, sessionDate: selectedDate } : 'skip'
   );
+
+  useEffect(() => {
+    setSessionNotes(session?.notesSummary ?? '');
+  }, [session?.notesSummary, session?.sessionId, selectedClass, selectedDate]);
 
   const classesReady = classes ?? [];
   const recent = recentSessions ?? [];
@@ -76,8 +87,51 @@ export default function AttendanceShell() {
         studentId: studentId as Id<'students'>,
         status
       });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not update attendance.');
     } finally {
       setPendingStudentId(null);
+    }
+  };
+
+  const handleBulkStatus = async (status: (typeof ATTENDANCE_STATUSES)[number]) => {
+    if (!selectedClass) return;
+
+    setPendingBulkStatus(status);
+    try {
+      const result = await bulkSetStatus({
+        className: selectedClass,
+        sessionDate: selectedDate,
+        status
+      });
+      toast.success(`Updated ${result.updatedCount} students to ${status.toLowerCase()}.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not bulk update attendance.');
+    } finally {
+      setPendingBulkStatus(null);
+    }
+  };
+
+  const handleSaveSession = async (
+    status: 'Draft' | 'In progress' | 'Completed' = session?.sessionStatus ?? 'In progress'
+  ) => {
+    if (!selectedClass) return;
+
+    setIsSavingSession(true);
+    try {
+      await updateSessionDetails({
+        className: selectedClass,
+        sessionDate: selectedDate,
+        status,
+        notesSummary: sessionNotes
+      });
+      toast.success(
+        status === 'Completed' ? 'Attendance session marked complete.' : 'Attendance session saved.'
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not save attendance session.');
+    } finally {
+      setIsSavingSession(false);
     }
   };
 
@@ -136,6 +190,43 @@ export default function AttendanceShell() {
                 ? `Attendance for ${selectedClass} on ${selectedDate}.`
                 : 'Pick a class to start marking attendance.'}
             </div>
+            <div className='mt-4 flex flex-wrap gap-2'>
+              <Button
+                type='button'
+                size='sm'
+                variant='outline'
+                disabled={!selectedClass || pendingBulkStatus !== null}
+                onClick={() => void handleBulkStatus('Present')}
+              >
+                {pendingBulkStatus === 'Present' ? 'Marking…' : 'Mark all present'}
+              </Button>
+              <Button
+                type='button'
+                size='sm'
+                variant='outline'
+                disabled={!selectedClass || pendingBulkStatus !== null}
+                onClick={() => void handleBulkStatus('Absent')}
+              >
+                {pendingBulkStatus === 'Absent' ? 'Marking…' : 'Mark all absent'}
+              </Button>
+              <Button
+                type='button'
+                size='sm'
+                variant='secondary'
+                disabled={!selectedClass || isSavingSession}
+                onClick={() =>
+                  void handleSaveSession(
+                    session?.sessionStatus === 'Completed' ? 'In progress' : 'Completed'
+                  )
+                }
+              >
+                {isSavingSession
+                  ? 'Saving…'
+                  : session?.sessionStatus === 'Completed'
+                    ? 'Reopen session'
+                    : 'Mark session complete'}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -152,6 +243,41 @@ export default function AttendanceShell() {
               </Card>
             ))}
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Session notes</CardTitle>
+              <CardDescription>
+                Keep a short operational note with the register so staff can reopen the context
+                later.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className='grid gap-3'>
+              <Textarea
+                value={sessionNotes}
+                onChange={(event) => setSessionNotes(event.target.value)}
+                placeholder='Example: Waiting on gate log confirmation for two late arrivals.'
+                rows={4}
+              />
+              <div className='flex flex-wrap gap-2'>
+                <Button
+                  type='button'
+                  disabled={!selectedClass || isSavingSession}
+                  onClick={() => void handleSaveSession()}
+                >
+                  {isSavingSession ? 'Saving…' : 'Save session notes'}
+                </Button>
+                <Button
+                  type='button'
+                  variant='outline'
+                  disabled={!selectedClass || isSavingSession}
+                  onClick={() => setSessionNotes(session?.notesSummary ?? '')}
+                >
+                  Reset notes
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>
@@ -194,8 +320,8 @@ export default function AttendanceShell() {
                             type='button'
                             size='sm'
                             variant={record.status === status ? 'default' : 'outline'}
-                            disabled={isRowPending}
-                            onClick={() => handleStatusChange(record.studentId, status)}
+                            disabled={isRowPending || pendingBulkStatus !== null}
+                            onClick={() => void handleStatusChange(record.studentId, status)}
                           >
                             {status}
                           </Button>
@@ -221,7 +347,15 @@ export default function AttendanceShell() {
           <CardContent className='grid gap-3'>
             {recent.length > 0 ? (
               recent.map((item) => (
-                <div key={item.id} className='rounded-xl border border-border/50 p-4'>
+                <button
+                  key={item.id}
+                  type='button'
+                  className='rounded-xl border border-border/50 p-4 text-left transition hover:border-primary/40 hover:bg-muted/30'
+                  onClick={() => {
+                    setSelectedClass(item.className);
+                    setSelectedDate(item.sessionDate);
+                  }}
+                >
                   <div className='flex items-center justify-between gap-3'>
                     <div>
                       <div className='font-medium'>{item.className}</div>
@@ -236,7 +370,7 @@ export default function AttendanceShell() {
                     <span>Late: {item.lateCount}</span>
                     <span>Absent: {item.absentCount}</span>
                   </div>
-                </div>
+                </button>
               ))
             ) : (
               <div className='rounded-xl border border-dashed border-border/60 p-6 text-sm text-muted-foreground'>

@@ -216,75 +216,96 @@ export const seedDemoData = mutation({
       );
     }
 
-    if (existingStudents.length === 0) {
-      const students = [
-        {
-          preferredName: 'Emmy',
-          fullName: 'Emmy Holloway',
-          sex: 'F',
-          className: 'Class 2',
-          dateOfBirth: '2018-04-11',
-          dateJoined: '2024-07-08',
-          nisn: 'SCHLY-0001',
-          religion: 'Hindu',
-          status: 'Active',
-          guardianName: 'Lara Holloway',
-          guardianPhone: '+62 812 0000 1001',
-          medicalFlag: 'Dairy free',
-          notesSummary: 'Needs gentle lunch monitoring.',
-          sortName: 'Emmy Holloway'
-        },
-        {
-          preferredName: 'Bjorn',
-          fullName: 'Bjorn Patten',
-          sex: 'M',
-          className: 'Class 5',
-          dateOfBirth: '2015-09-22',
-          dateJoined: '2023-01-15',
-          nisn: 'SCHLY-0002',
-          religion: 'Christian',
-          status: 'Active',
-          guardianName: 'Maya Patten',
-          guardianPhone: '+62 812 0000 1002',
-          medicalFlag: '',
-          notesSummary: 'Strong reader, no urgent concerns.',
-          sortName: 'Bjorn Patten'
-        },
-        {
-          preferredName: 'Naia',
-          fullName: 'Naia Satria',
-          sex: 'F',
-          className: 'Class 2',
-          dateOfBirth: '2018-01-09',
-          dateJoined: '2025-01-13',
-          nisn: 'SCHLY-0003',
-          religion: 'Islam',
-          status: 'Pending',
-          guardianName: 'Rina Satria',
-          guardianPhone: '+62 812 0000 1003',
-          medicalFlag: 'Vegetarian',
-          notesSummary: 'Recently onboarded, documents still being completed.',
-          sortName: 'Naia Satria'
-        },
-        {
-          preferredName: 'Kai',
-          fullName: 'Kai Gen Delgado',
-          sex: 'M',
-          className: 'Class 4',
-          dateOfBirth: '2016-11-03',
-          dateJoined: '2022-08-01',
-          nisn: 'SCHLY-0004',
-          religion: 'Hindu',
-          status: 'Active',
-          guardianName: 'Dewi Delgado',
-          guardianPhone: '+62 812 0000 1004',
-          medicalFlag: 'Asthma note',
-          notesSummary: 'Keep inhaler details visible to operations.',
-          sortName: 'Kai Gen Delgado'
-        }
-      ] as const;
+    const students = [
+      {
+        preferredName: 'Emmy',
+        fullName: 'Emmy Holloway',
+        sex: 'F',
+        className: 'Class 2',
+        dateOfBirth: '2018-04-11',
+        dateJoined: '2024-07-08',
+        nisn: 'SCHLY-0001',
+        religion: 'Hindu',
+        status: 'Active',
+        guardianName: 'Lara Holloway',
+        guardianPhone: '+62 812 0000 1001',
+        medicalFlag: 'Dairy free',
+        notesSummary: 'Needs gentle lunch monitoring.',
+        sortName: 'Emmy Holloway'
+      },
+      {
+        preferredName: 'Bjorn',
+        fullName: 'Bjorn Patten',
+        sex: 'M',
+        className: 'Class 5',
+        dateOfBirth: '2015-09-22',
+        dateJoined: '2023-01-15',
+        nisn: 'SCHLY-0002',
+        religion: 'Christian',
+        status: 'Active',
+        guardianName: 'Maya Patten',
+        guardianPhone: '+62 812 0000 1002',
+        medicalFlag: '',
+        notesSummary: 'Strong reader, no urgent concerns.',
+        sortName: 'Bjorn Patten'
+      },
+      {
+        preferredName: 'Naia',
+        fullName: 'Naia Satria',
+        sex: 'F',
+        className: 'Class 2',
+        dateOfBirth: '2018-01-09',
+        dateJoined: '2025-01-13',
+        nisn: 'SCHLY-0003',
+        religion: 'Islam',
+        status: 'Pending',
+        guardianName: 'Rina Satria',
+        guardianPhone: '+62 812 0000 1003',
+        medicalFlag: 'Vegetarian',
+        notesSummary: 'Recently onboarded, documents still being completed.',
+        sortName: 'Naia Satria'
+      },
+      {
+        preferredName: 'Kai',
+        fullName: 'Kai Gen Delgado',
+        sex: 'M',
+        className: 'Class 4',
+        dateOfBirth: '2016-11-03',
+        dateJoined: '2022-08-01',
+        nisn: 'SCHLY-0004',
+        religion: 'Hindu',
+        status: 'Active',
+        guardianName: 'Dewi Delgado',
+        guardianPhone: '+62 812 0000 1004',
+        medicalFlag: 'Asthma note',
+        notesSummary: 'Keep inhaler details visible to operations.',
+        sortName: 'Kai Gen Delgado'
+      },
+      {
+        preferredName: 'Mila',
+        fullName: 'Mila Prasetyo',
+        sex: 'F',
+        className: 'Class 1',
+        dateOfBirth: '2019-02-14',
+        dateJoined: '2026-04-15',
+        nisn: 'SCHLY-0005',
+        religion: 'Christian',
+        status: 'Active',
+        guardianName: 'Nadia Prasetyo',
+        guardianPhone: '+62 812 2000 1105',
+        medicalFlag: '',
+        notesSummary: 'Recently converted from admissions and settling into the morning routine.',
+        sortName: 'Mila Prasetyo'
+      }
+    ] as const;
 
-      await Promise.all(students.map((student) => ctx.db.insert('students', student)));
+    if (existingStudents.length < students.length) {
+      const existingStudentNames = new Set(existingStudents.map((student) => student.fullName));
+      const missingStudents = students.filter(
+        (student) => !existingStudentNames.has(student.fullName)
+      );
+
+      await Promise.all(missingStudents.map((student) => ctx.db.insert('students', student)));
     }
 
     if (existingAdmissions.length === 0) {

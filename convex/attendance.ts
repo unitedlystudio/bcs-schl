@@ -259,6 +259,7 @@ export const getSession = query({
       sessionDate: args.sessionDate,
       sessionId: session?._id ?? null,
       sessionStatus: session?.status ?? 'Draft',
+      notesSummary: session?.notesSummary ?? '',
       records,
       summary
     };
@@ -296,6 +297,73 @@ export const recentSessions = query({
         };
       })
     );
+  }
+});
+
+export const updateSessionDetails = mutation({
+  args: {
+    className: v.string(),
+    sessionDate: v.string(),
+    status: v.union(v.literal('Draft'), v.literal('In progress'), v.literal('Completed')),
+    notesSummary: v.optional(v.string())
+  },
+  handler: async (ctx, args) => {
+    await requireAuthenticatedUser(ctx);
+
+    const now = Date.now();
+    const session = await ensureCanonicalSession(ctx, args.className, args.sessionDate, now);
+
+    await ctx.db.patch(session._id, {
+      status: args.status,
+      notesSummary: args.notesSummary?.trim() ?? '',
+      updatedAt: now
+    });
+
+    return { ok: true };
+  }
+});
+
+export const bulkSetStatus = mutation({
+  args: {
+    className: v.string(),
+    sessionDate: v.string(),
+    status: v.union(
+      v.literal('Present'),
+      v.literal('Late'),
+      v.literal('Absent'),
+      v.literal('Excused')
+    )
+  },
+  handler: async (ctx, args) => {
+    await requireAuthenticatedUser(ctx);
+
+    const classStudents = await ctx.db
+      .query('students')
+      .withIndex('by_className', (query) => query.eq('className', args.className))
+      .collect();
+
+    if (classStudents.length === 0) {
+      return { ok: true, updatedCount: 0 };
+    }
+
+    const now = Date.now();
+    const session = await ensureCanonicalSession(ctx, args.className, args.sessionDate, now);
+
+    await Promise.all(
+      classStudents.map((student) =>
+        collapseSessionStudentRecords(ctx, session._id, student._id, {
+          status: args.status,
+          updatedAt: now
+        })
+      )
+    );
+
+    await ctx.db.patch(session._id, {
+      status: 'Completed',
+      updatedAt: now
+    });
+
+    return { ok: true, updatedCount: classStudents.length };
   }
 });
 
