@@ -118,12 +118,15 @@ export default defineSchema({
     status: v.union(v.literal('Active'), v.literal('Waiting'), v.literal('Won'), v.literal('Lost')),
     notesSummary: v.optional(v.string()),
     sortName: v.string(),
+    convertedStudentId: v.optional(v.id('students')),
+    convertedAt: v.optional(v.number()),
     updatedAt: v.number()
   })
     .index('by_sortName', ['sortName'])
     .index('by_stage', ['stage', 'updatedAt'])
     .index('by_status', ['status', 'updatedAt'])
-    .index('by_updatedAt', ['updatedAt']),
+    .index('by_updatedAt', ['updatedAt'])
+    .index('by_convertedStudent', ['convertedStudentId', 'updatedAt']),
 
   attendanceSessions: defineTable({
     className: v.string(),

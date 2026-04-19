@@ -149,6 +149,10 @@ export const getById = query({
 
     const relatedAdmissions = admissionsEnquiries
       .filter((enquiry) => {
+        if (enquiry.convertedStudentId === args.studentId) {
+          return true;
+        }
+
         const enquiryStudentName = normalizeText(enquiry.studentName);
         const enquiryGuardianName = normalizeText(enquiry.guardianName);
         const enquiryGuardianPhone = enquiry.guardianPhone.trim();
@@ -180,7 +184,9 @@ export const getById = query({
         enquiryDate: enquiry.enquiryDate,
         stage: enquiry.stage,
         status: enquiry.status,
-        notesSummary: enquiry.notesSummary
+        notesSummary: enquiry.notesSummary,
+        convertedStudentId: enquiry.convertedStudentId ?? null,
+        convertedAt: enquiry.convertedAt ?? null
       }));
 
     return {

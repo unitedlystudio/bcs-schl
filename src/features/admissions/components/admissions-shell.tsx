@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
+import { AdmissionsConvertButton } from './admissions-convert-button';
 import { AdmissionsFormTrigger } from './admissions-form-sheet';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -124,12 +125,16 @@ export default function AdmissionsShell() {
                           <div>Guardian: {item.guardianName || '—'}</div>
                           <div>Enquiry date: {item.enquiryDate || '—'}</div>
                         </div>
-                        <div className='mt-4'>
+                        <div className='mt-4 flex flex-wrap gap-2'>
                           <AdmissionsFormTrigger
                             enquiryId={item.id}
                             buttonLabel='Update'
                             buttonVariant='outline'
                             buttonSize='sm'
+                          />
+                          <AdmissionsConvertButton
+                            enquiryId={item.id}
+                            convertedStudentId={item.convertedStudentId}
                           />
                         </div>
                       </div>
@@ -164,6 +169,9 @@ export default function AdmissionsShell() {
                       <Badge variant={enquiry.status === 'Won' ? 'default' : 'secondary'}>
                         {enquiry.status}
                       </Badge>
+                      {enquiry.convertedStudentId ? (
+                        <Badge variant='secondary'>Student linked</Badge>
+                      ) : null}
                     </div>
                     <div className='mt-1 text-sm text-muted-foreground'>
                       {enquiry.familyName} family • {enquiry.classInterest || 'Class not set'} •{' '}
@@ -182,12 +190,18 @@ export default function AdmissionsShell() {
                     <div className='text-sm text-muted-foreground'>
                       Enquiry date: {enquiry.enquiryDate || '—'}
                     </div>
-                    <AdmissionsFormTrigger
-                      enquiryId={enquiry.id}
-                      buttonLabel='Update'
-                      buttonVariant='outline'
-                      buttonSize='sm'
-                    />
+                    <div className='flex flex-wrap gap-2 lg:justify-end'>
+                      <AdmissionsFormTrigger
+                        enquiryId={enquiry.id}
+                        buttonLabel='Update'
+                        buttonVariant='outline'
+                        buttonSize='sm'
+                      />
+                      <AdmissionsConvertButton
+                        enquiryId={enquiry.id}
+                        convertedStudentId={enquiry.convertedStudentId}
+                      />
+                    </div>
                   </div>
                 </div>
               ))}
