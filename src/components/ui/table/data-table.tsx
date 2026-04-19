@@ -35,8 +35,8 @@ export function DataTable<TData>({
   return (
     <div className='flex flex-1 flex-col space-y-4'>
       {children}
-      <div className='relative flex flex-1'>
-        <div className='absolute inset-0 flex overflow-hidden rounded-lg border'>
+      <div className='relative flex min-h-[20rem] flex-1 sm:min-h-[24rem]'>
+        <div className='flex h-full min-h-[20rem] w-full overflow-hidden rounded-lg border sm:min-h-[24rem]'>
           <ScrollArea className='h-full w-full'>
             <Table>
               <TableHeader className='bg-muted sticky top-0 z-10'>
