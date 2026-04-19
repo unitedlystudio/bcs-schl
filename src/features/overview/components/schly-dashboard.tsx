@@ -38,6 +38,13 @@ const cardConfig = [
     description: 'Structured credential and platform inventory',
     icon: 'lock' as const,
     href: '/dashboard/access'
+  },
+  {
+    key: 'attendanceSessionCount',
+    label: 'Attendance sessions',
+    description: 'Recorded class-day attendance registers',
+    icon: 'calendar' as const,
+    href: '/dashboard/attendance'
   }
 ];
 
@@ -74,7 +81,7 @@ export default function SchlyDashboard() {
       }
     >
       <div className='flex flex-1 flex-col gap-4'>
-        <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
+        <div className='grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4'>
           {cardConfig.map((card) => {
             const Icon = Icons[card.icon];
             const value = summary[card.key as keyof typeof summary];

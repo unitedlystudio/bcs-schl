@@ -96,5 +96,33 @@ export default defineSchema({
   })
     .index('by_sortName', ['sortName'])
     .index('by_className', ['className', 'sortName'])
-    .index('by_status', ['status', 'sortName'])
+    .index('by_status', ['status', 'sortName']),
+
+  attendanceSessions: defineTable({
+    className: v.string(),
+    sessionDate: v.string(),
+    status: v.union(v.literal('Draft'), v.literal('In progress'), v.literal('Completed')),
+    notesSummary: v.optional(v.string()),
+    sortKey: v.string(),
+    updatedAt: v.number()
+  })
+    .index('by_sortKey', ['sortKey'])
+    .index('by_classAndDate', ['className', 'sessionDate'])
+    .index('by_updatedAt', ['updatedAt']),
+
+  attendanceRecords: defineTable({
+    sessionId: v.id('attendanceSessions'),
+    studentId: v.id('students'),
+    status: v.union(
+      v.literal('Present'),
+      v.literal('Late'),
+      v.literal('Absent'),
+      v.literal('Excused')
+    ),
+    note: v.optional(v.string()),
+    updatedAt: v.number()
+  })
+    .index('by_session', ['sessionId', 'updatedAt'])
+    .index('by_session_student', ['sessionId', 'studentId'])
+    .index('by_student', ['studentId', 'updatedAt'])
 });

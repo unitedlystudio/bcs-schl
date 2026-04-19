@@ -6,10 +6,11 @@ export const summary = query({
   handler: async (ctx) => {
     await requireAuthenticatedUser(ctx);
 
-    const [conversations, inboxItems, accessRecords] = await Promise.all([
+    const [conversations, inboxItems, accessRecords, attendanceSessions] = await Promise.all([
       ctx.db.query('conversations').collect(),
       ctx.db.query('inboxItems').collect(),
-      ctx.db.query('accessRecords').collect()
+      ctx.db.query('accessRecords').collect(),
+      ctx.db.query('attendanceSessions').collect()
     ]);
 
     const unreadInboxCount = inboxItems.filter((item) => item.status === 'unread').length;
@@ -23,6 +24,7 @@ export const summary = query({
       activeThreads: conversations.length,
       unreadInboxCount,
       accessRecordCount: accessRecords.length,
+      attendanceSessionCount: attendanceSessions.length,
       readyAccessCount,
       partialAccessCount,
       needsSetupAccessCount

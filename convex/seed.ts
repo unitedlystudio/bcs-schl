@@ -7,6 +7,7 @@ export const seedDemoData = mutation({
     const existingInbox = await ctx.db.query('inboxItems').collect();
     const existingAccess = await ctx.db.query('accessRecords').collect();
     const existingStudents = await ctx.db.query('students').collect();
+    const existingAttendanceSessions = await ctx.db.query('attendanceSessions').collect();
 
     if (existingConversations.length === 0) {
       const alexId = await ctx.db.insert('conversations', {
@@ -283,6 +284,69 @@ export const seedDemoData = mutation({
       ] as const;
 
       await Promise.all(students.map((student) => ctx.db.insert('students', student)));
+    }
+
+    if (existingAttendanceSessions.length === 0) {
+      const students = await ctx.db
+        .query('students')
+        .withIndex('by_sortName')
+        .order('asc')
+        .collect();
+      const studentByPreferredName = new Map(
+        students.map((student) => [student.preferredName, student])
+      );
+      const today = new Date();
+      const todayLabel = today.toISOString().slice(0, 10);
+      const yesterday = new Date(today.getTime() - 1000 * 60 * 60 * 24);
+      const yesterdayLabel = yesterday.toISOString().slice(0, 10);
+
+      const class2SessionId = await ctx.db.insert('attendanceSessions', {
+        className: 'Class 2',
+        sessionDate: todayLabel,
+        status: 'Completed',
+        notesSummary: 'Morning register completed before assembly.',
+        sortKey: `${todayLabel}::class 2`,
+        updatedAt: Date.now() - 1000 * 60 * 15
+      });
+
+      const class5SessionId = await ctx.db.insert('attendanceSessions', {
+        className: 'Class 5',
+        sessionDate: yesterdayLabel,
+        status: 'In progress',
+        notesSummary: 'Late arrivals still being checked against transport logs.',
+        sortKey: `${yesterdayLabel}::class 5`,
+        updatedAt: Date.now() - 1000 * 60 * 60 * 18
+      });
+
+      if (studentByPreferredName.get('Emmy')) {
+        await ctx.db.insert('attendanceRecords', {
+          sessionId: class2SessionId,
+          studentId: studentByPreferredName.get('Emmy')!._id,
+          status: 'Present',
+          note: '',
+          updatedAt: Date.now() - 1000 * 60 * 14
+        });
+      }
+
+      if (studentByPreferredName.get('Naia')) {
+        await ctx.db.insert('attendanceRecords', {
+          sessionId: class2SessionId,
+          studentId: studentByPreferredName.get('Naia')!._id,
+          status: 'Late',
+          note: 'Arrival confirmed after gate check.',
+          updatedAt: Date.now() - 1000 * 60 * 13
+        });
+      }
+
+      if (studentByPreferredName.get('Bjorn')) {
+        await ctx.db.insert('attendanceRecords', {
+          sessionId: class5SessionId,
+          studentId: studentByPreferredName.get('Bjorn')!._id,
+          status: 'Absent',
+          note: 'Family called in sick leave.',
+          updatedAt: Date.now() - 1000 * 60 * 60 * 17
+        });
+      }
     }
 
     return { ok: true };
