@@ -1,16 +1,24 @@
 import { ConvexReactClient } from 'convex/react';
 
 let convexClient: ConvexReactClient | null = null;
+let cachedConvexUrl: string | null = null;
+
+function normalizeConvexUrl(url: string) {
+  return url.trim().replace(/\/+$/, '');
+}
 
 export function getConvexClient() {
-  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+  const rawUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 
-  if (!url) {
+  if (!rawUrl) {
     return null;
   }
 
-  if (!convexClient) {
+  const url = normalizeConvexUrl(rawUrl);
+
+  if (!convexClient || cachedConvexUrl !== url) {
     convexClient = new ConvexReactClient(url);
+    cachedConvexUrl = url;
   }
 
   return convexClient;
