@@ -19,6 +19,44 @@ function insertSorted(values: string[], value: string) {
   return next;
 }
 
+function normalizeText(value?: string) {
+  return value?.trim().toLowerCase().replace(/\s+/g, ' ') ?? '';
+}
+
+function buildStudentPayload(student: {
+  _id: string;
+  preferredName: string;
+  fullName: string;
+  sex: 'M' | 'F' | 'Unknown';
+  className: string;
+  dateOfBirth: string;
+  dateJoined: string;
+  nisn: string;
+  religion: string;
+  status: 'Active' | 'Pending' | 'Archived';
+  guardianName: string;
+  guardianPhone: string;
+  medicalFlag?: string;
+  notesSummary?: string;
+}) {
+  return {
+    id: student._id,
+    preferredName: student.preferredName,
+    fullName: student.fullName,
+    sex: student.sex,
+    className: student.className,
+    dateOfBirth: student.dateOfBirth,
+    dateJoined: student.dateJoined,
+    nisn: student.nisn,
+    religion: student.religion,
+    status: student.status,
+    guardianName: student.guardianName,
+    guardianPhone: student.guardianPhone,
+    medicalFlag: student.medicalFlag,
+    notesSummary: student.notesSummary
+  };
+}
+
 export const list = query({
   args: { search: v.optional(v.string()) },
   handler: async (ctx, args) => {
@@ -39,22 +77,7 @@ export const list = query({
       );
     }
 
-    return students.map((student) => ({
-      id: student._id,
-      preferredName: student.preferredName,
-      fullName: student.fullName,
-      sex: student.sex,
-      className: student.className,
-      dateOfBirth: student.dateOfBirth,
-      dateJoined: student.dateJoined,
-      nisn: student.nisn,
-      religion: student.religion,
-      status: student.status,
-      guardianName: student.guardianName,
-      guardianPhone: student.guardianPhone,
-      medicalFlag: student.medicalFlag,
-      notesSummary: student.notesSummary
-    }));
+    return students.map(buildStudentPayload);
   }
 });
 
@@ -66,21 +89,105 @@ export const getById = query({
     const student = await ctx.db.get(args.studentId);
     if (!student) return null;
 
+    const [attendanceRecords, admissionsEnquiries] = await Promise.all([
+      ctx.db
+        .query('attendanceRecords')
+        .withIndex('by_student', (query) => query.eq('studentId', args.studentId))
+        .order('desc')
+        .collect(),
+      ctx.db.query('admissionsEnquiries').withIndex('by_updatedAt').order('desc').collect()
+    ]);
+
+    const recentAttendance = [] as Array<{
+      id: string;
+      sessionId: string;
+      className: string;
+      sessionDate: string;
+      sessionStatus: 'Draft' | 'In progress' | 'Completed';
+      status: 'Present' | 'Late' | 'Absent' | 'Excused';
+      note: string;
+      updatedAt: number;
+    }>;
+    const seenSessions = new Set<string>();
+
+    for (const record of attendanceRecords) {
+      const sessionKey = String(record.sessionId);
+      if (seenSessions.has(sessionKey)) {
+        continue;
+      }
+
+      const session = await ctx.db.get(record.sessionId);
+      if (!session) {
+        continue;
+      }
+
+      seenSessions.add(sessionKey);
+      recentAttendance.push({
+        id: String(record._id),
+        sessionId: sessionKey,
+        className: session.className,
+        sessionDate: session.sessionDate,
+        sessionStatus: session.status,
+        status: record.status,
+        note: record.note ?? '',
+        updatedAt: record.updatedAt
+      });
+    }
+
+    const attendanceSummary = {
+      totalSessions: recentAttendance.length,
+      present: recentAttendance.filter((record) => record.status === 'Present').length,
+      late: recentAttendance.filter((record) => record.status === 'Late').length,
+      absent: recentAttendance.filter((record) => record.status === 'Absent').length,
+      excused: recentAttendance.filter((record) => record.status === 'Excused').length
+    };
+
+    const preferredName = normalizeText(student.preferredName);
+    const fullName = normalizeText(student.fullName);
+    const guardianName = normalizeText(student.guardianName);
+    const guardianPhone = student.guardianPhone.trim();
+
+    const relatedAdmissions = admissionsEnquiries
+      .filter((enquiry) => {
+        const enquiryStudentName = normalizeText(enquiry.studentName);
+        const enquiryGuardianName = normalizeText(enquiry.guardianName);
+        const enquiryGuardianPhone = enquiry.guardianPhone.trim();
+
+        const sameStudentName =
+          !!enquiryStudentName &&
+          (enquiryStudentName === preferredName ||
+            enquiryStudentName === fullName ||
+            fullName.includes(enquiryStudentName) ||
+            enquiryStudentName.includes(fullName));
+
+        const sameGuardianPhone =
+          !!guardianPhone && !!enquiryGuardianPhone && guardianPhone === enquiryGuardianPhone;
+
+        const sameGuardianName =
+          !!guardianName && !!enquiryGuardianName && guardianName === enquiryGuardianName;
+
+        return sameStudentName || sameGuardianPhone || sameGuardianName;
+      })
+      .slice(0, 5)
+      .map((enquiry) => ({
+        id: enquiry._id,
+        studentName: enquiry.studentName,
+        familyName: enquiry.familyName,
+        classInterest: enquiry.classInterest,
+        guardianName: enquiry.guardianName,
+        guardianPhone: enquiry.guardianPhone,
+        source: enquiry.source,
+        enquiryDate: enquiry.enquiryDate,
+        stage: enquiry.stage,
+        status: enquiry.status,
+        notesSummary: enquiry.notesSummary
+      }));
+
     return {
-      id: student._id,
-      preferredName: student.preferredName,
-      fullName: student.fullName,
-      sex: student.sex,
-      className: student.className,
-      dateOfBirth: student.dateOfBirth,
-      dateJoined: student.dateJoined,
-      nisn: student.nisn,
-      religion: student.religion,
-      status: student.status,
-      guardianName: student.guardianName,
-      guardianPhone: student.guardianPhone,
-      medicalFlag: student.medicalFlag,
-      notesSummary: student.notesSummary
+      ...buildStudentPayload(student),
+      attendanceSummary,
+      recentAttendance: recentAttendance.slice(0, 8),
+      relatedAdmissions
     };
   }
 });
