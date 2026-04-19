@@ -9,6 +9,7 @@
  */
 
 import type * as access from '../access.js';
+import type * as admissions from '../admissions.js';
 import type * as attendance from '../attendance.js';
 import type * as conversations from '../conversations.js';
 import type * as dashboard from '../dashboard.js';
@@ -21,6 +22,7 @@ import type { ApiFromModules, FilterApi, FunctionReference } from 'convex/server
 
 declare const fullApi: ApiFromModules<{
   access: typeof access;
+  admissions: typeof admissions;
   attendance: typeof attendance;
   conversations: typeof conversations;
   dashboard: typeof dashboard;

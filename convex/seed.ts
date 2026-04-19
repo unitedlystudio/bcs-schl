@@ -7,6 +7,7 @@ export const seedDemoData = mutation({
     const existingInbox = await ctx.db.query('inboxItems').collect();
     const existingAccess = await ctx.db.query('accessRecords').collect();
     const existingStudents = await ctx.db.query('students').collect();
+    const existingAdmissions = await ctx.db.query('admissionsEnquiries').collect();
     const existingAttendanceSessions = await ctx.db.query('attendanceSessions').collect();
 
     if (existingConversations.length === 0) {
@@ -284,6 +285,83 @@ export const seedDemoData = mutation({
       ] as const;
 
       await Promise.all(students.map((student) => ctx.db.insert('students', student)));
+    }
+
+    if (existingAdmissions.length === 0) {
+      const enquiries = [
+        {
+          studentName: 'Sofia Hartono',
+          familyName: 'Hartono',
+          classInterest: 'Class 1',
+          guardianName: 'Mira Hartono',
+          guardianPhone: '+62 812 2000 1101',
+          source: 'Instagram',
+          enquiryDate: '2026-04-14',
+          stage: 'New',
+          status: 'Active',
+          notesSummary: 'Asked for pricing and schedule overview.',
+          sortName: 'Sofia Hartono',
+          updatedAt: Date.now() - 1000 * 60 * 90
+        },
+        {
+          studentName: 'Noah Wijaya',
+          familyName: 'Wijaya',
+          classInterest: 'Class 3',
+          guardianName: 'Daniel Wijaya',
+          guardianPhone: '+62 812 2000 1102',
+          source: 'Website form',
+          enquiryDate: '2026-04-12',
+          stage: 'Tour Scheduled',
+          status: 'Waiting',
+          notesSummary: 'Tour booked for next Thursday morning.',
+          sortName: 'Noah Wijaya',
+          updatedAt: Date.now() - 1000 * 60 * 60 * 8
+        },
+        {
+          studentName: 'Luna Permata',
+          familyName: 'Permata',
+          classInterest: 'Class 2',
+          guardianName: 'Siska Permata',
+          guardianPhone: '+62 812 2000 1103',
+          source: 'Referral',
+          enquiryDate: '2026-04-08',
+          stage: 'Application in Progress',
+          status: 'Active',
+          notesSummary: 'Waiting on one remaining document upload.',
+          sortName: 'Luna Permata',
+          updatedAt: Date.now() - 1000 * 60 * 60 * 4
+        },
+        {
+          studentName: 'Arlo Santoso',
+          familyName: 'Santoso',
+          classInterest: 'Class 4',
+          guardianName: 'Rani Santoso',
+          guardianPhone: '+62 812 2000 1104',
+          source: 'WhatsApp',
+          enquiryDate: '2026-04-05',
+          stage: 'Decision Pending',
+          status: 'Waiting',
+          notesSummary: 'Family requested one more curriculum call before confirming.',
+          sortName: 'Arlo Santoso',
+          updatedAt: Date.now() - 1000 * 60 * 60 * 26
+        },
+        {
+          studentName: 'Mila Prasetyo',
+          familyName: 'Prasetyo',
+          classInterest: 'Class 1',
+          guardianName: 'Nadia Prasetyo',
+          guardianPhone: '+62 812 2000 1105',
+          source: 'Open day',
+          enquiryDate: '2026-03-29',
+          stage: 'Enrolled',
+          status: 'Won',
+          notesSummary: 'Seat confirmed and onboarding pack sent.',
+          sortName: 'Mila Prasetyo',
+          updatedAt: Date.now() - 1000 * 60 * 60 * 48
+        }
+      ] as const;
+
+      await Promise.all(enquiries.map((enquiry) => ctx.db.insert('admissionsEnquiries', enquiry)));
     }
 
     if (existingAttendanceSessions.length === 0) {

@@ -98,6 +98,33 @@ export default defineSchema({
     .index('by_className', ['className', 'sortName'])
     .index('by_status', ['status', 'sortName']),
 
+  admissionsEnquiries: defineTable({
+    studentName: v.string(),
+    familyName: v.string(),
+    classInterest: v.string(),
+    guardianName: v.string(),
+    guardianPhone: v.string(),
+    source: v.string(),
+    enquiryDate: v.string(),
+    stage: v.union(
+      v.literal('New'),
+      v.literal('Contacted'),
+      v.literal('Tour Scheduled'),
+      v.literal('Application in Progress'),
+      v.literal('Decision Pending'),
+      v.literal('Enrolled'),
+      v.literal('Closed')
+    ),
+    status: v.union(v.literal('Active'), v.literal('Waiting'), v.literal('Won'), v.literal('Lost')),
+    notesSummary: v.optional(v.string()),
+    sortName: v.string(),
+    updatedAt: v.number()
+  })
+    .index('by_sortName', ['sortName'])
+    .index('by_stage', ['stage', 'updatedAt'])
+    .index('by_status', ['status', 'updatedAt'])
+    .index('by_updatedAt', ['updatedAt']),
+
   attendanceSessions: defineTable({
     className: v.string(),
     sessionDate: v.string(),

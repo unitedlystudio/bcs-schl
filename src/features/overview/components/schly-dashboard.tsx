@@ -40,6 +40,13 @@ const cardConfig = [
     href: '/dashboard/access'
   },
   {
+    key: 'admissionsEnquiryCount',
+    label: 'Admissions enquiries',
+    description: 'Families moving through the admissions pipeline',
+    icon: 'forms' as const,
+    href: '/dashboard/admissions'
+  },
+  {
     key: 'attendanceSessionCount',
     label: 'Attendance sessions',
     description: 'Recorded class-day attendance registers',
@@ -81,7 +88,7 @@ export default function SchlyDashboard() {
       }
     >
       <div className='flex flex-1 flex-col gap-4'>
-        <div className='grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4'>
+        <div className='grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3'>
           {cardConfig.map((card) => {
             const Icon = Icons[card.icon];
             const value = summary[card.key as keyof typeof summary];
