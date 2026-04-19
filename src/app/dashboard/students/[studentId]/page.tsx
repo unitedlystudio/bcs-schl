@@ -15,7 +15,7 @@ export default async function StudentProfilePage({
   return (
     <PageContainer
       pageTitle='Student Profile'
-      pageDescription='Starter shell for the deeper Schly student record.'
+      pageDescription='Operational student record with attendance, admissions, and classroom ownership context.'
     >
       <StudentDetailShell studentId={studentId} />
     </PageContainer>
