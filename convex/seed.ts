@@ -29,6 +29,9 @@ export const seedDemoData = mutation({
     const existingBillingProfiles = await ctx.db.query('studentBillingProfiles').collect();
     const existingAdmissions = await ctx.db.query('admissionsEnquiries').collect();
     const existingAttendanceSessions = await ctx.db.query('attendanceSessions').collect();
+    const existingOperationTimeSlots = await ctx.db.query('operationsTimeSlots').collect();
+    const existingTimetableEntries = await ctx.db.query('classTimetableEntries').collect();
+    const existingOperationsOverrides = await ctx.db.query('operationsOverrides').collect();
 
     if (existingConversations.length === 0) {
       const alexId = await ctx.db.insert('conversations', {
@@ -733,6 +736,270 @@ export const seedDemoData = mutation({
           note: 'Family called in sick leave.',
           updatedAt: Date.now() - 1000 * 60 * 60 * 17
         });
+      }
+    }
+
+    if (existingOperationTimeSlots.length === 0) {
+      const timeSlots = [
+        {
+          label: 'Arrival & drop-off',
+          startTime: '07:45',
+          endTime: '08:15',
+          blockType: 'Arrival',
+          sortOrder: 1,
+          isActive: true
+        },
+        {
+          label: 'Assembly / morning routine',
+          startTime: '08:15',
+          endTime: '08:35',
+          blockType: 'Assembly',
+          sortOrder: 2,
+          isActive: true
+        },
+        {
+          label: 'Block 1',
+          startTime: '08:35',
+          endTime: '09:30',
+          blockType: 'Lesson',
+          sortOrder: 3,
+          isActive: true
+        },
+        {
+          label: 'Snack break',
+          startTime: '09:30',
+          endTime: '09:50',
+          blockType: 'Break',
+          sortOrder: 4,
+          isActive: true
+        },
+        {
+          label: 'Block 2',
+          startTime: '09:50',
+          endTime: '10:45',
+          blockType: 'Lesson',
+          sortOrder: 5,
+          isActive: true
+        },
+        {
+          label: 'Specialist / project',
+          startTime: '10:45',
+          endTime: '11:30',
+          blockType: 'Specialist',
+          sortOrder: 6,
+          isActive: true
+        },
+        {
+          label: 'Lunch',
+          startTime: '11:30',
+          endTime: '12:15',
+          blockType: 'Lunch',
+          sortOrder: 7,
+          isActive: true
+        },
+        {
+          label: 'Block 3',
+          startTime: '12:15',
+          endTime: '13:10',
+          blockType: 'Lesson',
+          sortOrder: 8,
+          isActive: true
+        },
+        {
+          label: 'Dismissal prep',
+          startTime: '13:10',
+          endTime: '13:30',
+          blockType: 'Dismissal',
+          sortOrder: 9,
+          isActive: true
+        }
+      ] as const;
+
+      for (const slot of timeSlots) {
+        await ctx.db.insert('operationsTimeSlots', slot);
+      }
+    }
+
+    if (existingTimetableEntries.length === 0 || existingOperationsOverrides.length === 0) {
+      const [students, teachers, timeSlots] = await Promise.all([
+        ctx.db.query('students').withIndex('by_sortName').order('asc').collect(),
+        ctx.db.query('teachers').withIndex('by_sortName').order('asc').collect(),
+        ctx.db.query('operationsTimeSlots').withIndex('by_sortOrder').order('asc').collect()
+      ]);
+
+      const studentByPreferredName = new Map(
+        students.map((student) => [student.preferredName, student])
+      );
+      const teacherByPreferredName = new Map(
+        teachers.map((teacher) => [teacher.preferredName, teacher])
+      );
+      const slotByLabel = new Map(timeSlots.map((slot) => [slot.label, slot]));
+
+      if (existingTimetableEntries.length === 0) {
+        const timetableEntries = [
+          {
+            academicYear: '2024/2025',
+            className: 'Class 2',
+            weekday: 'Monday',
+            timeSlotLabel: 'Block 1',
+            activityTitle: 'Numeracy small groups',
+            area: 'Maths',
+            leadTeacherName: 'Alya',
+            location: 'Class 2 room',
+            specialistLabel: '',
+            lunchLabel: '',
+            themeLabel: 'Confidence',
+            note: 'Keep one table free for targeted support.'
+          },
+          {
+            academicYear: '2024/2025',
+            className: 'Class 2',
+            weekday: 'Tuesday',
+            timeSlotLabel: 'Specialist / project',
+            activityTitle: 'Music rotation',
+            area: 'Specialist',
+            leadTeacherName: 'Marcus',
+            location: 'Music corner',
+            specialistLabel: 'Music',
+            lunchLabel: '',
+            themeLabel: '',
+            note: 'Split into 2 groups for instrument setup.'
+          },
+          {
+            academicYear: '2024/2025',
+            className: 'Class 2',
+            weekday: 'Wednesday',
+            timeSlotLabel: 'Lunch',
+            activityTitle: 'Infants lunch flow',
+            area: 'Operations',
+            leadTeacherName: 'Alya',
+            location: 'Lunch zone A',
+            specialistLabel: '',
+            lunchLabel: 'Infants lunch',
+            themeLabel: '',
+            note: 'Watch Emmy dairy-free meal separately.'
+          },
+          {
+            academicYear: '2024/2025',
+            className: 'Class 5',
+            weekday: 'Monday',
+            timeSlotLabel: 'Block 2',
+            activityTitle: 'Literacy workshop',
+            area: 'English',
+            leadTeacherName: 'Marcus',
+            location: 'Class 5 room',
+            specialistLabel: '',
+            lunchLabel: '',
+            themeLabel: 'Responsibility',
+            note: 'Use reading conference rotation.'
+          },
+          {
+            academicYear: '2024/2025',
+            className: 'Class 5',
+            weekday: 'Thursday',
+            timeSlotLabel: 'Specialist / project',
+            activityTitle: 'Sports specialist',
+            area: 'Specialist',
+            leadTeacherName: 'Marcus',
+            location: 'Field',
+            specialistLabel: 'Sport',
+            lunchLabel: '',
+            themeLabel: '',
+            note: 'Cover hydration checks before lunch.'
+          }
+        ] as const;
+
+        for (const entry of timetableEntries) {
+          const slot = slotByLabel.get(entry.timeSlotLabel);
+          const teacher = teacherByPreferredName.get(entry.leadTeacherName);
+          if (!slot) continue;
+          await ctx.db.insert('classTimetableEntries', {
+            academicYear: entry.academicYear,
+            className: entry.className,
+            weekday: entry.weekday,
+            timeSlotId: slot._id,
+            activityTitle: entry.activityTitle,
+            area: entry.area,
+            leadTeacherId: teacher?._id,
+            location: entry.location,
+            specialistLabel: entry.specialistLabel,
+            lunchLabel: entry.lunchLabel,
+            themeLabel: entry.themeLabel,
+            note: entry.note,
+            updatedAt: Date.now() - 1000 * 60 * 45
+          });
+        }
+      }
+
+      if (existingOperationsOverrides.length === 0) {
+        const todayLabel = new Date().toISOString().slice(0, 10);
+        const tomorrowLabel = new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString().slice(0, 10);
+        const block1 = slotByLabel.get('Block 1');
+        const lunch = slotByLabel.get('Lunch');
+        const specialist = slotByLabel.get('Specialist / project');
+        const alya = teacherByPreferredName.get('Alya');
+        const marcus = teacherByPreferredName.get('Marcus');
+        const emmy = studentByPreferredName.get('Emmy');
+        const bjorn = studentByPreferredName.get('Bjorn');
+
+        const overrides = [
+          {
+            overrideDate: todayLabel,
+            academicYear: '2024/2025',
+            className: 'Class 2',
+            timeSlotId: lunch?._id,
+            overrideType: 'Medical',
+            status: 'Open',
+            teacherId: alya?._id,
+            studentId: emmy?._id,
+            title: 'Lunch allergy check',
+            summary: 'Confirm Emmy receives the dairy-free lunch plate before the main handout.',
+            updatedAt: Date.now() - 1000 * 60 * 20
+          },
+          {
+            overrideDate: todayLabel,
+            academicYear: '2024/2025',
+            className: 'Class 5',
+            timeSlotId: specialist?._id,
+            overrideType: 'Cover',
+            status: 'Confirmed',
+            teacherId: marcus?._id,
+            studentId: undefined,
+            title: 'Sports cover confirmed',
+            summary:
+              'Marcus is covering the specialist sports block while the external coach is away.',
+            updatedAt: Date.now() - 1000 * 60 * 40
+          },
+          {
+            overrideDate: tomorrowLabel,
+            academicYear: '2024/2025',
+            className: 'Class 5',
+            timeSlotId: block1?._id,
+            overrideType: 'Absence',
+            status: 'Open',
+            teacherId: marcus?._id,
+            studentId: bjorn?._id,
+            title: 'Family follow-up for absence',
+            summary: 'Prepare attendance follow-up if Bjorn is absent again tomorrow morning.',
+            updatedAt: Date.now() - 1000 * 60 * 10
+          }
+        ] as const;
+
+        for (const override of overrides) {
+          await ctx.db.insert('operationsOverrides', {
+            overrideDate: override.overrideDate,
+            academicYear: override.academicYear,
+            className: override.className,
+            timeSlotId: override.timeSlotId,
+            overrideType: override.overrideType,
+            status: override.status,
+            teacherId: override.teacherId,
+            studentId: override.studentId,
+            title: override.title,
+            summary: override.summary,
+            updatedAt: override.updatedAt
+          });
+        }
       }
     }
 

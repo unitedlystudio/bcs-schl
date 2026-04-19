@@ -289,5 +289,76 @@ export default defineSchema({
   })
     .index('by_session', ['sessionId', 'updatedAt'])
     .index('by_session_student', ['sessionId', 'studentId'])
-    .index('by_student', ['studentId', 'updatedAt'])
+    .index('by_student', ['studentId', 'updatedAt']),
+
+  operationsTimeSlots: defineTable({
+    label: v.string(),
+    startTime: v.string(),
+    endTime: v.string(),
+    blockType: v.union(
+      v.literal('Arrival'),
+      v.literal('Lesson'),
+      v.literal('Break'),
+      v.literal('Lunch'),
+      v.literal('Specialist'),
+      v.literal('Assembly'),
+      v.literal('Dismissal')
+    ),
+    sortOrder: v.number(),
+    isActive: v.boolean()
+  })
+    .index('by_sortOrder', ['sortOrder'])
+    .index('by_blockType', ['blockType', 'sortOrder']),
+
+  classTimetableEntries: defineTable({
+    academicYear: v.string(),
+    className: v.string(),
+    weekday: v.union(
+      v.literal('Monday'),
+      v.literal('Tuesday'),
+      v.literal('Wednesday'),
+      v.literal('Thursday'),
+      v.literal('Friday')
+    ),
+    timeSlotId: v.id('operationsTimeSlots'),
+    activityTitle: v.string(),
+    area: v.optional(v.string()),
+    leadTeacherId: v.optional(v.id('teachers')),
+    location: v.optional(v.string()),
+    specialistLabel: v.optional(v.string()),
+    lunchLabel: v.optional(v.string()),
+    themeLabel: v.optional(v.string()),
+    note: v.optional(v.string()),
+    updatedAt: v.number()
+  })
+    .index('by_class', ['academicYear', 'className', 'updatedAt'])
+    .index('by_timeSlot', ['timeSlotId', 'updatedAt'])
+    .index('by_updatedAt', ['updatedAt']),
+
+  operationsOverrides: defineTable({
+    overrideDate: v.string(),
+    academicYear: v.optional(v.string()),
+    className: v.optional(v.string()),
+    timeSlotId: v.optional(v.id('operationsTimeSlots')),
+    overrideType: v.union(
+      v.literal('Cover'),
+      v.literal('Medical'),
+      v.literal('Lunch'),
+      v.literal('Specialist'),
+      v.literal('Room Change'),
+      v.literal('Trip'),
+      v.literal('Absence'),
+      v.literal('General')
+    ),
+    status: v.union(v.literal('Open'), v.literal('Confirmed'), v.literal('Resolved')),
+    teacherId: v.optional(v.id('teachers')),
+    studentId: v.optional(v.id('students')),
+    title: v.string(),
+    summary: v.string(),
+    updatedAt: v.number()
+  })
+    .index('by_date', ['overrideDate', 'updatedAt'])
+    .index('by_class_date', ['className', 'overrideDate', 'updatedAt'])
+    .index('by_status', ['status', 'updatedAt'])
+    .index('by_updatedAt', ['updatedAt'])
 });
