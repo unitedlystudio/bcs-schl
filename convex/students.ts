@@ -198,6 +198,55 @@ export const getById = query({
   }
 });
 
+function normalizeStudent(input: {
+  preferredName?: string;
+  fullName: string;
+  sex: 'M' | 'F' | 'Unknown';
+  className: string;
+  dateOfBirth?: string;
+  dateJoined: string;
+  nisn?: string;
+  religion?: string;
+  status: 'Active' | 'Pending' | 'Archived';
+  guardianName?: string;
+  guardianPhone?: string;
+  medicalFlag?: string;
+  notesSummary?: string;
+}) {
+  const fullName = input.fullName.trim();
+  const className = input.className.trim();
+  const dateJoined = input.dateJoined.trim();
+
+  if (!fullName) {
+    throw new Error('Full name is required.');
+  }
+
+  if (!className) {
+    throw new Error('Class is required.');
+  }
+
+  if (!dateJoined) {
+    throw new Error('Date joined is required.');
+  }
+
+  return {
+    preferredName: input.preferredName?.trim() || fullName.split(' ')[0] || fullName,
+    fullName,
+    sex: input.sex,
+    className,
+    dateOfBirth: input.dateOfBirth?.trim() ?? '',
+    dateJoined,
+    nisn: input.nisn?.trim() ?? '',
+    religion: input.religion?.trim() ?? '',
+    status: input.status,
+    guardianName: input.guardianName?.trim() ?? '',
+    guardianPhone: input.guardianPhone?.trim() ?? '',
+    medicalFlag: input.medicalFlag?.trim() ?? '',
+    notesSummary: input.notesSummary?.trim() ?? '',
+    sortName: fullName
+  };
+}
+
 export const create = mutation({
   args: {
     preferredName: v.optional(v.string()),
@@ -217,41 +266,41 @@ export const create = mutation({
   handler: async (ctx, args) => {
     await requireAuthenticatedUser(ctx);
 
-    const fullName = args.fullName.trim();
-    const className = args.className.trim();
-    const dateJoined = args.dateJoined.trim();
-
-    if (!fullName) {
-      throw new Error('Full name is required.');
-    }
-
-    if (!className) {
-      throw new Error('Class is required.');
-    }
-
-    if (!dateJoined) {
-      throw new Error('Date joined is required.');
-    }
-
-    const preferredName = args.preferredName?.trim() || fullName.split(' ')[0] || fullName;
-    const studentId = await ctx.db.insert('students', {
-      preferredName,
-      fullName,
-      sex: args.sex,
-      className,
-      dateOfBirth: args.dateOfBirth?.trim() ?? '',
-      dateJoined: args.dateJoined.trim(),
-      nisn: args.nisn?.trim() ?? '',
-      religion: args.religion?.trim() ?? '',
-      status: args.status,
-      guardianName: args.guardianName?.trim() ?? '',
-      guardianPhone: args.guardianPhone?.trim() ?? '',
-      medicalFlag: args.medicalFlag?.trim() ?? '',
-      notesSummary: args.notesSummary?.trim() ?? '',
-      sortName: fullName
-    });
+    const studentId = await ctx.db.insert('students', normalizeStudent(args));
 
     return { studentId };
+  }
+});
+
+export const update = mutation({
+  args: {
+    studentId: v.id('students'),
+    preferredName: v.optional(v.string()),
+    fullName: v.string(),
+    sex: v.union(v.literal('M'), v.literal('F'), v.literal('Unknown')),
+    className: v.string(),
+    dateOfBirth: v.optional(v.string()),
+    dateJoined: v.string(),
+    nisn: v.optional(v.string()),
+    religion: v.optional(v.string()),
+    status: v.union(v.literal('Active'), v.literal('Pending'), v.literal('Archived')),
+    guardianName: v.optional(v.string()),
+    guardianPhone: v.optional(v.string()),
+    medicalFlag: v.optional(v.string()),
+    notesSummary: v.optional(v.string())
+  },
+  handler: async (ctx, args) => {
+    await requireAuthenticatedUser(ctx);
+
+    const existing = await ctx.db.get(args.studentId);
+    if (!existing) {
+      throw new Error('Student not found.');
+    }
+
+    const normalized = normalizeStudent(args);
+    await ctx.db.patch(args.studentId, normalized);
+
+    return { studentId: args.studentId };
   }
 });
 

@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
-import { useMutation } from 'convex/react';
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery } from 'convex/react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '../../../../convex/_generated/api';
+import { Id } from '../../../../convex/_generated/dataModel';
 import { Icons } from '@/components/icons';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
@@ -54,6 +55,7 @@ const DEFAULT_FORM = {
 type StudentFormValues = typeof DEFAULT_FORM;
 
 type StudentFormProps = {
+  studentId?: string;
   buttonClassName?: string;
   buttonLabel?: string;
   buttonSize?: 'default' | 'sm' | 'lg' | 'icon';
@@ -163,6 +165,9 @@ function StudentFormFields({
             onChange={(event) => onChange('dateJoined', event.target.value)}
             disabled={isSubmitting}
           />
+          {errors.dateJoined ? (
+            <p className='text-sm text-destructive'>{errors.dateJoined}</p>
+          ) : null}
         </div>
       </div>
 
@@ -238,19 +243,62 @@ function StudentFormFields({
   );
 }
 
-export function AddStudentSheetTrigger({
+export function StudentFormSheetTrigger({
+  studentId,
   buttonClassName,
-  buttonLabel = 'Add Student',
+  buttonLabel,
   buttonSize = 'default',
   buttonVariant = 'default'
 }: StudentFormProps) {
   const isMobile = useIsMobile();
   const router = useRouter();
+  const isEdit = Boolean(studentId);
   const createStudent = useMutation(api.students.create);
+  const updateStudent = useMutation(api.students.update);
+  const student = useQuery(
+    api.students.getById,
+    studentId ? { studentId: studentId as Id<'students'> } : 'skip'
+  );
   const [open, setOpen] = useState(false);
   const [values, setValues] = useState<StudentFormValues>(DEFAULT_FORM);
   const [errors, setErrors] = useState<Partial<Record<keyof StudentFormValues, string>>>({});
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    if (isEdit) {
+      if (student === undefined || !student) {
+        return;
+      }
+
+      setValues({
+        preferredName: student.preferredName ?? '',
+        fullName: student.fullName ?? '',
+        sex: student.sex,
+        className: student.className ?? '',
+        dateOfBirth: student.dateOfBirth ?? '',
+        dateJoined: student.dateJoined ?? '',
+        nisn: student.nisn ?? '',
+        religion: student.religion ?? '',
+        status: student.status,
+        guardianName: student.guardianName ?? '',
+        guardianPhone: student.guardianPhone ?? '',
+        medicalFlag: student.medicalFlag ?? '',
+        notesSummary: student.notesSummary ?? ''
+      });
+      setErrors({});
+      return;
+    }
+
+    setValues({
+      ...DEFAULT_FORM,
+      dateJoined: new Date().toISOString().slice(0, 10)
+    });
+    setErrors({});
+  }, [open, isEdit, student]);
 
   const handleChange = <K extends keyof StudentFormValues>(key: K, value: StudentFormValues[K]) => {
     setValues((current) => ({ ...current, [key]: value }));
@@ -291,17 +339,33 @@ export function AddStudentSheetTrigger({
 
     try {
       setSubmitting(true);
+
+      if (isEdit && studentId) {
+        const result = await updateStudent({
+          studentId: studentId as Id<'students'>,
+          ...values
+        });
+        toast.success('Student profile updated');
+        setOpen(false);
+        router.push(`/dashboard/students/${result.studentId}`);
+        return;
+      }
+
       const result = await createStudent(values);
       toast.success('Student added to Schly');
       setOpen(false);
       resetForm();
       router.push(`/dashboard/students/${result.studentId}`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to add student');
+      toast.error(
+        error instanceof Error ? error.message : `Failed to ${isEdit ? 'update' : 'add'} student`
+      );
     } finally {
       setSubmitting(false);
     }
   };
+
+  const resolvedLabel = buttonLabel || (isEdit ? 'Edit profile' : 'Add Student');
 
   const trigger = (
     <Button
@@ -310,9 +374,24 @@ export function AddStudentSheetTrigger({
       variant={buttonVariant}
       onClick={() => setOpen(true)}
     >
-      <Icons.add className='h-4 w-4' /> {buttonLabel}
+      {isEdit ? <Icons.edit className='h-4 w-4' /> : <Icons.add className='h-4 w-4' />}{' '}
+      {resolvedLabel}
     </Button>
   );
+
+  const content =
+    isEdit && student === undefined ? (
+      <div className='p-4 text-sm text-muted-foreground'>Loading student profile...</div>
+    ) : isEdit && !student ? (
+      <div className='p-4 text-sm text-muted-foreground'>Student record could not be loaded.</div>
+    ) : (
+      <StudentFormFields
+        values={values}
+        onChange={handleChange}
+        errors={errors}
+        isSubmitting={submitting}
+      />
+    );
 
   if (isMobile) {
     return (
@@ -321,26 +400,20 @@ export function AddStudentSheetTrigger({
         <Drawer open={open} onOpenChange={setOpen}>
           <DrawerContent>
             <DrawerHeader>
-              <DrawerTitle>Add student</DrawerTitle>
+              <DrawerTitle>{isEdit ? 'Edit student profile' : 'Add student'}</DrawerTitle>
               <DrawerDescription>
-                Capture the core student record so the profile shell and attendance flows can use
-                it.
+                {isEdit
+                  ? 'Update the student record so attendance, admissions, and operations stay aligned.'
+                  : 'Capture the core student record so the profile shell and attendance flows can use it.'}
               </DrawerDescription>
             </DrawerHeader>
-            <div className='overflow-y-auto px-4 pb-4'>
-              <StudentFormFields
-                values={values}
-                onChange={handleChange}
-                errors={errors}
-                isSubmitting={submitting}
-              />
-            </div>
+            <div className='overflow-y-auto px-4 pb-4'>{content}</div>
             <DrawerFooter>
               <Button variant='outline' onClick={() => setOpen(false)}>
                 Cancel
               </Button>
               <Button isLoading={submitting} onClick={handleSubmit}>
-                <Icons.check className='h-4 w-4' /> Create student
+                <Icons.check className='h-4 w-4' /> {isEdit ? 'Save changes' : 'Create student'}
               </Button>
             </DrawerFooter>
           </DrawerContent>
@@ -355,29 +428,28 @@ export function AddStudentSheetTrigger({
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent className='flex flex-col sm:max-w-xl'>
           <SheetHeader>
-            <SheetTitle>Add student</SheetTitle>
+            <SheetTitle>{isEdit ? 'Edit student profile' : 'Add student'}</SheetTitle>
             <SheetDescription>
-              Capture the core student record so the profile shell and attendance flows can use it.
+              {isEdit
+                ? 'Update the student record so attendance, admissions, and operations stay aligned.'
+                : 'Capture the core student record so the profile shell and attendance flows can use it.'}
             </SheetDescription>
           </SheetHeader>
-          <div className='flex-1 overflow-y-auto pr-1'>
-            <StudentFormFields
-              values={values}
-              onChange={handleChange}
-              errors={errors}
-              isSubmitting={submitting}
-            />
-          </div>
+          <div className='flex-1 overflow-y-auto pr-1'>{content}</div>
           <SheetFooter>
             <Button variant='outline' onClick={() => setOpen(false)}>
               Cancel
             </Button>
             <Button isLoading={submitting} onClick={handleSubmit}>
-              <Icons.check className='h-4 w-4' /> Create student
+              <Icons.check className='h-4 w-4' /> {isEdit ? 'Save changes' : 'Create student'}
             </Button>
           </SheetFooter>
         </SheetContent>
       </Sheet>
     </>
   );
+}
+
+export function AddStudentSheetTrigger(props: Omit<StudentFormProps, 'studentId'>) {
+  return <StudentFormSheetTrigger {...props} />;
 }

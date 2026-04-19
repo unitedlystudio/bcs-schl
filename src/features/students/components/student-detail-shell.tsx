@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
+import { StudentFormSheetTrigger } from './add-student-sheet';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -54,22 +55,30 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
                 {student.nisn ? ` • NISN ${student.nisn}` : ''}
               </CardDescription>
             </div>
-            <div className='grid min-w-[220px] gap-2 rounded-xl border border-border/60 bg-muted/20 p-4 text-sm'>
-              <div className='flex items-center justify-between gap-4'>
-                <span className='text-muted-foreground'>Date joined</span>
-                <span className='font-medium'>{student.dateJoined || '—'}</span>
-              </div>
-              <div className='flex items-center justify-between gap-4'>
-                <span className='text-muted-foreground'>Date of birth</span>
-                <span className='font-medium'>{student.dateOfBirth || '—'}</span>
-              </div>
-              <div className='flex items-center justify-between gap-4'>
-                <span className='text-muted-foreground'>Sex</span>
-                <span className='font-medium'>{student.sex}</span>
-              </div>
-              <div className='flex items-center justify-between gap-4'>
-                <span className='text-muted-foreground'>Religion</span>
-                <span className='font-medium'>{student.religion || '—'}</span>
+            <div className='flex flex-col gap-3 md:items-end'>
+              <StudentFormSheetTrigger
+                studentId={student.id}
+                buttonLabel='Edit student'
+                buttonSize='sm'
+                buttonVariant='outline'
+              />
+              <div className='grid min-w-[220px] gap-2 rounded-xl border border-border/60 bg-muted/20 p-4 text-sm'>
+                <div className='flex items-center justify-between gap-4'>
+                  <span className='text-muted-foreground'>Date joined</span>
+                  <span className='font-medium'>{student.dateJoined || '—'}</span>
+                </div>
+                <div className='flex items-center justify-between gap-4'>
+                  <span className='text-muted-foreground'>Date of birth</span>
+                  <span className='font-medium'>{student.dateOfBirth || '—'}</span>
+                </div>
+                <div className='flex items-center justify-between gap-4'>
+                  <span className='text-muted-foreground'>Sex</span>
+                  <span className='font-medium'>{student.sex}</span>
+                </div>
+                <div className='flex items-center justify-between gap-4'>
+                  <span className='text-muted-foreground'>Religion</span>
+                  <span className='font-medium'>{student.religion || '—'}</span>
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -219,14 +228,14 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
           <CardHeader>
             <CardTitle>Next recommended upgrades</CardTitle>
             <CardDescription>
-              This profile is now richer, but a few key flows are still missing.
+              Student editing is now in place, but a few deeper workflows are still missing.
             </CardDescription>
           </CardHeader>
           <CardContent className='space-y-3 text-sm text-muted-foreground'>
-            <div>• Edit student profile and guardian details inline</div>
             <div>• Promote admissions enquiries into a first-class conversion history</div>
             <div>• Add structured support / safeguarding flags with restricted visibility</div>
             <div>• Add timeline entries for attendance, concerns, and communications</div>
+            <div>• Add family-level contact management beyond the single guardian block</div>
             <div>
               • Continue from{' '}
               <Link
