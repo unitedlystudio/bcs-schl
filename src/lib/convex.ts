@@ -3,12 +3,14 @@ import { ConvexReactClient } from 'convex/react';
 let convexClient: ConvexReactClient | null = null;
 
 export function getConvexClient() {
-  if (!process.env.NEXT_PUBLIC_CONVEX_URL) {
-    throw new Error('NEXT_PUBLIC_CONVEX_URL is not set');
+  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+
+  if (!url) {
+    return null;
   }
 
   if (!convexClient) {
-    convexClient = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL);
+    convexClient = new ConvexReactClient(url);
   }
 
   return convexClient;

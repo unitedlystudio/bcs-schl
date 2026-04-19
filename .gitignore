@@ -47,3 +47,7 @@ next-env.d.ts
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+# local config that may contain tokens or machine-specific settings
+.npmrc
+env.local.txt

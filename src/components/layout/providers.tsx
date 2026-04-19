@@ -2,14 +2,36 @@
 import { ClerkProvider } from '@clerk/nextjs';
 import { dark } from '@clerk/themes';
 import { ConvexProviderWithClerk } from 'convex/react-clerk';
-import { useTheme } from 'next-themes';
-import React from 'react';
 import { useAuth } from '@clerk/nextjs';
+import { useTheme } from 'next-themes';
+import React, { useMemo } from 'react';
+import { Icons } from '@/components/icons';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { getConvexClient } from '@/lib/convex';
 import { ActiveThemeProvider } from '../themes/active-theme';
 import QueryProvider from './query-provider';
 
-const convex = getConvexClient();
+function ConvexMissingConfigNotice() {
+  return (
+    <div className='flex min-h-screen items-center justify-center px-6'>
+      <div className='w-full max-w-xl'>
+        <Alert variant='destructive'>
+          <Icons.alertCircle className='h-4 w-4' />
+          <AlertTitle>Convex environment is missing</AlertTitle>
+          <AlertDescription>
+            <p>
+              NEXT_PUBLIC_CONVEX_URL is not set in the deployed environment, so the dashboard cannot
+              connect to Convex.
+            </p>
+            <p>
+              Add the Convex frontend URL in Vercel project environment variables, then redeploy.
+            </p>
+          </AlertDescription>
+        </Alert>
+      </div>
+    </div>
+  );
+}
 
 export default function Providers({
   activeThemeValue,
@@ -19,6 +41,7 @@ export default function Providers({
   children: React.ReactNode;
 }) {
   const { resolvedTheme } = useTheme();
+  const convex = useMemo(() => getConvexClient(), []);
 
   return (
     <>
@@ -42,9 +65,15 @@ export default function Providers({
             }
           }}
         >
-          <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-            <QueryProvider>{children}</QueryProvider>
-          </ConvexProviderWithClerk>
+          {convex ? (
+            <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+              <QueryProvider>{children}</QueryProvider>
+            </ConvexProviderWithClerk>
+          ) : (
+            <QueryProvider>
+              <ConvexMissingConfigNotice />
+            </QueryProvider>
+          )}
         </ClerkProvider>
       </ActiveThemeProvider>
     </>
