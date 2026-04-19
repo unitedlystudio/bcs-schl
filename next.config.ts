@@ -1,9 +1,13 @@
 import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs';
+import path from 'path';
 
 // Define the base Next.js configuration
 const baseConfig: NextConfig = {
   output: process.env.BUILD_STANDALONE === 'true' ? 'standalone' : undefined,
+  turbopack: {
+    root: path.resolve(__dirname)
+  },
   images: {
     remotePatterns: [
       {

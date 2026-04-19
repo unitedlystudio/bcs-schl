@@ -25,5 +25,5 @@ export type Conversation = {
   initials: string;
   messages: Message[];
   quickReplies: string[];
-  autoReplies: string[];
+  autoReplies?: string[];
 };

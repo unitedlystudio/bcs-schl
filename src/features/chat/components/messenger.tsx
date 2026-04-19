@@ -1,44 +1,61 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
-import { useReducedMotion } from 'motion/react';
-import { useChatStore } from '../utils/store';
-import type { Attachment, Message } from '../utils/types';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery } from 'convex/react';
+import { Id } from '../../../../convex/_generated/dataModel';
+import { api } from '../../../../convex/_generated/api';
+import type { Attachment, Conversation } from '../utils/types';
+import { ChatArea } from './chat-area';
 import { ConversationList } from './conversation-list';
 import { ConversationSelect } from './conversation-select';
-import { ChatArea } from './chat-area';
 
 export function Messenger() {
-  const {
-    conversations,
-    selectedConversationId,
-    draft,
-    replyCursor,
-    selectConversation,
-    setDraft,
-    sendMessage,
-    addIncomingMessage,
-    advanceReplyCursor,
-    getActiveConversation
-  } = useChatStore();
-
+  const conversationsQuery = useQuery(api.conversations.list, {});
+  const conversations = useMemo(() => conversationsQuery ?? [], [conversationsQuery]);
+  const [selectedConversationId, setSelectedConversationId] = useState<string>('');
+  const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const shouldReduceMotion = useReducedMotion();
-  const replyTimeoutRef = useRef<number | null>(null);
-  const selectedRef = useRef(selectedConversationId);
+  const sendMessage = useMutation(api.conversations.sendMessage);
+  const markRead = useMutation(api.conversations.markRead);
 
   useEffect(() => {
-    selectedRef.current = selectedConversationId;
+    if (!selectedConversationId && conversations[0]?.id) {
+      setSelectedConversationId(conversations[0].id);
+    }
+  }, [conversations, selectedConversationId]);
+
+  useEffect(() => {
     setAttachments([]);
   }, [selectedConversationId]);
 
-  useEffect(() => {
-    return () => {
-      if (replyTimeoutRef.current) {
-        window.clearTimeout(replyTimeoutRef.current);
-      }
+  const selectedConversation = useMemo(
+    () => conversations.find((conversation) => conversation.id === selectedConversationId),
+    [conversations, selectedConversationId]
+  );
+
+  const messages = useQuery(
+    api.conversations.getMessages,
+    selectedConversationId
+      ? { conversationId: selectedConversationId as Id<'conversations'> }
+      : 'skip'
+  );
+
+  const activeConversation: Conversation | undefined = useMemo(() => {
+    if (!selectedConversation) return undefined;
+
+    return {
+      ...selectedConversation,
+      messages: messages ?? selectedConversation.messages
     };
-  }, []);
+  }, [messages, selectedConversation]);
+
+  const selectConversation = useCallback(
+    (id: string) => {
+      setSelectedConversationId(id);
+      void markRead({ conversationId: id as Id<'conversations'> });
+    },
+    [markRead]
+  );
 
   const handleAddAttachments = useCallback((files: FileList) => {
     const newAttachments: Attachment[] = Array.from(files).map((file) => ({
@@ -51,57 +68,34 @@ export function Messenger() {
   }, []);
 
   const handleRemoveAttachment = useCallback((id: string) => {
-    setAttachments((prev) => prev.filter((a) => a.id !== id));
+    setAttachments((prev) => prev.filter((attachment) => attachment.id !== id));
   }, []);
 
   const handleSubmit = useCallback(
-    (e: FormEvent<HTMLFormElement>) => {
+    async (e: FormEvent<HTMLFormElement>) => {
       e.preventDefault();
-      const active = getActiveConversation();
-      if ((!draft.trim() && attachments.length === 0) || !active) return;
+      if (!selectedConversationId) return;
+      if (!draft.trim() && attachments.length === 0) return;
 
-      const conversationId = active.id;
-      sendMessage(draft, attachments.length > 0 ? attachments : undefined);
+      await sendMessage({
+        conversationId: selectedConversationId as Id<'conversations'>,
+        text: draft,
+        attachments: attachments.length > 0 ? attachments : undefined
+      });
+
+      setDraft('');
       setAttachments([]);
-
-      const autoReplies = active.autoReplies;
-      if (!autoReplies.length) return;
-
-      const cursor = replyCursor[conversationId] ?? 0;
-      const nextReply = autoReplies[cursor % autoReplies.length];
-      const delay = shouldReduceMotion ? 0 : 900;
-
-      replyTimeoutRef.current = window.setTimeout(() => {
-        const timestamp = new Date().toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit'
-        });
-        const incoming: Message = {
-          id: 'incoming-' + Date.now().toString(),
-          sender: 'contact',
-          author: active.name,
-          text: nextReply,
-          timestamp
-        };
-
-        addIncomingMessage(conversationId, incoming);
-        advanceReplyCursor(conversationId);
-      }, delay);
     },
-    [
-      draft,
-      attachments,
-      replyCursor,
-      shouldReduceMotion,
-      getActiveConversation,
-      sendMessage,
-      addIncomingMessage,
-      advanceReplyCursor
-    ]
+    [attachments, draft, selectedConversationId, sendMessage]
   );
 
-  const activeConversation = getActiveConversation();
-  if (!activeConversation) return null;
+  if (!activeConversation) {
+    return (
+      <div className='border-border/50 bg-background/70 flex h-[calc(100dvh-5.5rem)] items-center justify-center rounded-2xl border p-6 text-sm text-muted-foreground backdrop-blur-xl'>
+        Loading conversations...
+      </div>
+    );
+  }
 
   return (
     <div className='border-border/50 bg-background/70 relative grid h-[calc(100dvh-5.5rem)] w-full grid-rows-[auto,1fr] gap-3 overflow-hidden rounded-2xl border p-3 backdrop-blur-xl sm:gap-4 sm:p-4 lg:[grid-template-columns:30%_1fr] lg:grid-rows-[1fr] lg:gap-4 lg:rounded-3xl lg:p-5'>

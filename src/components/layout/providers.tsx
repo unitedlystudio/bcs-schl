@@ -1,10 +1,15 @@
 'use client';
 import { ClerkProvider } from '@clerk/nextjs';
 import { dark } from '@clerk/themes';
+import { ConvexProviderWithClerk } from 'convex/react-clerk';
 import { useTheme } from 'next-themes';
 import React from 'react';
+import { useAuth } from '@clerk/nextjs';
+import { getConvexClient } from '@/lib/convex';
 import { ActiveThemeProvider } from '../themes/active-theme';
 import QueryProvider from './query-provider';
+
+const convex = getConvexClient();
 
 export default function Providers({
   activeThemeValue,
@@ -37,7 +42,9 @@ export default function Providers({
             }
           }}
         >
-          <QueryProvider>{children}</QueryProvider>
+          <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+            <QueryProvider>{children}</QueryProvider>
+          </ConvexProviderWithClerk>
         </ClerkProvider>
       </ActiveThemeProvider>
     </>
