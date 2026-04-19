@@ -14,6 +14,7 @@ import type * as dashboard from '../dashboard.js';
 import type * as inbox from '../inbox.js';
 import type * as lib_auth from '../lib/auth.js';
 import type * as seed from '../seed.js';
+import type * as students from '../students.js';
 
 import type { ApiFromModules, FilterApi, FunctionReference } from 'convex/server';
 
@@ -24,6 +25,7 @@ declare const fullApi: ApiFromModules<{
   inbox: typeof inbox;
   'lib/auth': typeof lib_auth;
   seed: typeof seed;
+  students: typeof students;
 }>;
 
 /**

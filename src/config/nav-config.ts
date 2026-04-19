@@ -38,6 +38,22 @@ export const navGroups: NavGroup[] = [
     label: 'Schly',
     items: [
       {
+        title: 'Dashboard',
+        url: '/dashboard/overview',
+        icon: 'dashboard',
+        isActive: false,
+        shortcut: ['d', 'd'],
+        items: []
+      },
+      {
+        title: 'Students',
+        url: '/dashboard/students',
+        icon: 'teams',
+        isActive: false,
+        shortcut: ['s', 's'],
+        items: []
+      },
+      {
         title: 'Inbox',
         url: '/dashboard/notifications',
         icon: 'notification',

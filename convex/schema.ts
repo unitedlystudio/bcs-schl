@@ -76,5 +76,25 @@ export default defineSchema({
   })
     .index('by_sortOrder', ['sortOrder'])
     .index('by_category', ['category', 'sortOrder'])
-    .index('by_status', ['status', 'sortOrder'])
+    .index('by_status', ['status', 'sortOrder']),
+
+  students: defineTable({
+    preferredName: v.string(),
+    fullName: v.string(),
+    sex: v.union(v.literal('M'), v.literal('F'), v.literal('Unknown')),
+    className: v.string(),
+    dateOfBirth: v.string(),
+    dateJoined: v.string(),
+    nisn: v.string(),
+    religion: v.string(),
+    status: v.union(v.literal('Active'), v.literal('Pending'), v.literal('Archived')),
+    guardianName: v.string(),
+    guardianPhone: v.string(),
+    medicalFlag: v.optional(v.string()),
+    notesSummary: v.optional(v.string()),
+    sortName: v.string()
+  })
+    .index('by_sortName', ['sortName'])
+    .index('by_className', ['className', 'sortName'])
+    .index('by_status', ['status', 'sortName'])
 });
