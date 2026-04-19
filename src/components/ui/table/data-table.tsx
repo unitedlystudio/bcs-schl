@@ -1,7 +1,12 @@
-import { type Table as TanstackTable, flexRender } from '@tanstack/react-table';
+import {
+  type Row as TanstackRow,
+  type Table as TanstackTable,
+  flexRender
+} from '@tanstack/react-table';
 import type * as React from 'react';
 
 import { DataTablePagination } from '@/components/ui/table/data-table-pagination';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import {
   Table,
   TableBody,
@@ -11,14 +16,22 @@ import {
   TableRow
 } from '@/components/ui/table';
 import { getCommonPinningStyles } from '@/lib/data-table';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 interface DataTableProps<TData> extends React.ComponentProps<'div'> {
   table: TanstackTable<TData>;
   actionBar?: React.ReactNode;
+  onRowClick?: (row: TanstackRow<TData>) => void;
+  rowClassName?: string | ((row: TanstackRow<TData>) => string);
 }
 
-export function DataTable<TData>({ table, actionBar, children }: DataTableProps<TData>) {
+export function DataTable<TData>({
+  table,
+  actionBar,
+  children,
+  onRowClick,
+  rowClassName
+}: DataTableProps<TData>) {
   return (
     <div className='flex flex-1 flex-col space-y-4'>
       {children}
@@ -48,7 +61,17 @@ export function DataTable<TData>({ table, actionBar, children }: DataTableProps<
               <TableBody>
                 {table.getRowModel().rows?.length ? (
                   table.getRowModel().rows.map((row) => (
-                    <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
+                    <TableRow
+                      key={row.id}
+                      data-state={row.getIsSelected() && 'selected'}
+                      onClick={onRowClick ? () => onRowClick(row) : undefined}
+                      className={cn(
+                        typeof rowClassName === 'function' ? rowClassName(row) : rowClassName,
+                        onRowClick
+                          ? 'cursor-pointer transition-colors hover:bg-muted/40'
+                          : undefined
+                      )}
+                    >
                       {row.getVisibleCells().map((cell) => (
                         <TableCell
                           key={cell.id}
