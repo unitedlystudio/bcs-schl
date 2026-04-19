@@ -1,9 +1,12 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { requireAuthenticatedUser } from './lib/auth';
 
 export const list = query({
   args: {},
   handler: async (ctx) => {
+    await requireAuthenticatedUser(ctx);
+
     const conversations = await ctx.db
       .query('conversations')
       .withIndex('by_updatedAt')
@@ -43,6 +46,8 @@ export const list = query({
 export const getMessages = query({
   args: { conversationId: v.id('conversations') },
   handler: async (ctx, args) => {
+    await requireAuthenticatedUser(ctx);
+
     const messages = await ctx.db
       .query('messages')
       .withIndex('by_conversation', (q) => q.eq('conversationId', args.conversationId))
@@ -63,6 +68,8 @@ export const getMessages = query({
 export const markRead = mutation({
   args: { conversationId: v.id('conversations') },
   handler: async (ctx, args) => {
+    await requireAuthenticatedUser(ctx);
+
     const conversation = await ctx.db.get(args.conversationId);
     if (!conversation) return;
 
@@ -86,6 +93,8 @@ export const sendMessage = mutation({
     )
   },
   handler: async (ctx, args) => {
+    await requireAuthenticatedUser(ctx);
+
     const trimmed = args.text.trim();
     if (!trimmed && (!args.attachments || args.attachments.length === 0)) {
       return null;

@@ -1,47 +1,50 @@
 import { mutation } from './_generated/server';
+import { requireAuthenticatedUser } from './lib/auth';
 
 export const seedDemoData = mutation({
   args: {},
   handler: async (ctx) => {
+    await requireAuthenticatedUser(ctx);
+
     const existingConversations = await ctx.db.query('conversations').collect();
     const existingInbox = await ctx.db.query('inboxItems').collect();
 
     if (existingConversations.length === 0) {
       const alexId = await ctx.db.insert('conversations', {
         name: 'Alex from Support',
-        title: 'Billing Issue #4821',
+        title: 'Billing Follow-up',
         status: 'online',
         initials: 'AS',
         quickReplies: [
-          "That's perfect, thank you!",
-          'Can I get a receipt for the refund?',
-          'I also have a question about upgrading.'
+          'Thanks, please log that against the family profile.',
+          'Can you send the reminder history as well?',
+          'Loop finance in before closing this.'
         ],
         updatedAt: Date.now() - 1000 * 60 * 5
       });
 
       const priyaId = await ctx.db.insert('conversations', {
         name: 'Priya from Engineering',
-        title: 'API Integration Help',
+        title: 'Convex Runtime Check',
         status: 'online',
         initials: 'PE',
         quickReplies: [
-          'That would be very helpful.',
-          'Can you also share the rate limit docs?',
-          "We're also seeing timeouts on the webhook endpoint."
+          'Please confirm the deployment is healthy.',
+          'Can you share the failing request details?',
+          'Let us keep this in the operational inbox.'
         ],
         updatedAt: Date.now() - 1000 * 60 * 30
       });
 
       const jordanId = await ctx.db.insert('conversations', {
         name: 'Jordan from Security',
-        title: 'Account Access Request',
+        title: 'Account Access Review',
         status: 'offline',
         initials: 'JS',
         quickReplies: [
-          'Can I also see a list of all active sessions?',
-          'Please reset my password as well.',
-          'Has any data been accessed from that session?'
+          'Please revoke any stale sessions.',
+          'Reset the password and reissue access.',
+          'Was any school data accessed?'
         ],
         updatedAt: Date.now() - 1000 * 60 * 60 * 24
       });
@@ -50,7 +53,7 @@ export const seedDemoData = mutation({
         conversationId: alexId,
         sender: 'contact',
         author: 'Alex',
-        text: "Hi there! I can see you were charged twice for the Pro plan this month. I've already initiated a refund for the duplicate charge.",
+        text: 'A parent billing question is still open. I have the reminder history ready if finance needs it.',
         timestampLabel: '10:02',
         createdAt: Date.now() - 1000 * 60 * 20
       });
@@ -58,7 +61,7 @@ export const seedDemoData = mutation({
         conversationId: alexId,
         sender: 'user',
         author: 'You',
-        text: 'Thanks for catching that. How long will the refund take to process?',
+        text: 'Thanks. Please keep it attached to the family thread so admin and finance both see it.',
         timestampLabel: '10:05',
         createdAt: Date.now() - 1000 * 60 * 18
       });
@@ -66,7 +69,7 @@ export const seedDemoData = mutation({
         conversationId: alexId,
         sender: 'contact',
         author: 'Alex',
-        text: 'Typically 3-5 business days depending on your bank. You should see a pending credit within 24 hours though. Is there anything else I can help with?',
+        text: 'Done. I have also flagged it for overdue review in the inbox.',
         timestampLabel: '10:08',
         createdAt: Date.now() - 1000 * 60 * 15
       });
@@ -75,7 +78,7 @@ export const seedDemoData = mutation({
         conversationId: priyaId,
         sender: 'user',
         author: 'You',
-        text: "I'm getting a 429 rate limit error when calling the /api/products endpoint. We're only making about 50 requests per minute.",
+        text: 'Can you confirm the Convex deployment is healthy after the latest inbox/chat migration?',
         timestampLabel: '09:15',
         createdAt: Date.now() - 1000 * 60 * 60
       });
@@ -83,7 +86,7 @@ export const seedDemoData = mutation({
         conversationId: priyaId,
         sender: 'contact',
         author: 'Priya',
-        text: "I checked your API key — it's on the Starter tier which has a 30 req/min limit. You'll need the Growth plan for 200 req/min. Would you like me to upgrade it?",
+        text: 'The deployment is up. I am checking the remaining logs and will post a status note in the operational inbox.',
         timestampLabel: '09:18',
         createdAt: Date.now() - 1000 * 60 * 55
       });
@@ -91,7 +94,7 @@ export const seedDemoData = mutation({
         conversationId: priyaId,
         sender: 'contact',
         author: 'Priya',
-        text: "Great question — our SDK handles this automatically if you enable autoRetry in the config. I'll send you a code snippet.",
+        text: 'The realtime subscriptions look stable. Next step is tightening auth on the backend functions.',
         timestampLabel: '09:25',
         createdAt: Date.now() - 1000 * 60 * 50
       });
@@ -100,7 +103,7 @@ export const seedDemoData = mutation({
         conversationId: jordanId,
         sender: 'contact',
         author: 'Jordan',
-        text: "We noticed a login attempt from an unrecognized device. We've temporarily locked the session as a precaution.",
+        text: 'We noticed an access review item that needs confirmation before school credentials are shared more broadly.',
         timestampLabel: 'Yesterday',
         createdAt: Date.now() - 1000 * 60 * 60 * 24 * 2
       });
@@ -108,7 +111,7 @@ export const seedDemoData = mutation({
         conversationId: jordanId,
         sender: 'user',
         author: 'You',
-        text: 'No, that was not me. Can you revoke that session and enable 2FA on my account?',
+        text: 'Please revoke anything stale and keep the final note in the operational inbox.',
         timestampLabel: 'Yesterday',
         createdAt: Date.now() - 1000 * 60 * 60 * 24 * 2 + 1000
       });
@@ -116,27 +119,25 @@ export const seedDemoData = mutation({
 
     if (existingInbox.length === 0) {
       await ctx.db.insert('inboxItems', {
-        title: 'New support escalation',
-        body: 'Alex flagged a billing follow-up that may need admin review.',
+        title: 'Finance follow-up needs review',
+        body: 'A parent billing thread is waiting for admin + accounts review before closure.',
         status: 'unread',
         createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-        actions: [{ id: 'open-chat', label: 'Open chat', type: 'redirect', style: 'primary' }]
+        actions: [{ id: 'open-chat', label: 'Open thread', type: 'redirect', style: 'primary' }]
       });
       await ctx.db.insert('inboxItems', {
-        title: 'Access credentials updated',
-        body: 'Platform Access records were updated for one school account.',
+        title: 'Platform access record updated',
+        body: 'One school credential record changed and should be checked in Platform Access.',
         status: 'unread',
         createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-        actions: [{ id: 'view', label: 'View access', type: 'redirect', style: 'primary' }]
+        actions: [{ id: 'open-access', label: 'Open access', type: 'redirect', style: 'primary' }]
       });
       await ctx.db.insert('inboxItems', {
-        title: 'Payment reminder review',
-        body: 'A parent billing follow-up is ready for review in the inbox.',
+        title: 'Attendance escalation drafted',
+        body: 'An attendance-related follow-up was drafted and is ready for triage in the operational inbox.',
         status: 'read',
         createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
-        actions: [
-          { id: 'view-product', label: 'Open inbox item', type: 'redirect', style: 'default' }
-        ]
+        actions: [{ id: 'open-inbox', label: 'Review item', type: 'redirect', style: 'default' }]
       });
     }
 

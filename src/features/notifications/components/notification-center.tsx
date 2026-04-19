@@ -15,10 +15,8 @@ import { useRouter } from 'next/navigation';
 const MAX_VISIBLE = 5;
 
 const actionRoutes: Record<string, string> = {
-  view: '/dashboard/access',
-  'view-product': '/dashboard/notifications',
-  billing: '/dashboard/access',
-  open: '/dashboard/notifications',
+  'open-access': '/dashboard/access',
+  'open-inbox': '/dashboard/notifications',
   'open-chat': '/dashboard/chat'
 };
 
@@ -40,13 +38,13 @@ export function NotificationCenter() {
               {count > 9 ? '9+' : count}
             </span>
           )}
-          <span className='sr-only'>Inbox</span>
+          <span className='sr-only'>Operational inbox</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent align='end' className='w-[calc(100vw-2rem)] p-0 sm:w-[380px]' sideOffset={8}>
         <div className='flex items-center justify-between px-4 py-3'>
           <Link href='/dashboard/notifications' className='group flex items-center gap-1'>
-            <h4 className='text-sm font-semibold group-hover:underline'>Inbox</h4>
+            <h4 className='text-sm font-semibold group-hover:underline'>Operational Inbox</h4>
             <Icons.chevronRight className='text-muted-foreground h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5' />
           </Link>
           <div className='flex items-center gap-2'>
@@ -72,7 +70,7 @@ export function NotificationCenter() {
           {notifications.length === 0 ? (
             <div className='flex flex-col items-center justify-center py-12'>
               <Icons.notification className='text-muted-foreground/40 mb-2 h-8 w-8' />
-              <p className='text-muted-foreground text-sm'>No inbox items yet</p>
+              <p className='text-muted-foreground text-sm'>No operational inbox items yet</p>
             </div>
           ) : (
             <div className='flex flex-col gap-1 p-2'>

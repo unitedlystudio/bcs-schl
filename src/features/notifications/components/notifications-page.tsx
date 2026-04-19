@@ -11,10 +11,8 @@ import { useMutation, useQuery } from 'convex/react';
 import { useRouter } from 'next/navigation';
 
 const actionRoutes: Record<string, string> = {
-  view: '/dashboard/access',
-  'view-product': '/dashboard/notifications',
-  billing: '/dashboard/access',
-  open: '/dashboard/notifications',
+  'open-access': '/dashboard/access',
+  'open-inbox': '/dashboard/notifications',
   'open-chat': '/dashboard/chat'
 };
 
@@ -33,7 +31,7 @@ export default function NotificationsPage() {
       return (
         <div className='flex flex-col items-center justify-center py-16'>
           <Icons.notification className='text-muted-foreground/40 mb-3 h-10 w-10' />
-          <p className='text-muted-foreground text-sm'>No inbox items</p>
+          <p className='text-muted-foreground text-sm'>No operational inbox items</p>
         </div>
       );
     }
@@ -65,8 +63,8 @@ export default function NotificationsPage() {
 
   return (
     <PageContainer
-      pageTitle='Inbox'
-      pageDescription='View and manage follow-up items, updates, and internal messages.'
+      pageTitle='Operational Inbox'
+      pageDescription='Triage Schly follow-up items across finance, access, attendance, and internal operations.'
       pageHeaderAction={
         count > 0 ? (
           <Button variant='outline' size='sm' onClick={() => void markAllAsRead({})}>
