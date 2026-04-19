@@ -31,6 +31,10 @@ export default function StudentDirectory() {
   const [className, setClassName] = useState('all');
   const [status, setStatus] = useState<(typeof STATUS_OPTIONS)[number]>('all');
   const filterOptions = useQuery(api.students.listFilterOptions, {});
+  const teachersQuery = useQuery(
+    api.teachers.listForDirectory,
+    academicYear !== 'all' ? { academicYear } : {}
+  );
   const studentsQuery = useQuery(api.students.list, {
     ...(search.trim() ? { search } : {}),
     ...(academicYear !== 'all' ? { academicYear } : {}),
@@ -38,6 +42,7 @@ export default function StudentDirectory() {
     ...(status !== 'all' ? { status } : {})
   });
   const students = useMemo(() => studentsQuery ?? [], [studentsQuery]);
+  const teachers = useMemo(() => teachersQuery ?? [], [teachersQuery]);
 
   const academicYears = filterOptions?.academicYears ?? [];
   const classesForSelectedYear = useMemo(() => {
@@ -80,6 +85,19 @@ export default function StudentDirectory() {
     }
   }, [className, classesForSelectedYear]);
 
+  const teacherOwnership = useMemo(() => {
+    const ownerMap = new Map<string, (typeof teachers)[number]>();
+
+    for (const teacher of teachers) {
+      if (!teacher.homeroomClass) continue;
+      const yearKey = teacher.academicYear || 'all';
+      ownerMap.set(`${yearKey}::${teacher.homeroomClass}`, teacher);
+      ownerMap.set(`all::${teacher.homeroomClass}`, teacher);
+    }
+
+    return ownerMap;
+  }, [teachers]);
+
   const grouped = useMemo(() => {
     return students.reduce<Record<string, typeof students>>((acc, student) => {
       const groupKey =
@@ -100,6 +118,7 @@ export default function StudentDirectory() {
     [grouped]
   );
 
+  const activeTeachers = teachers.filter((teacher) => teacher.status === 'Active');
   const hasSearch = search.trim().length > 0;
   const totalYears = academicYears.length;
   const totalClassesVisible = classesForSelectedYear.length;
@@ -177,6 +196,7 @@ export default function StudentDirectory() {
             <Badge variant='secondary'>{students.length} students</Badge>
             <Badge variant='outline'>{totalYears} academic years</Badge>
             <Badge variant='outline'>{totalClassesVisible} classes in view</Badge>
+            <Badge variant='outline'>{activeTeachers.length} active teachers in scope</Badge>
             {academicYear !== 'all' ? <Badge variant='outline'>Year: {academicYear}</Badge> : null}
             {className !== 'all' ? <Badge variant='outline'>Class: {className}</Badge> : null}
             {status !== 'all' ? <Badge variant='outline'>Status: {status}</Badge> : null}
@@ -190,7 +210,7 @@ export default function StudentDirectory() {
         </CardContent>
       </Card>
 
-      {studentsQuery === undefined || filterOptions === undefined ? (
+      {studentsQuery === undefined || filterOptions === undefined || teachersQuery === undefined ? (
         <div className='rounded-2xl border border-border/50 bg-background/70 p-6 text-sm text-muted-foreground'>
           Loading student directory...
         </div>
@@ -229,7 +249,7 @@ export default function StudentDirectory() {
           </CardContent>
         </Card>
       ) : (
-        <div className='grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]'>
+        <div className='grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]'>
           <Card className='h-fit'>
             <CardHeader>
               <CardTitle>Directory view</CardTitle>
@@ -245,7 +265,7 @@ export default function StudentDirectory() {
                   <li>• First filter by academic year, then narrow by class.</li>
                   <li>• Keep search global so staff can jump directly to a student.</li>
                   <li>• Use collapsible class groups instead of one endless list.</li>
-                  <li>• Preserve the same filtering logic on desktop and mobile.</li>
+                  <li>• Show the homeroom owner next to each class, not in a separate tool.</li>
                 </ul>
               </div>
               <div className='rounded-xl border border-border/60 p-4'>
@@ -257,6 +277,26 @@ export default function StudentDirectory() {
                     </Badge>
                   ))}
                 </div>
+              </div>
+              <div className='rounded-xl border border-border/60 p-4'>
+                <div className='text-sm font-medium'>Teachers in scope</div>
+                {activeTeachers.length === 0 ? (
+                  <div className='mt-3 text-sm text-muted-foreground'>
+                    No teachers match this academic-year view yet.
+                  </div>
+                ) : (
+                  <div className='mt-3 grid gap-3'>
+                    {activeTeachers.map((teacher) => (
+                      <div key={teacher.id} className='rounded-lg border border-border/50 p-3'>
+                        <div className='font-medium'>{teacher.fullName}</div>
+                        <div className='mt-1 text-sm text-muted-foreground'>
+                          {teacher.role}
+                          {teacher.homeroomClass ? ` • ${teacher.homeroomClass}` : ''}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -276,62 +316,87 @@ export default function StudentDirectory() {
                 defaultValue={groupedEntries.slice(0, 2).map(([groupClassName]) => groupClassName)}
                 className='space-y-3'
               >
-                {groupedEntries.map(([groupClassName, classStudents]) => (
-                  <AccordionItem
-                    key={groupClassName}
-                    value={groupClassName}
-                    className='rounded-xl border border-border/50 px-4'
-                  >
-                    <AccordionTrigger className='py-4 hover:no-underline'>
-                      <div className='flex flex-col items-start gap-1 text-left'>
-                        <div className='font-medium'>{groupClassName}</div>
-                        <div className='text-sm text-muted-foreground'>
-                          {classStudents.length} students
+                {groupedEntries.map(([groupClassName, classStudents]) => {
+                  const groupYear =
+                    academicYear === 'all' ? classStudents[0]?.academicYear || 'all' : academicYear;
+                  const owner = teacherOwnership.get(
+                    `${groupYear}::${classStudents[0]?.className || ''}`
+                  );
+
+                  return (
+                    <AccordionItem
+                      key={groupClassName}
+                      value={groupClassName}
+                      className='rounded-xl border border-border/50 px-4'
+                    >
+                      <AccordionTrigger className='py-4 hover:no-underline'>
+                        <div className='flex flex-col items-start gap-2 text-left'>
+                          <div className='font-medium'>{groupClassName}</div>
+                          <div className='flex flex-wrap items-center gap-2 text-sm text-muted-foreground'>
+                            <span>{classStudents.length} students</span>
+                            {owner ? (
+                              <Badge variant='outline'>
+                                Homeroom: {owner.preferredName || owner.fullName}
+                              </Badge>
+                            ) : (
+                              <Badge variant='outline'>No homeroom teacher linked yet</Badge>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className='pb-4'>
-                      <div className='grid gap-3'>
-                        {classStudents.map((student) => (
-                          <div
-                            key={student.id}
-                            className='flex flex-col gap-3 rounded-xl border border-border/50 p-4 md:flex-row md:items-center md:justify-between'
-                          >
-                            <div className='min-w-0 flex-1'>
-                              <div className='flex flex-wrap items-center gap-2'>
-                                <div className='font-medium'>
-                                  {student.preferredName || student.fullName}
-                                </div>
-                                <Badge
-                                  variant={student.status === 'Active' ? 'default' : 'outline'}
-                                >
-                                  {student.status}
-                                </Badge>
-                                {student.academicYear ? (
-                                  <Badge variant='outline'>{student.academicYear}</Badge>
-                                ) : null}
-                                {student.medicalFlag ? (
-                                  <Badge variant='outline'>{student.medicalFlag}</Badge>
-                                ) : null}
-                              </div>
-                              <div className='text-sm text-muted-foreground'>
-                                {student.fullName}
-                              </div>
-                              <div className='mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground'>
-                                <span>NISN: {student.nisn || '—'}</span>
-                                <span>Guardian: {student.guardianName || '—'}</span>
-                                <span>Phone: {student.guardianPhone || '—'}</span>
+                      </AccordionTrigger>
+                      <AccordionContent className='pb-4'>
+                        <div className='grid gap-3'>
+                          {owner ? (
+                            <div className='rounded-xl border border-border/50 bg-muted/20 p-4 text-sm'>
+                              <div className='font-medium'>{owner.fullName}</div>
+                              <div className='mt-1 text-muted-foreground'>
+                                {owner.role}
+                                {owner.email ? ` • ${owner.email}` : ''}
+                                {owner.phone ? ` • ${owner.phone}` : ''}
                               </div>
                             </div>
-                            <Button asChild variant='outline' size='sm'>
-                              <Link href={`/dashboard/students/${student.id}`}>Open profile</Link>
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
+                          ) : null}
+                          {classStudents.map((student) => (
+                            <div
+                              key={student.id}
+                              className='flex flex-col gap-3 rounded-xl border border-border/50 p-4 md:flex-row md:items-center md:justify-between'
+                            >
+                              <div className='min-w-0 flex-1'>
+                                <div className='flex flex-wrap items-center gap-2'>
+                                  <div className='font-medium'>
+                                    {student.preferredName || student.fullName}
+                                  </div>
+                                  <Badge
+                                    variant={student.status === 'Active' ? 'default' : 'outline'}
+                                  >
+                                    {student.status}
+                                  </Badge>
+                                  {student.academicYear ? (
+                                    <Badge variant='outline'>{student.academicYear}</Badge>
+                                  ) : null}
+                                  {student.medicalFlag ? (
+                                    <Badge variant='outline'>{student.medicalFlag}</Badge>
+                                  ) : null}
+                                </div>
+                                <div className='text-sm text-muted-foreground'>
+                                  {student.fullName}
+                                </div>
+                                <div className='mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground'>
+                                  <span>NISN: {student.nisn || '—'}</span>
+                                  <span>Guardian: {student.guardianName || '—'}</span>
+                                  <span>Phone: {student.guardianPhone || '—'}</span>
+                                </div>
+                              </div>
+                              <Button asChild variant='outline' size='sm'>
+                                <Link href={`/dashboard/students/${student.id}`}>Open profile</Link>
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  );
+                })}
               </Accordion>
             </CardContent>
           </Card>
