@@ -109,6 +109,10 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
     api.teachers.listForDirectory,
     student ? (student.academicYear ? { academicYear: student.academicYear } : {}) : 'skip'
   );
+  const financeProfile = useQuery(
+    api.finance.getByStudentId,
+    student ? { studentId: student.id as Id<'students'> } : 'skip'
+  );
   const concernCases = useQuery(
     api.concerns.recentForStudent,
     student ? { studentId: student.id as Id<'students'> } : 'skip'
@@ -271,6 +275,15 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
                 label='Concern cases'
                 value={`${concernCases?.length ?? 0}`}
                 hint='Structured support / intervention cases on this student'
+              />
+              <ProfileMetric
+                label='Finance profile'
+                value={financeProfile ? `$${financeProfile.effectiveMonthlyFee}` : 'Not set'}
+                hint={
+                  financeProfile
+                    ? `Outstanding $${financeProfile.totalOutstanding}`
+                    : 'Finance module not linked yet'
+                }
               />
               <ProfileMetric
                 label='Operational owner'
@@ -618,6 +631,15 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
             <div>• Add teacher-owned follow-up threads and task handoff</div>
             <div>• Add family-level contact management beyond the single guardian block</div>
             <div>• Add finance and attendance alerts as linked operational modules</div>
+            <div>
+              • Manage billing rules in{' '}
+              <Link
+                className='font-medium text-foreground underline underline-offset-4'
+                href='/dashboard/billing'
+              >
+                Finance & Fees
+              </Link>
+            </div>
             <div>
               • Manage classroom ownership in{' '}
               <Link

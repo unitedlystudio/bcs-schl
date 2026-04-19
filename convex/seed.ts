@@ -26,6 +26,7 @@ export const seedDemoData = mutation({
     const existingStudents = await ctx.db.query('students').collect();
     const existingTeachers = await ctx.db.query('teachers').collect();
     const existingConcernCases = await ctx.db.query('concernCases').collect();
+    const existingBillingProfiles = await ctx.db.query('studentBillingProfiles').collect();
     const existingAdmissions = await ctx.db.query('admissionsEnquiries').collect();
     const existingAttendanceSessions = await ctx.db.query('attendanceSessions').collect();
 
@@ -451,6 +452,144 @@ export const seedDemoData = mutation({
             caseId,
             note: update.note,
             authorLabel: update.authorLabel,
+            createdAt: updatedAt
+          });
+        }
+      }
+    }
+
+    if (existingBillingProfiles.length === 0) {
+      const seededStudents = await ctx.db
+        .query('students')
+        .withIndex('by_sortName')
+        .order('asc')
+        .collect();
+      const studentByName = new Map(seededStudents.map((student) => [student.fullName, student]));
+
+      const profiles = [
+        {
+          studentName: 'Emmy Holloway',
+          baseMonthlyFee: 450,
+          billingStatus: 'Current',
+          scholarshipType: undefined,
+          scholarshipPercent: 0,
+          customMonthlyFee: undefined,
+          arrearsBalance: 0,
+          paymentPlan: 'Standard monthly tuition',
+          notesSummary: 'Current family account with no arrears.',
+          charges: [
+            {
+              title: 'May tuition',
+              category: 'Tuition',
+              amount: 450,
+              chargeDate: new Date().toISOString().slice(0, 10),
+              dueDate: new Date().toISOString().slice(0, 10),
+              status: 'Pending'
+            }
+          ],
+          payments: [
+            {
+              amount: 450,
+              paidAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10).toISOString().slice(0, 10),
+              method: 'Bank Transfer',
+              reference: 'EMMY-APR',
+              note: 'April tuition settled in full.'
+            }
+          ]
+        },
+        {
+          studentName: 'Bjorn Patten',
+          baseMonthlyFee: 520,
+          billingStatus: 'Overdue',
+          scholarshipType: undefined,
+          scholarshipPercent: 0,
+          customMonthlyFee: undefined,
+          arrearsBalance: 180,
+          paymentPlan: 'Monthly with arrears catch-up',
+          notesSummary: 'Accounts is monitoring an overdue balance and staggered recovery plan.',
+          charges: [
+            {
+              title: 'May tuition',
+              category: 'Tuition',
+              amount: 520,
+              chargeDate: new Date().toISOString().slice(0, 10),
+              dueDate: new Date().toISOString().slice(0, 10),
+              status: 'Overdue'
+            }
+          ],
+          payments: [
+            {
+              amount: 340,
+              paidAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 12).toISOString().slice(0, 10),
+              method: 'Cash',
+              reference: 'BJORN-PART',
+              note: 'Partial payment received; remainder moved into arrears plan.'
+            }
+          ]
+        },
+        {
+          studentName: 'Naia Satria',
+          baseMonthlyFee: 480,
+          billingStatus: 'Scholarship',
+          scholarshipType: 'Partial Scholarship',
+          scholarshipPercent: 50,
+          customMonthlyFee: undefined,
+          arrearsBalance: 0,
+          paymentPlan: 'Scholarship-adjusted monthly fee',
+          notesSummary: 'Partial scholarship applied during onboarding period.',
+          charges: [
+            {
+              title: 'May tuition',
+              category: 'Tuition',
+              amount: 240,
+              chargeDate: new Date().toISOString().slice(0, 10),
+              dueDate: new Date().toISOString().slice(0, 10),
+              status: 'Pending'
+            }
+          ],
+          payments: []
+        }
+      ] as const;
+
+      for (const profile of profiles) {
+        const student = studentByName.get(profile.studentName);
+        if (!student) continue;
+
+        const updatedAt = Date.now();
+        const billingProfileId = await ctx.db.insert('studentBillingProfiles', {
+          studentId: student._id,
+          baseMonthlyFee: profile.baseMonthlyFee,
+          billingStatus: profile.billingStatus,
+          scholarshipType: profile.scholarshipType,
+          scholarshipPercent: profile.scholarshipPercent,
+          customMonthlyFee: profile.customMonthlyFee,
+          arrearsBalance: profile.arrearsBalance,
+          paymentPlan: profile.paymentPlan,
+          notesSummary: profile.notesSummary,
+          updatedAt
+        });
+
+        for (const charge of profile.charges) {
+          await ctx.db.insert('financeCharges', {
+            billingProfileId,
+            title: charge.title,
+            category: charge.category,
+            amount: charge.amount,
+            chargeDate: charge.chargeDate,
+            dueDate: charge.dueDate,
+            status: charge.status,
+            updatedAt
+          });
+        }
+
+        for (const payment of profile.payments) {
+          await ctx.db.insert('financePayments', {
+            billingProfileId,
+            amount: payment.amount,
+            paidAt: payment.paidAt,
+            method: payment.method,
+            reference: payment.reference,
+            note: payment.note,
             createdAt: updatedAt
           });
         }

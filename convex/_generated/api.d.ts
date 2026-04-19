@@ -14,6 +14,7 @@ import type * as attendance from '../attendance.js';
 import type * as concerns from '../concerns.js';
 import type * as conversations from '../conversations.js';
 import type * as dashboard from '../dashboard.js';
+import type * as finance from '../finance.js';
 import type * as inbox from '../inbox.js';
 import type * as lib_auth from '../lib/auth.js';
 import type * as seed from '../seed.js';
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   concerns: typeof concerns;
   conversations: typeof conversations;
   dashboard: typeof dashboard;
+  finance: typeof finance;
   inbox: typeof inbox;
   'lib/auth': typeof lib_auth;
   seed: typeof seed;

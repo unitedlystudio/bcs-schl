@@ -161,6 +161,78 @@ export default defineSchema({
     createdAt: v.number()
   }).index('by_case', ['caseId', 'createdAt']),
 
+  studentBillingProfiles: defineTable({
+    studentId: v.id('students'),
+    baseMonthlyFee: v.number(),
+    billingStatus: v.union(
+      v.literal('Current'),
+      v.literal('Overdue'),
+      v.literal('Scholarship'),
+      v.literal('Custom')
+    ),
+    scholarshipType: v.optional(
+      v.union(
+        v.literal('Partial Scholarship'),
+        v.literal('Full Scholarship'),
+        v.literal('Sibling Discount'),
+        v.literal('Hardship Support'),
+        v.literal('Negotiated Custom')
+      )
+    ),
+    scholarshipPercent: v.optional(v.number()),
+    customMonthlyFee: v.optional(v.number()),
+    arrearsBalance: v.number(),
+    paymentPlan: v.optional(v.string()),
+    notesSummary: v.optional(v.string()),
+    updatedAt: v.number()
+  })
+    .index('by_student', ['studentId', 'updatedAt'])
+    .index('by_status', ['billingStatus', 'updatedAt'])
+    .index('by_updatedAt', ['updatedAt']),
+
+  financeCharges: defineTable({
+    billingProfileId: v.id('studentBillingProfiles'),
+    title: v.string(),
+    category: v.union(
+      v.literal('Tuition'),
+      v.literal('Registration'),
+      v.literal('Meal Plan'),
+      v.literal('Transport'),
+      v.literal('Other')
+    ),
+    amount: v.number(),
+    chargeDate: v.string(),
+    dueDate: v.string(),
+    status: v.union(
+      v.literal('Pending'),
+      v.literal('Paid'),
+      v.literal('Overdue'),
+      v.literal('Waived')
+    ),
+    updatedAt: v.number()
+  })
+    .index('by_profile', ['billingProfileId', 'updatedAt'])
+    .index('by_status', ['status', 'updatedAt'])
+    .index('by_updatedAt', ['updatedAt']),
+
+  financePayments: defineTable({
+    billingProfileId: v.id('studentBillingProfiles'),
+    amount: v.number(),
+    paidAt: v.string(),
+    method: v.union(
+      v.literal('Bank Transfer'),
+      v.literal('Cash'),
+      v.literal('Card'),
+      v.literal('Wallet'),
+      v.literal('Scholarship Credit')
+    ),
+    reference: v.optional(v.string()),
+    note: v.optional(v.string()),
+    createdAt: v.number()
+  })
+    .index('by_profile', ['billingProfileId', 'createdAt'])
+    .index('by_createdAt', ['createdAt']),
+
   admissionsEnquiries: defineTable({
     studentName: v.string(),
     familyName: v.string(),
