@@ -1,5 +1,22 @@
 import { mutation } from './_generated/server';
 
+function buildAcademicYearFromDate(dateValue?: string) {
+  const trimmed = dateValue?.trim() ?? '';
+  if (!trimmed) {
+    return '';
+  }
+
+  const year = Number.parseInt(trimmed.slice(0, 4), 10);
+  const month = Number.parseInt(trimmed.slice(5, 7), 10);
+
+  if (!Number.isFinite(year) || !Number.isFinite(month)) {
+    return '';
+  }
+
+  const startYear = month >= 7 ? year : year - 1;
+  return `${startYear}/${startYear + 1}`;
+}
+
 export const seedDemoData = mutation({
   args: {},
   handler: async (ctx) => {
@@ -7,6 +24,7 @@ export const seedDemoData = mutation({
     const existingInbox = await ctx.db.query('inboxItems').collect();
     const existingAccess = await ctx.db.query('accessRecords').collect();
     const existingStudents = await ctx.db.query('students').collect();
+    const existingTeachers = await ctx.db.query('teachers').collect();
     const existingAdmissions = await ctx.db.query('admissionsEnquiries').collect();
     const existingAttendanceSessions = await ctx.db.query('attendanceSessions').collect();
 
@@ -221,6 +239,7 @@ export const seedDemoData = mutation({
         preferredName: 'Emmy',
         fullName: 'Emmy Holloway',
         sex: 'F',
+        academicYear: '2024/2025',
         className: 'Class 2',
         dateOfBirth: '2018-04-11',
         dateJoined: '2024-07-08',
@@ -237,6 +256,7 @@ export const seedDemoData = mutation({
         preferredName: 'Bjorn',
         fullName: 'Bjorn Patten',
         sex: 'M',
+        academicYear: '2024/2025',
         className: 'Class 5',
         dateOfBirth: '2015-09-22',
         dateJoined: '2023-01-15',
@@ -253,6 +273,7 @@ export const seedDemoData = mutation({
         preferredName: 'Naia',
         fullName: 'Naia Satria',
         sex: 'F',
+        academicYear: '2025/2026',
         className: 'Class 2',
         dateOfBirth: '2018-01-09',
         dateJoined: '2025-01-13',
@@ -269,6 +290,7 @@ export const seedDemoData = mutation({
         preferredName: 'Kai',
         fullName: 'Kai Gen Delgado',
         sex: 'M',
+        academicYear: '2024/2025',
         className: 'Class 4',
         dateOfBirth: '2016-11-03',
         dateJoined: '2022-08-01',
@@ -285,6 +307,7 @@ export const seedDemoData = mutation({
         preferredName: 'Mila',
         fullName: 'Mila Prasetyo',
         sex: 'F',
+        academicYear: '2025/2026',
         className: 'Class 1',
         dateOfBirth: '2019-02-14',
         dateJoined: '2026-04-15',
@@ -306,6 +329,45 @@ export const seedDemoData = mutation({
       );
 
       await Promise.all(missingStudents.map((student) => ctx.db.insert('students', student)));
+    }
+
+    await Promise.all(
+      existingStudents
+        .filter((student) => !student.academicYear)
+        .map((student) =>
+          ctx.db.patch(student._id, {
+            academicYear: buildAcademicYearFromDate(student.dateJoined)
+          })
+        )
+    );
+
+    if (existingTeachers.length === 0) {
+      const teachers = [
+        {
+          fullName: 'Alya Rahman',
+          preferredName: 'Alya',
+          role: 'Homeroom Teacher',
+          status: 'Active',
+          academicYear: '2025/2026',
+          homeroomClass: 'Class 2',
+          email: 'alya.rahman@schly.school',
+          phone: '+62 812 3000 2101',
+          sortName: 'Alya Rahman'
+        },
+        {
+          fullName: 'Marcus Tan',
+          preferredName: 'Marcus',
+          role: 'Teacher',
+          status: 'Active',
+          academicYear: '2025/2026',
+          homeroomClass: 'Class 5',
+          email: 'marcus.tan@schly.school',
+          phone: '+62 812 3000 2102',
+          sortName: 'Marcus Tan'
+        }
+      ] as const;
+
+      await Promise.all(teachers.map((teacher) => ctx.db.insert('teachers', teacher)));
     }
 
     if (existingAdmissions.length === 0) {

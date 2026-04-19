@@ -40,6 +40,7 @@ const DEFAULT_FORM = {
   preferredName: '',
   fullName: '',
   sex: 'Unknown' as 'M' | 'F' | 'Unknown',
+  academicYear: '',
   className: '',
   dateOfBirth: '',
   dateJoined: new Date().toISOString().slice(0, 10),
@@ -101,6 +102,16 @@ function StudentFormFields({
 
       <div className='grid gap-4 md:grid-cols-2'>
         <div className='grid gap-2'>
+          <Label htmlFor='student-academic-year'>Academic year</Label>
+          <Input
+            id='student-academic-year'
+            value={values.academicYear}
+            onChange={(event) => onChange('academicYear', event.target.value)}
+            placeholder='2025/2026'
+            disabled={isSubmitting}
+          />
+        </div>
+        <div className='grid gap-2'>
           <Label htmlFor='student-class'>Class</Label>
           <Input
             id='student-class'
@@ -111,6 +122,9 @@ function StudentFormFields({
           />
           {errors.className ? <p className='text-sm text-destructive'>{errors.className}</p> : null}
         </div>
+      </div>
+
+      <div className='grid gap-4 md:grid-cols-2'>
         <div className='grid gap-2'>
           <Label>Status</Label>
           <Select
@@ -278,6 +292,7 @@ export function StudentFormSheetTrigger({
         preferredName: student.preferredName ?? '',
         fullName: student.fullName ?? '',
         sex: student.sex,
+        academicYear: student.academicYear ?? '',
         className: student.className ?? '',
         dateOfBirth: student.dateOfBirth ?? '',
         dateJoined: student.dateJoined ?? '',

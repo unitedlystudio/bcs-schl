@@ -82,6 +82,7 @@ export default defineSchema({
     preferredName: v.string(),
     fullName: v.string(),
     sex: v.union(v.literal('M'), v.literal('F'), v.literal('Unknown')),
+    academicYear: v.optional(v.string()),
     className: v.string(),
     dateOfBirth: v.string(),
     dateJoined: v.string(),
@@ -96,7 +97,26 @@ export default defineSchema({
   })
     .index('by_sortName', ['sortName'])
     .index('by_className', ['className', 'sortName'])
-    .index('by_status', ['status', 'sortName']),
+    .index('by_status', ['status', 'sortName'])
+    .index('by_academicYear', ['academicYear', 'className', 'sortName']),
+
+  teachers: defineTable({
+    fullName: v.string(),
+    preferredName: v.string(),
+    role: v.union(
+      v.literal('Teacher'),
+      v.literal('Homeroom Teacher'),
+      v.literal('Teaching Assistant')
+    ),
+    status: v.union(v.literal('Active'), v.literal('On Leave')),
+    academicYear: v.optional(v.string()),
+    homeroomClass: v.optional(v.string()),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    sortName: v.string()
+  })
+    .index('by_sortName', ['sortName'])
+    .index('by_academicYear', ['academicYear', 'sortName']),
 
   admissionsEnquiries: defineTable({
     studentName: v.string(),

@@ -75,6 +75,23 @@ function buildStudentNotesSummary(notesSummary?: string) {
   return `Converted from admissions enquiry. ${trimmedNotes}`;
 }
 
+function buildAcademicYearFromDate(dateValue?: string) {
+  const trimmed = dateValue?.trim() ?? '';
+  if (!trimmed) {
+    return '';
+  }
+
+  const year = Number.parseInt(trimmed.slice(0, 4), 10);
+  const month = Number.parseInt(trimmed.slice(5, 7), 10);
+
+  if (!Number.isFinite(year) || !Number.isFinite(month)) {
+    return '';
+  }
+
+  const startYear = month >= 7 ? year : year - 1;
+  return `${startYear}/${startYear + 1}`;
+}
+
 function mapEnquiry(enquiry: {
   _id: string;
   studentName: string;
@@ -362,6 +379,9 @@ export const convertToStudent = mutation({
           preferredName: enquiry.studentName.trim().split(' ')[0] || enquiry.studentName.trim(),
           fullName,
           sex: 'Unknown',
+          academicYear:
+            buildAcademicYearFromDate(enquiry.enquiryDate) ||
+            buildAcademicYearFromDate(new Date(now).toISOString().slice(0, 10)),
           className: enquiry.classInterest.trim() || 'Class pending',
           dateOfBirth: '',
           dateJoined: new Date(now).toISOString().slice(0, 10),

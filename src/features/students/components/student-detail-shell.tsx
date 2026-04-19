@@ -49,6 +49,9 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
                   {student.status}
                 </Badge>
                 <Badge variant='secondary'>{student.className}</Badge>
+                {student.academicYear ? (
+                  <Badge variant='outline'>{student.academicYear}</Badge>
+                ) : null}
               </div>
               <CardDescription className='mt-2'>
                 {student.fullName}
