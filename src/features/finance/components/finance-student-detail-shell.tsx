@@ -136,13 +136,13 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
           </CardContent>
         </Card>
       ) : (
-        <div className='grid min-w-0 gap-4 overflow-x-hidden'>
+        <div className='grid min-w-0 max-w-full gap-4 overflow-x-hidden'>
           <Card className='overflow-hidden border-border/60'>
             <CardHeader className='gap-4 pb-4'>
               <div className='flex min-w-0 flex-col gap-4 xl:flex-row xl:items-start xl:justify-between'>
                 <div className='min-w-0 space-y-2'>
-                  <div className='flex flex-wrap items-center gap-2'>
-                    <CardTitle>{student.fullName}</CardTitle>
+                  <div className='flex min-w-0 flex-wrap items-center gap-2'>
+                    <CardTitle className='min-w-0 break-words'>{student.fullName}</CardTitle>
                     <Badge variant='outline'>{student.className}</Badge>
                     {student.academicYear ? (
                       <Badge variant='outline'>{student.academicYear}</Badge>
@@ -242,7 +242,7 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
             </Card>
           ) : (
             <>
-              <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-6'>
+              <div className='grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-6'>
                 <MetricCard
                   label='Monthly total'
                   value={currency(financeProfile.effectiveMonthlyFee)}
@@ -265,8 +265,8 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                 />
               </div>
 
-              <Tabs defaultValue='summary' className='gap-4'>
-                <div className='overflow-x-auto pb-1'>
+              <Tabs defaultValue='summary' className='min-w-0 gap-4 overflow-x-hidden'>
+                <div className='overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]'>
                   <TabsList className='inline-flex h-12 min-w-max items-center justify-start gap-1 rounded-xl p-1'>
                     <TabsTrigger value='summary' className='min-h-10 px-4'>
                       Summary
@@ -286,8 +286,8 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                   </TabsList>
                 </div>
 
-                <TabsContent value='summary'>
-                  <div className='grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]'>
+                <TabsContent value='summary' className='min-w-0'>
+                  <div className='grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]'>
                     <Card className='border-border/60'>
                       <CardHeader>
                         <CardTitle>Student finance summary</CardTitle>
@@ -296,7 +296,7 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                           for this student.
                         </CardDescription>
                       </CardHeader>
-                      <CardContent className='grid gap-4'>
+                      <CardContent className='grid min-w-0 gap-4'>
                         <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-5 min-w-0'>
                           <SummaryPill label='Status' value={financeProfile.billingStatus} />
                           <SummaryPill
@@ -357,7 +357,7 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                           What Accounts is likely to do next on this student account.
                         </CardDescription>
                       </CardHeader>
-                      <CardContent className='grid gap-3'>
+                      <CardContent className='grid min-w-0 gap-3'>
                         {overdueCharges.length > 0 ? (
                           <OperationPanel
                             title='Overdue now'
@@ -392,7 +392,7 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                   </div>
                 </TabsContent>
 
-                <TabsContent value='setup'>
+                <TabsContent value='setup' className='min-w-0'>
                   <Card className='overflow-hidden border-border/60'>
                     <CardHeader>
                       <CardTitle>Billing setup</CardTitle>
@@ -401,8 +401,8 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                         student’s monthly finance profile.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className='grid gap-4'>
-                      <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-4'>
+                    <CardContent className='grid min-w-0 gap-4'>
+                      <div className='grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4'>
                         <SummaryPill
                           label='Base tuition'
                           value={currency(financeProfile.baseMonthlyFee)}
@@ -424,7 +424,7 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                           value={currency(financeProfile.billedAddOnMonthlyTotal)}
                         />
                       </div>
-                      <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-4'>
+                      <div className='grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4'>
                         <SummaryPill
                           label='Payment plan'
                           value={financeProfile.paymentPlan || 'No plan set'}
@@ -497,11 +497,11 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                       <div className='rounded-xl border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground'>
                         {financeProfile.notesSummary || 'No finance notes recorded yet.'}
                       </div>
-                      <div className='rounded-xl border border-border/60 p-4'>
+                      <div className='min-w-0 rounded-xl border border-border/60 p-4'>
                         <div className='text-sm font-medium'>Family account context</div>
                         {financeProfile.familyAccount ? (
-                          <div className='mt-3 grid gap-3'>
-                            <div className='text-sm text-muted-foreground'>
+                          <div className='mt-3 grid min-w-0 gap-3'>
+                            <div className='min-w-0 break-words text-sm text-muted-foreground'>
                               {financeProfile.familyAccount.accountLabel} •{' '}
                               {financeProfile.familyAccount.primaryGuardianName ||
                                 'No guardian set'}
@@ -509,7 +509,7 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                                 ? ` • ${financeProfile.familyAccount.primaryGuardianPhone}`
                                 : ''}
                             </div>
-                            <div className='grid gap-3 md:grid-cols-3'>
+                            <div className='grid min-w-0 gap-3 md:grid-cols-3'>
                               <SummaryPill
                                 label='Family outstanding'
                                 value={currency(financeProfile.familyAccount.totalOutstanding)}
@@ -578,7 +578,7 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                   </Card>
                 </TabsContent>
 
-                <TabsContent value='charges'>
+                <TabsContent value='charges' className='min-w-0'>
                   <Card className='overflow-hidden border-border/60'>
                     <CardHeader>
                       <CardTitle>Charge ledger</CardTitle>
@@ -586,7 +586,7 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                         One-off and recurring charges recorded against this student account.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className='min-w-0'>
                       {financeProfile.charges.length === 0 ? (
                         <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
                           No charges recorded yet.
@@ -652,7 +652,7 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                   </Card>
                 </TabsContent>
 
-                <TabsContent value='payments'>
+                <TabsContent value='payments' className='min-w-0'>
                   <Card className='overflow-hidden border-border/60'>
                     <CardHeader>
                       <CardTitle>Payment history</CardTitle>
@@ -661,7 +661,7 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                         this student account.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className='min-w-0'>
                       {financeProfile.payments.length === 0 ? (
                         <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
                           No payments recorded yet.
@@ -744,7 +744,7 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                   </Card>
                 </TabsContent>
 
-                <TabsContent value='follow-up'>
+                <TabsContent value='follow-up' className='min-w-0'>
                   <Card className='overflow-hidden border-border/60'>
                     <CardHeader>
                       <CardTitle>Follow-up & collections</CardTitle>
@@ -752,8 +752,8 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                         Keep family contact context, arrears posture, and next action cues together.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className='grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]'>
-                      <div className='grid gap-4'>
+                    <CardContent className='grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]'>
+                      <div className='grid min-w-0 gap-4'>
                         <div className='rounded-xl border border-border/60 bg-muted/20 p-4 text-sm'>
                           <div className='text-xs uppercase tracking-[0.12em] text-muted-foreground'>
                             Current finance notes
@@ -976,11 +976,11 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
 
 function MetricCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <Card className='border-border/60'>
-      <CardHeader className='pb-2'>
-        <CardDescription>{label}</CardDescription>
-        <CardTitle className='text-2xl'>{value}</CardTitle>
-        {hint ? <div className='text-xs text-muted-foreground'>{hint}</div> : null}
+    <Card className='min-w-0 border-border/60'>
+      <CardHeader className='min-w-0 pb-2'>
+        <CardDescription className='break-words'>{label}</CardDescription>
+        <CardTitle className='min-w-0 break-words text-2xl'>{value}</CardTitle>
+        {hint ? <div className='break-words text-xs text-muted-foreground'>{hint}</div> : null}
       </CardHeader>
     </Card>
   );
@@ -988,9 +988,9 @@ function MetricCard({ label, value, hint }: { label: string; value: string; hint
 
 function SummaryPill({ label, value }: { label: string; value: string }) {
   return (
-    <div className='rounded-xl border border-border/60 p-4'>
+    <div className='min-w-0 rounded-xl border border-border/60 p-4'>
       <div className='text-[11px] uppercase tracking-[0.12em] text-muted-foreground'>{label}</div>
-      <div className='mt-2 font-medium'>{value}</div>
+      <div className='mt-2 min-w-0 break-words font-medium'>{value}</div>
     </div>
   );
 }
@@ -1005,19 +1005,22 @@ function MonthlyItemPanel({
   emptyLabel: string;
 }) {
   return (
-    <div className='rounded-xl border border-border/60 p-4'>
-      <div className='text-sm font-medium'>{title}</div>
+    <div className='min-w-0 rounded-xl border border-border/60 p-4'>
+      <div className='break-words text-sm font-medium'>{title}</div>
       <div className='mt-3 grid gap-3'>
         {items.length === 0 ? (
-          <div className='text-sm text-muted-foreground'>{emptyLabel}</div>
+          <div className='break-words text-sm text-muted-foreground'>{emptyLabel}</div>
         ) : (
           items.map((item) => (
-            <div key={item.id} className='flex items-start justify-between gap-3'>
-              <div>
-                <div className='font-medium'>{item.label}</div>
-                <div className='text-xs text-muted-foreground'>{item.sublabel}</div>
+            <div
+              key={item.id}
+              className='flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3'
+            >
+              <div className='min-w-0'>
+                <div className='break-words font-medium'>{item.label}</div>
+                <div className='break-words text-xs text-muted-foreground'>{item.sublabel}</div>
               </div>
-              <div className='text-sm font-medium'>{currency(item.amount)}</div>
+              <div className='shrink-0 text-sm font-medium'>{currency(item.amount)}</div>
             </div>
           ))
         )}
@@ -1041,19 +1044,21 @@ function OperationPanel({
     <div
       className={
         tone === 'destructive'
-          ? 'rounded-xl border border-destructive/40 bg-destructive/5 p-4'
-          : 'rounded-xl border border-border/60 p-4'
+          ? 'min-w-0 rounded-xl border border-destructive/40 bg-destructive/5 p-4'
+          : 'min-w-0 rounded-xl border border-border/60 p-4'
       }
     >
-      <div className='text-sm font-medium'>{title}</div>
+      <div className='break-words text-sm font-medium'>{title}</div>
       <div className='mt-3 grid gap-3'>
         {items.length === 0 ? (
-          <div className='text-sm text-muted-foreground'>{emptyLabel || 'Nothing to show.'}</div>
+          <div className='break-words text-sm text-muted-foreground'>
+            {emptyLabel || 'Nothing to show.'}
+          </div>
         ) : (
           items.map((item) => (
-            <div key={item.id}>
-              <div className='font-medium'>{item.title}</div>
-              <div className='text-xs text-muted-foreground'>{item.meta}</div>
+            <div key={item.id} className='min-w-0'>
+              <div className='break-words font-medium'>{item.title}</div>
+              <div className='break-words text-xs text-muted-foreground'>{item.meta}</div>
             </div>
           ))
         )}

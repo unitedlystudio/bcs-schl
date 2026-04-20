@@ -117,7 +117,7 @@ export function FinanceChargeSheet({
           disabled={submitting}
         />
       </div>
-      <div className='grid gap-4 md:grid-cols-2'>
+      <div className='grid min-w-0 gap-4 md:grid-cols-2'>
         <div className='grid gap-2'>
           <Label>Category</Label>
           <Select value={category} onValueChange={(value) => setCategory(value as typeof category)}>
@@ -146,7 +146,7 @@ export function FinanceChargeSheet({
           />
         </div>
       </div>
-      <div className='grid gap-4 md:grid-cols-3'>
+      <div className='grid min-w-0 gap-4 md:grid-cols-3'>
         <div className='grid gap-2'>
           <Label htmlFor='chargeDate'>Charge date</Label>
           <Input
@@ -199,7 +199,7 @@ export function FinanceChargeSheet({
   if (isMobile)
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className='overflow-x-hidden'>
+        <DrawerContent className='w-full max-w-full overflow-x-hidden'>
           <DrawerHeader>
             <DrawerTitle>Add finance charge</DrawerTitle>
             <DrawerDescription>
@@ -207,15 +207,17 @@ export function FinanceChargeSheet({
               billing profile.
             </DrawerDescription>
           </DrawerHeader>
-          <div className='max-h-[70vh] overflow-x-hidden overflow-y-auto px-4'>{content}</div>
-          <DrawerFooter>{footer}</DrawerFooter>
+          <div className='max-h-[70vh] min-w-0 overflow-x-hidden overflow-y-auto px-4'>
+            {content}
+          </div>
+          <DrawerFooter className='min-w-0'>{footer}</DrawerFooter>
         </DrawerContent>
       </Drawer>
     );
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className='sm:max-w-xl'>
+      <SheetContent className='w-full max-w-full overflow-x-hidden sm:max-w-xl'>
         <SheetHeader>
           <SheetTitle>Add finance charge</SheetTitle>
           <SheetDescription>
@@ -223,7 +225,7 @@ export function FinanceChargeSheet({
             billing profile.
           </SheetDescription>
         </SheetHeader>
-        <div className='mt-6 grid gap-4'>{content}</div>
+        <div className='mt-6 grid min-w-0 gap-4'>{content}</div>
         <SheetFooter className='mt-6'>{footer}</SheetFooter>
       </SheetContent>
     </Sheet>
@@ -285,7 +287,7 @@ export function FinancePaymentSheet({
 
   const content = (
     <div className='grid min-w-0 gap-4'>
-      <div className='grid gap-4 md:grid-cols-2'>
+      <div className='grid min-w-0 gap-4 md:grid-cols-2'>
         <div className='grid gap-2'>
           <Label htmlFor='paymentAmount'>Amount</Label>
           <Input
@@ -307,7 +309,7 @@ export function FinancePaymentSheet({
           />
         </div>
       </div>
-      <div className='grid gap-4 md:grid-cols-2'>
+      <div className='grid min-w-0 gap-4 md:grid-cols-2'>
         <div className='grid gap-2'>
           <Label>Method</Label>
           <Select value={method} onValueChange={(value) => setMethod(value as typeof method)}>
@@ -360,29 +362,31 @@ export function FinancePaymentSheet({
   if (isMobile)
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className='overflow-x-hidden'>
+        <DrawerContent className='w-full max-w-full overflow-x-hidden'>
           <DrawerHeader>
             <DrawerTitle>Record payment</DrawerTitle>
             <DrawerDescription>
               Log actual payments separately from pricing rules and outstanding charges.
             </DrawerDescription>
           </DrawerHeader>
-          <div className='max-h-[70vh] overflow-x-hidden overflow-y-auto px-4'>{content}</div>
-          <DrawerFooter>{footer}</DrawerFooter>
+          <div className='max-h-[70vh] min-w-0 overflow-x-hidden overflow-y-auto px-4'>
+            {content}
+          </div>
+          <DrawerFooter className='min-w-0'>{footer}</DrawerFooter>
         </DrawerContent>
       </Drawer>
     );
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className='sm:max-w-xl'>
+      <SheetContent className='w-full max-w-full overflow-x-hidden sm:max-w-xl'>
         <SheetHeader>
           <SheetTitle>Record payment</SheetTitle>
           <SheetDescription>
             Log actual payments separately from pricing rules and outstanding charges.
           </SheetDescription>
         </SheetHeader>
-        <div className='mt-6 grid gap-4'>{content}</div>
+        <div className='mt-6 grid min-w-0 gap-4'>{content}</div>
         <SheetFooter className='mt-6'>{footer}</SheetFooter>
       </SheetContent>
     </Sheet>
@@ -520,7 +524,7 @@ export function FinancePaymentSettlementSheet({
 
   const content = payment ? (
     <div className='grid min-w-0 gap-4'>
-      <div className='grid gap-3 rounded-xl border border-border/60 bg-muted/20 p-4 text-sm md:grid-cols-2 xl:grid-cols-4'>
+      <div className='grid min-w-0 gap-3 rounded-xl border border-border/60 bg-muted/20 p-4 text-sm md:grid-cols-2 xl:grid-cols-4'>
         <div>
           <div className='text-xs uppercase tracking-[0.12em] text-muted-foreground'>
             Payment total
@@ -554,7 +558,7 @@ export function FinancePaymentSettlementSheet({
         </div>
       </div>
 
-      <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+      <div className='flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
         <div className='text-sm text-muted-foreground'>
           Rebalance how this payment settles individual charges. Leave some amount unassigned if it
           should remain as credit on account.
@@ -593,7 +597,7 @@ export function FinancePaymentSettlementSheet({
               className='grid min-w-0 gap-3 rounded-xl border border-border/60 p-4 md:grid-cols-[minmax(0,1fr)_140px] md:items-end'
             >
               <div className='min-w-0'>
-                <div className='flex flex-wrap items-center gap-2'>
+                <div className='flex min-w-0 flex-wrap items-center gap-2'>
                   <div className='font-medium'>{charge.title}</div>
                   <span className='text-xs text-muted-foreground'>{charge.dueDate}</span>
                 </div>
@@ -605,7 +609,7 @@ export function FinancePaymentSettlementSheet({
               </div>
               <div className='grid gap-2'>
                 <Label htmlFor={`settlement-${charge.id}`}>Allocate to charge</Label>
-                <div className='flex items-center gap-2'>
+                <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
                   <Input
                     id={`settlement-${charge.id}`}
                     type='number'
@@ -623,6 +627,7 @@ export function FinancePaymentSettlementSheet({
                     type='button'
                     variant='outline'
                     size='sm'
+                    className='w-full sm:w-auto'
                     disabled={submitting || charge.maxAssignable <= 0}
                     onClick={() =>
                       setAllocations((current) => ({
@@ -673,29 +678,31 @@ export function FinancePaymentSettlementSheet({
   if (isMobile)
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className='overflow-x-hidden'>
+        <DrawerContent className='w-full max-w-full overflow-x-hidden'>
           <DrawerHeader>
             <DrawerTitle>Manage payment settlement</DrawerTitle>
             <DrawerDescription>
               Explicitly match this payment to the charges it should settle.
             </DrawerDescription>
           </DrawerHeader>
-          <div className='max-h-[70vh] overflow-x-hidden overflow-y-auto px-4'>{content}</div>
-          <DrawerFooter>{footer}</DrawerFooter>
+          <div className='max-h-[70vh] min-w-0 overflow-x-hidden overflow-y-auto px-4'>
+            {content}
+          </div>
+          <DrawerFooter className='min-w-0'>{footer}</DrawerFooter>
         </DrawerContent>
       </Drawer>
     );
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className='sm:max-w-2xl'>
+      <SheetContent className='w-full max-w-full overflow-x-hidden sm:max-w-2xl'>
         <SheetHeader>
           <SheetTitle>Manage payment settlement</SheetTitle>
           <SheetDescription>
             Explicitly match this payment to the charges it should settle.
           </SheetDescription>
         </SheetHeader>
-        <div className='mt-6 grid gap-4'>{content}</div>
+        <div className='mt-6 grid min-w-0 gap-4'>{content}</div>
         <SheetFooter className='mt-6'>{footer}</SheetFooter>
       </SheetContent>
     </Sheet>
@@ -776,7 +783,7 @@ export function FinanceReminderSheet({
 
   const content = (
     <div className='grid min-w-0 gap-4'>
-      <div className='grid gap-4 md:grid-cols-2'>
+      <div className='grid min-w-0 gap-4 md:grid-cols-2'>
         <div className='grid gap-2'>
           <Label htmlFor='reminderDate'>Reminder date</Label>
           <Input
@@ -803,7 +810,7 @@ export function FinanceReminderSheet({
           </Select>
         </div>
       </div>
-      <div className='grid gap-4 md:grid-cols-2'>
+      <div className='grid min-w-0 gap-4 md:grid-cols-2'>
         <div className='grid gap-2'>
           <Label>Collections stage after touch</Label>
           <Select
@@ -870,7 +877,7 @@ export function FinanceReminderSheet({
   if (isMobile)
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className='overflow-x-hidden'>
+        <DrawerContent className='w-full max-w-full overflow-x-hidden'>
           <DrawerHeader>
             <DrawerTitle>Log finance reminder</DrawerTitle>
             <DrawerDescription>
@@ -878,15 +885,17 @@ export function FinanceReminderSheet({
               student account.
             </DrawerDescription>
           </DrawerHeader>
-          <div className='max-h-[70vh] overflow-x-hidden overflow-y-auto px-4'>{content}</div>
-          <DrawerFooter>{footer}</DrawerFooter>
+          <div className='max-h-[70vh] min-w-0 overflow-x-hidden overflow-y-auto px-4'>
+            {content}
+          </div>
+          <DrawerFooter className='min-w-0'>{footer}</DrawerFooter>
         </DrawerContent>
       </Drawer>
     );
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className='sm:max-w-xl'>
+      <SheetContent className='w-full max-w-full overflow-x-hidden sm:max-w-xl'>
         <SheetHeader>
           <SheetTitle>Log finance reminder</SheetTitle>
           <SheetDescription>
@@ -894,7 +903,7 @@ export function FinanceReminderSheet({
             account.
           </SheetDescription>
         </SheetHeader>
-        <div className='mt-6 grid gap-4'>{content}</div>
+        <div className='mt-6 grid min-w-0 gap-4'>{content}</div>
         <SheetFooter className='mt-6'>{footer}</SheetFooter>
       </SheetContent>
     </Sheet>
@@ -986,11 +995,13 @@ export function FinanceFamilyPaymentSheet({
 
   const content = familyAccount ? (
     <div className='grid min-w-0 gap-4'>
-      <div className='rounded-xl border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground'>
-        <div className='font-medium text-foreground'>{familyAccount.accountLabel}</div>
-        <div className='mt-1'>{familyAccount.primaryGuardianName || 'No guardian set'}</div>
+      <div className='min-w-0 rounded-xl border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground'>
+        <div className='break-words font-medium text-foreground'>{familyAccount.accountLabel}</div>
+        <div className='mt-1 break-words'>
+          {familyAccount.primaryGuardianName || 'No guardian set'}
+        </div>
       </div>
-      <div className='grid gap-4 md:grid-cols-2'>
+      <div className='grid min-w-0 gap-4 md:grid-cols-2'>
         <div className='grid gap-2'>
           <Label htmlFor='familyPaidAt'>Paid date</Label>
           <Input
@@ -1017,7 +1028,7 @@ export function FinanceFamilyPaymentSheet({
           </Select>
         </div>
       </div>
-      <div className='grid gap-4 md:grid-cols-2'>
+      <div className='grid min-w-0 gap-4 md:grid-cols-2'>
         <div className='grid gap-2'>
           <Label htmlFor='familyReference'>Reference</Label>
           <Input
@@ -1043,16 +1054,16 @@ export function FinanceFamilyPaymentSheet({
           disabled={submitting}
         />
       </div>
-      <div className='grid gap-3'>
-        <div className='text-sm font-medium'>Allocate across linked students</div>
+      <div className='grid min-w-0 gap-3'>
+        <div className='break-words text-sm font-medium'>Allocate across linked students</div>
         {familyAccount.members.map((member) => (
           <div
             key={member.profileId}
             className='grid min-w-0 gap-3 rounded-xl border border-border/60 p-4 md:grid-cols-[minmax(0,1fr)_140px] md:items-end'
           >
             <div className='min-w-0'>
-              <div className='font-medium'>{member.studentName}</div>
-              <div className='text-xs text-muted-foreground'>
+              <div className='break-words font-medium'>{member.studentName}</div>
+              <div className='break-words text-xs text-muted-foreground'>
                 {member.className}
                 {member.academicYear ? ` • ${member.academicYear}` : ''}
                 {member.totalOutstanding
@@ -1099,29 +1110,31 @@ export function FinanceFamilyPaymentSheet({
   if (isMobile)
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className='overflow-x-hidden'>
+        <DrawerContent className='w-full max-w-full overflow-x-hidden'>
           <DrawerHeader>
             <DrawerTitle>Allocate family payment</DrawerTitle>
             <DrawerDescription>
               Record one household payment and split it across linked student billing profiles.
             </DrawerDescription>
           </DrawerHeader>
-          <div className='max-h-[70vh] overflow-x-hidden overflow-y-auto px-4'>{content}</div>
-          <DrawerFooter>{footer}</DrawerFooter>
+          <div className='max-h-[70vh] min-w-0 overflow-x-hidden overflow-y-auto px-4'>
+            {content}
+          </div>
+          <DrawerFooter className='min-w-0'>{footer}</DrawerFooter>
         </DrawerContent>
       </Drawer>
     );
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className='sm:max-w-2xl'>
+      <SheetContent className='w-full max-w-full overflow-x-hidden sm:max-w-2xl'>
         <SheetHeader>
           <SheetTitle>Allocate family payment</SheetTitle>
           <SheetDescription>
             Record one household payment and split it across linked student billing profiles.
           </SheetDescription>
         </SheetHeader>
-        <div className='mt-6 grid gap-4'>{content}</div>
+        <div className='mt-6 grid min-w-0 gap-4'>{content}</div>
         <SheetFooter className='mt-6'>{footer}</SheetFooter>
       </SheetContent>
     </Sheet>
