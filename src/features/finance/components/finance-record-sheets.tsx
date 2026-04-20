@@ -44,6 +44,27 @@ function currency(value: number) {
   }).format(value);
 }
 
+function defaultBillingCycleLabel(date: string) {
+  const [year, month] = date.split('-');
+  const monthIndex = Number(month) - 1;
+  const monthNames = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December'
+  ];
+
+  return monthNames[monthIndex] && year ? `${monthNames[monthIndex]} ${year}` : '';
+}
+
 export function FinanceChargeSheet({
   open,
   onOpenChange,
@@ -70,15 +91,20 @@ export function FinanceChargeSheet({
   const [amount, setAmount] = useState('0');
   const [chargeDate, setChargeDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
+  const [billingCycleLabel, setBillingCycleLabel] = useState(
+    defaultBillingCycleLabel(new Date().toISOString().slice(0, 10))
+  );
   const [status, setStatus] = useState<'Pending' | 'Paid' | 'Overdue' | 'Waived'>('Pending');
   const [submitting, setSubmitting] = useState(false);
 
   const reset = () => {
+    const nextDate = new Date().toISOString().slice(0, 10);
     setTitle('');
     setCategory('Tuition');
     setAmount('0');
-    setChargeDate(new Date().toISOString().slice(0, 10));
-    setDueDate(new Date().toISOString().slice(0, 10));
+    setChargeDate(nextDate);
+    setDueDate(nextDate);
+    setBillingCycleLabel(defaultBillingCycleLabel(nextDate));
     setStatus('Pending');
   };
 
@@ -93,6 +119,7 @@ export function FinanceChargeSheet({
         amount: Number(amount || 0),
         chargeDate,
         dueDate,
+        billingCycleLabel,
         status
       });
       toast.success('Charge added');
@@ -153,7 +180,16 @@ export function FinanceChargeSheet({
             id='chargeDate'
             type='date'
             value={chargeDate}
-            onChange={(e) => setChargeDate(e.target.value)}
+            onChange={(e) => {
+              const nextDate = e.target.value;
+              setChargeDate(nextDate);
+              if (
+                !billingCycleLabel.trim() ||
+                billingCycleLabel === defaultBillingCycleLabel(chargeDate)
+              ) {
+                setBillingCycleLabel(defaultBillingCycleLabel(nextDate));
+              }
+            }}
             disabled={submitting}
           />
         </div>
@@ -181,6 +217,16 @@ export function FinanceChargeSheet({
             </SelectContent>
           </Select>
         </div>
+      </div>
+      <div className='grid gap-2'>
+        <Label htmlFor='billingCycleLabel'>Billing cycle / period</Label>
+        <Input
+          id='billingCycleLabel'
+          value={billingCycleLabel}
+          onChange={(e) => setBillingCycleLabel(e.target.value)}
+          placeholder='April 2026, Term 2, Registration 2026, One-off, etc.'
+          disabled={submitting}
+        />
       </div>
     </div>
   );

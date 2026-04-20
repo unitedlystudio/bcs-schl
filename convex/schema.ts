@@ -260,6 +260,8 @@ export default defineSchema({
     amount: v.number(),
     chargeDate: v.string(),
     dueDate: v.string(),
+    billingCycleLabel: v.optional(v.string()),
+    billingCycleKey: v.optional(v.string()),
     status: v.union(
       v.literal('Pending'),
       v.literal('Paid'),

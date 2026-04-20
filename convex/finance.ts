@@ -202,6 +202,7 @@ function normalizeCharge(input: {
   amount: number;
   chargeDate: string;
   dueDate: string;
+  billingCycleLabel?: string;
   status: (typeof CHARGE_STATUSES)[number];
 }) {
   const title = input.title.trim();
@@ -212,6 +213,8 @@ function normalizeCharge(input: {
     throw new Error('Charge amount cannot be negative.');
   }
 
+  const cycleLabel = deriveChargeCycleLabel(input.billingCycleLabel, input.chargeDate);
+
   return {
     billingProfileId: input.billingProfileId,
     title,
@@ -219,9 +222,48 @@ function normalizeCharge(input: {
     amount: input.amount,
     chargeDate: input.chargeDate,
     dueDate: input.dueDate,
+    billingCycleLabel: cycleLabel,
+    billingCycleKey: deriveChargeCycleKey(input.chargeDate),
     status: input.status,
     updatedAt: Date.now()
   };
+}
+
+function deriveChargeCycleKey(chargeDate: string) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(chargeDate)) {
+    return chargeDate.slice(0, 7);
+  }
+  return 'one-off';
+}
+
+function deriveChargeCycleLabel(billingCycleLabel: string | undefined, chargeDate: string) {
+  const explicitLabel = billingCycleLabel?.trim();
+  if (explicitLabel) return explicitLabel;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(chargeDate)) {
+    const [year, month] = chargeDate.split('-');
+    const monthIndex = Number(month) - 1;
+    const monthNames = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December'
+    ];
+    const monthLabel = monthNames[monthIndex];
+    if (monthLabel) {
+      return `${monthLabel} ${year}`;
+    }
+  }
+
+  return 'One-off / manual';
 }
 
 function normalizePayment(input: {
@@ -430,6 +472,8 @@ type FinanceProfileDetail = EnrichedProfile & {
     amount: number;
     chargeDate: string;
     dueDate: string;
+    billingCycleLabel: string;
+    billingCycleKey: string;
     status: (typeof CHARGE_STATUSES)[number];
     appliedAmount: number;
     balanceRemaining: number;
@@ -826,6 +870,9 @@ async function loadProfileDetail(
       amount: charge.amount,
       chargeDate: charge.chargeDate,
       dueDate: charge.dueDate,
+      billingCycleLabel:
+        charge.billingCycleLabel ?? deriveChargeCycleLabel(undefined, charge.chargeDate),
+      billingCycleKey: charge.billingCycleKey ?? deriveChargeCycleKey(charge.chargeDate),
       status: charge.status,
       appliedAmount,
       balanceRemaining,
@@ -1124,6 +1171,7 @@ export const addCharge = mutation({
     amount: v.number(),
     chargeDate: v.string(),
     dueDate: v.string(),
+    billingCycleLabel: v.optional(v.string()),
     status: v.union(...CHARGE_STATUSES.map((item) => v.literal(item)))
   },
   handler: async (ctx, args) => {

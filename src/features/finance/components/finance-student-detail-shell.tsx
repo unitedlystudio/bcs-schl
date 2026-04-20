@@ -106,6 +106,42 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
     () => financeProfile?.payments.find((payment) => payment.id === selectedPaymentId) ?? null,
     [financeProfile?.payments, selectedPaymentId]
   );
+  const chargesByBillingCycle = useMemo(() => {
+    const charges = financeProfile?.charges ?? [];
+    const groups = new Map<
+      string,
+      {
+        label: string;
+        cycleKey: string;
+        totalAmount: number;
+        outstandingAmount: number;
+        charges: typeof charges;
+      }
+    >();
+
+    for (const charge of charges) {
+      const existing = groups.get(charge.billingCycleKey);
+      if (existing) {
+        existing.totalAmount += charge.amount;
+        existing.outstandingAmount += charge.balanceRemaining;
+        existing.charges.push(charge);
+        continue;
+      }
+
+      groups.set(charge.billingCycleKey, {
+        label: charge.billingCycleLabel,
+        cycleKey: charge.billingCycleKey,
+        totalAmount: charge.amount,
+        outstandingAmount: charge.balanceRemaining,
+        charges: [charge]
+      });
+    }
+
+    // eslint-disable-next-line unicorn/no-array-sort
+    return Array.from(groups.values()).sort((left, right) =>
+      right.cycleKey.localeCompare(left.cycleKey)
+    );
+  }, [financeProfile?.charges]);
 
   if (!hasFinanceAccess) {
     return (
@@ -583,7 +619,9 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                     <CardHeader>
                       <CardTitle>Charge ledger</CardTitle>
                       <CardDescription>
-                        One-off and recurring charges recorded against this student account.
+                        One-off and recurring charges recorded against this student account, grouped
+                        by billing cycle so Accounts can review each month or term as a ledger
+                        batch.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className='min-w-0'>
@@ -592,60 +630,84 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                           No charges recorded yet.
                         </div>
                       ) : (
-                        <div className='overflow-hidden rounded-xl border border-border/60'>
-                          <div className='w-full overflow-x-auto'>
-                            <Table className='min-w-[720px]'>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Charge</TableHead>
-                                  <TableHead>Status</TableHead>
-                                  <TableHead>Date</TableHead>
-                                  <TableHead>Due</TableHead>
-                                  <TableHead className='text-right'>Amount</TableHead>
-                                  <TableHead className='text-right'>Applied</TableHead>
-                                  <TableHead className='text-right'>Remaining</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {financeProfile.charges.map((charge) => (
-                                  <TableRow key={charge.id}>
-                                    <TableCell>
-                                      <div className='font-medium'>{charge.title}</div>
-                                      <div className='text-xs text-muted-foreground'>
-                                        {charge.category}
-                                      </div>
-                                    </TableCell>
-                                    <TableCell>
-                                      <div className='flex flex-col gap-1'>
-                                        <Badge variant={chargeVariant(charge.status)}>
-                                          {charge.status}
-                                        </Badge>
-                                        <span className='text-muted-foreground text-xs'>
-                                          {charge.settlementLabel}
-                                        </span>
-                                        <span className='text-muted-foreground text-xs'>
-                                          {charge.applicationCount
-                                            ? `${charge.applicationCount} payment match${charge.applicationCount === 1 ? '' : 'es'}`
-                                            : 'No payment matches yet'}
-                                        </span>
-                                      </div>
-                                    </TableCell>
-                                    <TableCell>{charge.chargeDate}</TableCell>
-                                    <TableCell>{charge.dueDate}</TableCell>
-                                    <TableCell className='text-right font-medium'>
-                                      {currency(charge.amount)}
-                                    </TableCell>
-                                    <TableCell className='text-right font-medium'>
-                                      {currency(charge.appliedAmount)}
-                                    </TableCell>
-                                    <TableCell className='text-right font-medium'>
-                                      {currency(charge.balanceRemaining)}
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </div>
+                        <div className='grid gap-4'>
+                          {chargesByBillingCycle.map((cycleGroup) => (
+                            <div
+                              key={cycleGroup.cycleKey}
+                              className='overflow-hidden rounded-xl border border-border/60'
+                            >
+                              <div className='border-b border-border/60 bg-muted/20 px-4 py-3'>
+                                <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                                  <div>
+                                    <div className='font-medium'>{cycleGroup.label}</div>
+                                    <div className='text-xs text-muted-foreground'>
+                                      {cycleGroup.charges.length} charge
+                                      {cycleGroup.charges.length === 1 ? '' : 's'} in this cycle
+                                    </div>
+                                  </div>
+                                  <div className='flex flex-wrap gap-2 text-xs text-muted-foreground'>
+                                    <span>Total {currency(cycleGroup.totalAmount)}</span>
+                                    <span>
+                                      Outstanding {currency(cycleGroup.outstandingAmount)}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className='w-full overflow-x-auto'>
+                                <Table className='min-w-[760px]'>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>Charge</TableHead>
+                                      <TableHead>Status</TableHead>
+                                      <TableHead>Charged</TableHead>
+                                      <TableHead>Due</TableHead>
+                                      <TableHead className='text-right'>Amount</TableHead>
+                                      <TableHead className='text-right'>Applied</TableHead>
+                                      <TableHead className='text-right'>Remaining</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {cycleGroup.charges.map((charge) => (
+                                      <TableRow key={charge.id}>
+                                        <TableCell>
+                                          <div className='font-medium'>{charge.title}</div>
+                                          <div className='text-xs text-muted-foreground'>
+                                            {charge.category}
+                                          </div>
+                                        </TableCell>
+                                        <TableCell>
+                                          <div className='flex flex-col gap-1'>
+                                            <Badge variant={chargeVariant(charge.status)}>
+                                              {charge.status}
+                                            </Badge>
+                                            <span className='text-muted-foreground text-xs'>
+                                              {charge.settlementLabel}
+                                            </span>
+                                            <span className='text-muted-foreground text-xs'>
+                                              {charge.applicationCount
+                                                ? `${charge.applicationCount} payment match${charge.applicationCount === 1 ? '' : 'es'}`
+                                                : 'No payment matches yet'}
+                                            </span>
+                                          </div>
+                                        </TableCell>
+                                        <TableCell>{charge.chargeDate}</TableCell>
+                                        <TableCell>{charge.dueDate}</TableCell>
+                                        <TableCell className='text-right font-medium'>
+                                          {currency(charge.amount)}
+                                        </TableCell>
+                                        <TableCell className='text-right font-medium'>
+                                          {currency(charge.appliedAmount)}
+                                        </TableCell>
+                                        <TableCell className='text-right font-medium'>
+                                          {currency(charge.balanceRemaining)}
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       )}
                     </CardContent>
