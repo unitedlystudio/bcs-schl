@@ -8,6 +8,7 @@ import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Icons } from '@/components/icons';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -19,6 +20,12 @@ import {
   TableRow
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 import { FinanceAccessGate } from './finance-access-gate';
 import { FinanceProfileSheet } from './finance-profile-sheet';
 import {
@@ -27,6 +34,7 @@ import {
   FinanceReminderSheet
 } from './finance-record-sheets';
 import { useFinanceAccess } from '../hooks/use-finance-access';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 function currency(value: number) {
   return new Intl.NumberFormat('en-US', {
@@ -51,6 +59,7 @@ function chargeVariant(status: 'Pending' | 'Paid' | 'Overdue' | 'Waived') {
 
 export default function FinanceStudentDetailShell({ studentId }: { studentId: string }) {
   const { hasFinanceAccess, hasFinanceWriteAccess } = useFinanceAccess();
+  const isMobile = useIsMobile();
   const student = useQuery(api.students.getById, { studentId: studentId as Id<'students'> });
   const financeProfile = useQuery(
     api.finance.getByStudentId,
@@ -120,11 +129,11 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
           </CardContent>
         </Card>
       ) : (
-        <div className='grid gap-4'>
-          <Card className='border-border/60'>
+        <div className='grid min-w-0 gap-4 overflow-x-hidden'>
+          <Card className='overflow-hidden border-border/60'>
             <CardHeader className='gap-4 pb-4'>
-              <div className='flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between'>
-                <div className='space-y-2'>
+              <div className='flex min-w-0 flex-col gap-4 xl:flex-row xl:items-start xl:justify-between'>
+                <div className='min-w-0 space-y-2'>
                   <div className='flex flex-wrap items-center gap-2'>
                     <CardTitle>{student.fullName}</CardTitle>
                     <Badge variant='outline'>{student.className}</Badge>
@@ -145,29 +154,62 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                     history, outstanding balance, and upcoming finance operations.
                   </CardDescription>
                 </div>
-                <div className='flex flex-wrap gap-2'>
-                  <Button asChild variant='outline'>
+                <div className='flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end'>
+                  <Button asChild variant='outline' className='w-full sm:w-auto'>
                     <Link href='/dashboard/billing'>Back to overview</Link>
                   </Button>
                   {hasFinanceWriteAccess ? (
-                    <>
-                      <Button variant='outline' onClick={() => setProfileSheetOpen(true)}>
-                        {financeProfile ? 'Edit billing setup' : 'Create billing setup'}
-                      </Button>
-                      {financeProfile ? (
-                        <>
-                          <Button variant='outline' onClick={() => setChargeSheetOpen(true)}>
-                            Add charge
-                          </Button>
-                          <Button variant='outline' onClick={() => setPaymentSheetOpen(true)}>
-                            Record payment
-                          </Button>
-                          <Button variant='outline' onClick={() => setReminderSheetOpen(true)}>
-                            Log reminder
-                          </Button>
-                        </>
-                      ) : null}
-                    </>
+                    isMobile ? (
+                      <>
+                        <Button
+                          variant='outline'
+                          className='w-full'
+                          onClick={() => setProfileSheetOpen(true)}
+                        >
+                          {financeProfile ? 'Edit billing setup' : 'Create billing setup'}
+                        </Button>
+                        {financeProfile ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant='outline' className='w-full justify-between'>
+                                More finance actions
+                                <Icons.ellipsis className='h-4 w-4' />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align='end' className='w-56'>
+                              <DropdownMenuItem onClick={() => setChargeSheetOpen(true)}>
+                                Add charge
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setPaymentSheetOpen(true)}>
+                                Record payment
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setReminderSheetOpen(true)}>
+                                Log reminder
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : null}
+                      </>
+                    ) : (
+                      <>
+                        <Button variant='outline' onClick={() => setProfileSheetOpen(true)}>
+                          {financeProfile ? 'Edit billing setup' : 'Create billing setup'}
+                        </Button>
+                        {financeProfile ? (
+                          <>
+                            <Button variant='outline' onClick={() => setChargeSheetOpen(true)}>
+                              Add charge
+                            </Button>
+                            <Button variant='outline' onClick={() => setPaymentSheetOpen(true)}>
+                              Record payment
+                            </Button>
+                            <Button variant='outline' onClick={() => setReminderSheetOpen(true)}>
+                              Log reminder
+                            </Button>
+                          </>
+                        ) : null}
+                      </>
+                    )
                   ) : null}
                 </div>
               </div>
@@ -248,7 +290,7 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                         </CardDescription>
                       </CardHeader>
                       <CardContent className='grid gap-4'>
-                        <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-5'>
+                        <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-5 min-w-0'>
                           <SummaryPill label='Status' value={financeProfile.billingStatus} />
                           <SummaryPill
                             label='Scholarship'
@@ -266,7 +308,7 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                           <SummaryPill label='Charges' value={`${financeProfile.charges.length}`} />
                         </div>
                         <Separator />
-                        <div className='grid gap-4 lg:grid-cols-3'>
+                        <div className='grid gap-4 lg:grid-cols-3 min-w-0'>
                           <MonthlyItemPanel
                             title='Charged monthly items'
                             items={monthlyItemGroups.charged.map((item) => ({
@@ -398,48 +440,52 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                         />
                       </div>
                       <div className='overflow-hidden rounded-xl border border-border/60'>
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Item</TableHead>
-                              <TableHead>Category</TableHead>
-                              <TableHead>Behavior</TableHead>
-                              <TableHead>Notes</TableHead>
-                              <TableHead className='text-right'>Monthly amount</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {financeProfile.billingItems.length === 0 ? (
+                        <div className='w-full overflow-x-auto'>
+                          <Table className='min-w-[640px]'>
+                            <TableHeader>
                               <TableRow>
-                                <TableCell colSpan={5} className='text-muted-foreground'>
-                                  No recurring billing items configured yet.
-                                </TableCell>
+                                <TableHead>Item</TableHead>
+                                <TableHead>Category</TableHead>
+                                <TableHead>Behavior</TableHead>
+                                <TableHead>Notes</TableHead>
+                                <TableHead className='text-right'>Monthly amount</TableHead>
                               </TableRow>
-                            ) : (
-                              financeProfile.billingItems.map((item) => (
-                                <TableRow key={item.id}>
-                                  <TableCell className='font-medium'>{item.label}</TableCell>
-                                  <TableCell>{item.category}</TableCell>
-                                  <TableCell>
-                                    <Badge
-                                      variant={
-                                        item.billingBehavior === 'Charged' ? 'default' : 'secondary'
-                                      }
-                                    >
-                                      {item.billingBehavior}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell className='text-sm text-muted-foreground'>
-                                    {item.notes || '—'}
-                                  </TableCell>
-                                  <TableCell className='text-right font-medium'>
-                                    {currency(item.monthlyAmount)}
+                            </TableHeader>
+                            <TableBody>
+                              {financeProfile.billingItems.length === 0 ? (
+                                <TableRow>
+                                  <TableCell colSpan={5} className='text-muted-foreground'>
+                                    No recurring billing items configured yet.
                                   </TableCell>
                                 </TableRow>
-                              ))
-                            )}
-                          </TableBody>
-                        </Table>
+                              ) : (
+                                financeProfile.billingItems.map((item) => (
+                                  <TableRow key={item.id}>
+                                    <TableCell className='font-medium'>{item.label}</TableCell>
+                                    <TableCell>{item.category}</TableCell>
+                                    <TableCell>
+                                      <Badge
+                                        variant={
+                                          item.billingBehavior === 'Charged'
+                                            ? 'default'
+                                            : 'secondary'
+                                        }
+                                      >
+                                        {item.billingBehavior}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell className='text-sm text-muted-foreground'>
+                                      {item.notes || '—'}
+                                    </TableCell>
+                                    <TableCell className='text-right font-medium'>
+                                      {currency(item.monthlyAmount)}
+                                    </TableCell>
+                                  </TableRow>
+                                ))
+                              )}
+                            </TableBody>
+                          </Table>
+                        </div>
                       </div>
                       <div className='rounded-xl border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground'>
                         {financeProfile.notesSummary || 'No finance notes recorded yet.'}
@@ -472,38 +518,42 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                             </div>
                             {financeProfile.relatedProfiles.length > 0 ? (
                               <div className='overflow-hidden rounded-xl border border-border/60'>
-                                <Table>
-                                  <TableHeader>
-                                    <TableRow>
-                                      <TableHead>Linked student</TableHead>
-                                      <TableHead>Status</TableHead>
-                                      <TableHead>Next action</TableHead>
-                                      <TableHead className='text-right'>Outstanding</TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-                                  <TableBody>
-                                    {financeProfile.relatedProfiles.map((member) => (
-                                      <TableRow key={member.profileId}>
-                                        <TableCell>
-                                          <div className='font-medium'>{member.studentName}</div>
-                                          <div className='text-xs text-muted-foreground'>
-                                            {member.className}
-                                            {member.academicYear ? ` • ${member.academicYear}` : ''}
-                                          </div>
-                                        </TableCell>
-                                        <TableCell>
-                                          <Badge variant={billingVariant(member.billingStatus)}>
-                                            {member.billingStatus}
-                                          </Badge>
-                                        </TableCell>
-                                        <TableCell>{member.nextActionDate || '—'}</TableCell>
-                                        <TableCell className='text-right font-medium'>
-                                          {currency(member.totalOutstanding)}
-                                        </TableCell>
+                                <div className='w-full overflow-x-auto'>
+                                  <Table className='min-w-[640px]'>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Linked student</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead>Next action</TableHead>
+                                        <TableHead className='text-right'>Outstanding</TableHead>
                                       </TableRow>
-                                    ))}
-                                  </TableBody>
-                                </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {financeProfile.relatedProfiles.map((member) => (
+                                        <TableRow key={member.profileId}>
+                                          <TableCell>
+                                            <div className='font-medium'>{member.studentName}</div>
+                                            <div className='text-xs text-muted-foreground'>
+                                              {member.className}
+                                              {member.academicYear
+                                                ? ` • ${member.academicYear}`
+                                                : ''}
+                                            </div>
+                                          </TableCell>
+                                          <TableCell>
+                                            <Badge variant={billingVariant(member.billingStatus)}>
+                                              {member.billingStatus}
+                                            </Badge>
+                                          </TableCell>
+                                          <TableCell>{member.nextActionDate || '—'}</TableCell>
+                                          <TableCell className='text-right font-medium'>
+                                            {currency(member.totalOutstanding)}
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
                               </div>
                             ) : (
                               <div className='text-sm text-muted-foreground'>
@@ -536,52 +586,54 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                         </div>
                       ) : (
                         <div className='overflow-hidden rounded-xl border border-border/60'>
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Charge</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Due</TableHead>
-                                <TableHead className='text-right'>Amount</TableHead>
-                                <TableHead className='text-right'>Applied</TableHead>
-                                <TableHead className='text-right'>Remaining</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {financeProfile.charges.map((charge) => (
-                                <TableRow key={charge.id}>
-                                  <TableCell>
-                                    <div className='font-medium'>{charge.title}</div>
-                                    <div className='text-xs text-muted-foreground'>
-                                      {charge.category}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell>
-                                    <div className='flex flex-col gap-1'>
-                                      <Badge variant={chargeVariant(charge.status)}>
-                                        {charge.status}
-                                      </Badge>
-                                      <span className='text-muted-foreground text-xs'>
-                                        {charge.settlementLabel}
-                                      </span>
-                                    </div>
-                                  </TableCell>
-                                  <TableCell>{charge.chargeDate}</TableCell>
-                                  <TableCell>{charge.dueDate}</TableCell>
-                                  <TableCell className='text-right font-medium'>
-                                    {currency(charge.amount)}
-                                  </TableCell>
-                                  <TableCell className='text-right font-medium'>
-                                    {currency(charge.appliedAmount)}
-                                  </TableCell>
-                                  <TableCell className='text-right font-medium'>
-                                    {currency(charge.balanceRemaining)}
-                                  </TableCell>
+                          <div className='w-full overflow-x-auto'>
+                            <Table className='min-w-[720px]'>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Charge</TableHead>
+                                  <TableHead>Status</TableHead>
+                                  <TableHead>Date</TableHead>
+                                  <TableHead>Due</TableHead>
+                                  <TableHead className='text-right'>Amount</TableHead>
+                                  <TableHead className='text-right'>Applied</TableHead>
+                                  <TableHead className='text-right'>Remaining</TableHead>
                                 </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
+                              </TableHeader>
+                              <TableBody>
+                                {financeProfile.charges.map((charge) => (
+                                  <TableRow key={charge.id}>
+                                    <TableCell>
+                                      <div className='font-medium'>{charge.title}</div>
+                                      <div className='text-xs text-muted-foreground'>
+                                        {charge.category}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className='flex flex-col gap-1'>
+                                        <Badge variant={chargeVariant(charge.status)}>
+                                          {charge.status}
+                                        </Badge>
+                                        <span className='text-muted-foreground text-xs'>
+                                          {charge.settlementLabel}
+                                        </span>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>{charge.chargeDate}</TableCell>
+                                    <TableCell>{charge.dueDate}</TableCell>
+                                    <TableCell className='text-right font-medium'>
+                                      {currency(charge.amount)}
+                                    </TableCell>
+                                    <TableCell className='text-right font-medium'>
+                                      {currency(charge.appliedAmount)}
+                                    </TableCell>
+                                    <TableCell className='text-right font-medium'>
+                                      {currency(charge.balanceRemaining)}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
                         </div>
                       )}
                     </CardContent>
@@ -603,47 +655,49 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                         </div>
                       ) : (
                         <div className='overflow-hidden rounded-xl border border-border/60'>
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Paid at</TableHead>
-                                <TableHead>Method</TableHead>
-                                <TableHead>Reference</TableHead>
-                                <TableHead>Note</TableHead>
-                                <TableHead className='text-right'>Amount</TableHead>
-                                <TableHead className='text-right'>Applied</TableHead>
-                                <TableHead className='text-right'>Unapplied</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {financeProfile.payments.map((payment) => (
-                                <TableRow key={payment.id}>
-                                  <TableCell>{payment.paidAt}</TableCell>
-                                  <TableCell>
-                                    <Badge variant='outline'>{payment.method}</Badge>
-                                  </TableCell>
-                                  <TableCell>{payment.reference || '—'}</TableCell>
-                                  <TableCell className='max-w-[280px] text-sm text-muted-foreground'>
-                                    {payment.note || '—'}
-                                    <div className='text-xs text-muted-foreground'>
-                                      {payment.appliedChargeCount
-                                        ? `Matched to ${payment.appliedChargeCount} charge${payment.appliedChargeCount === 1 ? '' : 's'}`
-                                        : 'Not matched to charges yet'}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className='text-right font-medium'>
-                                    {currency(payment.amount)}
-                                  </TableCell>
-                                  <TableCell className='text-right font-medium'>
-                                    {currency(payment.appliedAmount)}
-                                  </TableCell>
-                                  <TableCell className='text-right font-medium'>
-                                    {currency(payment.unappliedAmount)}
-                                  </TableCell>
+                          <div className='w-full overflow-x-auto'>
+                            <Table className='min-w-[720px]'>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Paid at</TableHead>
+                                  <TableHead>Method</TableHead>
+                                  <TableHead>Reference</TableHead>
+                                  <TableHead>Note</TableHead>
+                                  <TableHead className='text-right'>Amount</TableHead>
+                                  <TableHead className='text-right'>Applied</TableHead>
+                                  <TableHead className='text-right'>Unapplied</TableHead>
                                 </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
+                              </TableHeader>
+                              <TableBody>
+                                {financeProfile.payments.map((payment) => (
+                                  <TableRow key={payment.id}>
+                                    <TableCell>{payment.paidAt}</TableCell>
+                                    <TableCell>
+                                      <Badge variant='outline'>{payment.method}</Badge>
+                                    </TableCell>
+                                    <TableCell>{payment.reference || '—'}</TableCell>
+                                    <TableCell className='max-w-[280px] text-sm text-muted-foreground'>
+                                      {payment.note || '—'}
+                                      <div className='text-xs text-muted-foreground'>
+                                        {payment.appliedChargeCount
+                                          ? `Matched to ${payment.appliedChargeCount} charge${payment.appliedChargeCount === 1 ? '' : 's'}`
+                                          : 'Not matched to charges yet'}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className='text-right font-medium'>
+                                      {currency(payment.amount)}
+                                    </TableCell>
+                                    <TableCell className='text-right font-medium'>
+                                      {currency(payment.appliedAmount)}
+                                    </TableCell>
+                                    <TableCell className='text-right font-medium'>
+                                      {currency(payment.unappliedAmount)}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
                         </div>
                       )}
                     </CardContent>
@@ -669,132 +723,138 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                           </div>
                         </div>
                         <div className='overflow-hidden rounded-xl border border-border/60'>
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Follow-up focus</TableHead>
-                                <TableHead>Value</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              <TableRow>
-                                <TableCell className='font-medium'>Guardian</TableCell>
-                                <TableCell>{student.guardianName || '—'}</TableCell>
-                              </TableRow>
-                              <TableRow>
-                                <TableCell className='font-medium'>Guardian phone</TableCell>
-                                <TableCell>{student.guardianPhone || '—'}</TableCell>
-                              </TableRow>
-                              <TableRow>
-                                <TableCell className='font-medium'>Family / account</TableCell>
-                                <TableCell>
-                                  {financeProfile.familyLabel || 'Not labelled yet'}
-                                </TableCell>
-                              </TableRow>
-                              <TableRow>
-                                <TableCell className='font-medium'>Primary guardian</TableCell>
-                                <TableCell>
-                                  {financeProfile.familyAccount?.primaryGuardianName ||
-                                    financeProfile.familyPrimaryGuardianName ||
-                                    '—'}
-                                </TableCell>
-                              </TableRow>
-                              <TableRow>
-                                <TableCell className='font-medium'>Guardian phone</TableCell>
-                                <TableCell>
-                                  {financeProfile.familyAccount?.primaryGuardianPhone ||
-                                    financeProfile.familyPrimaryGuardianPhone ||
-                                    '—'}
-                                </TableCell>
-                              </TableRow>
-                              <TableRow>
-                                <TableCell className='font-medium'>Payment plan</TableCell>
-                                <TableCell>{financeProfile.paymentPlan || 'No plan set'}</TableCell>
-                              </TableRow>
-                              <TableRow>
-                                <TableCell className='font-medium'>Collections stage</TableCell>
-                                <TableCell>{financeProfile.collectionStage}</TableCell>
-                              </TableRow>
-                              <TableRow>
-                                <TableCell className='font-medium'>Reminder channel</TableCell>
-                                <TableCell>{financeProfile.reminderChannel}</TableCell>
-                              </TableRow>
-                              <TableRow>
-                                <TableCell className='font-medium'>Last reminder</TableCell>
-                                <TableCell>
-                                  {financeProfile.lastReminderDate || 'Not sent yet'}
-                                </TableCell>
-                              </TableRow>
-                              <TableRow>
-                                <TableCell className='font-medium'>Overdue items</TableCell>
-                                <TableCell>{overdueCharges.length}</TableCell>
-                              </TableRow>
-                              <TableRow>
-                                <TableCell className='font-medium'>Next upcoming due</TableCell>
-                                <TableCell>
-                                  {upcomingCharges[0]?.dueDate || 'None scheduled'}
-                                </TableCell>
-                              </TableRow>
-                              <TableRow>
-                                <TableCell className='font-medium'>Next action date</TableCell>
-                                <TableCell>
-                                  {financeProfile.nextActionDate || 'Not scheduled'}
-                                </TableCell>
-                              </TableRow>
-                            </TableBody>
-                          </Table>
-                        </div>
-                        <div className='overflow-hidden rounded-xl border border-border/60'>
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Reminder date</TableHead>
-                                <TableHead>Channel</TableHead>
-                                <TableHead>Collections stage</TableHead>
-                                <TableHead>Outcome</TableHead>
-                                <TableHead>Next action</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {financeProfile.reminders.length === 0 ? (
+                          <div className='w-full overflow-x-auto'>
+                            <Table className='min-w-[640px]'>
+                              <TableHeader>
                                 <TableRow>
-                                  <TableCell colSpan={5} className='text-muted-foreground'>
-                                    No reminder timeline yet. Log the first outreach touch from the
-                                    finance actions above.
+                                  <TableHead>Follow-up focus</TableHead>
+                                  <TableHead>Value</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                <TableRow>
+                                  <TableCell className='font-medium'>Guardian</TableCell>
+                                  <TableCell>{student.guardianName || '—'}</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell className='font-medium'>Guardian phone</TableCell>
+                                  <TableCell>{student.guardianPhone || '—'}</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell className='font-medium'>Family / account</TableCell>
+                                  <TableCell>
+                                    {financeProfile.familyLabel || 'Not labelled yet'}
                                   </TableCell>
                                 </TableRow>
-                              ) : (
-                                financeProfile.reminders.map((reminder) => (
-                                  <TableRow key={reminder.id}>
-                                    <TableCell>
-                                      <div className='font-medium'>{reminder.reminderDate}</div>
-                                      <div className='text-xs text-muted-foreground'>
-                                        {reminder.authorLabel}
-                                      </div>
+                                <TableRow>
+                                  <TableCell className='font-medium'>Primary guardian</TableCell>
+                                  <TableCell>
+                                    {financeProfile.familyAccount?.primaryGuardianName ||
+                                      financeProfile.familyPrimaryGuardianName ||
+                                      '—'}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell className='font-medium'>Guardian phone</TableCell>
+                                  <TableCell>
+                                    {financeProfile.familyAccount?.primaryGuardianPhone ||
+                                      financeProfile.familyPrimaryGuardianPhone ||
+                                      '—'}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell className='font-medium'>Payment plan</TableCell>
+                                  <TableCell>
+                                    {financeProfile.paymentPlan || 'No plan set'}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell className='font-medium'>Collections stage</TableCell>
+                                  <TableCell>{financeProfile.collectionStage}</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell className='font-medium'>Reminder channel</TableCell>
+                                  <TableCell>{financeProfile.reminderChannel}</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell className='font-medium'>Last reminder</TableCell>
+                                  <TableCell>
+                                    {financeProfile.lastReminderDate || 'Not sent yet'}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell className='font-medium'>Overdue items</TableCell>
+                                  <TableCell>{overdueCharges.length}</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell className='font-medium'>Next upcoming due</TableCell>
+                                  <TableCell>
+                                    {upcomingCharges[0]?.dueDate || 'None scheduled'}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell className='font-medium'>Next action date</TableCell>
+                                  <TableCell>
+                                    {financeProfile.nextActionDate || 'Not scheduled'}
+                                  </TableCell>
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </div>
+                        <div className='overflow-hidden rounded-xl border border-border/60'>
+                          <div className='w-full overflow-x-auto'>
+                            <Table className='min-w-[720px]'>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Reminder date</TableHead>
+                                  <TableHead>Channel</TableHead>
+                                  <TableHead>Collections stage</TableHead>
+                                  <TableHead>Outcome</TableHead>
+                                  <TableHead>Next action</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {financeProfile.reminders.length === 0 ? (
+                                  <TableRow>
+                                    <TableCell colSpan={5} className='text-muted-foreground'>
+                                      No reminder timeline yet. Log the first outreach touch from
+                                      the finance actions above.
                                     </TableCell>
-                                    <TableCell>
-                                      <Badge variant='outline'>{reminder.channel}</Badge>
-                                    </TableCell>
-                                    <TableCell>
-                                      <Badge
-                                        variant={
-                                          reminder.collectionStage === 'Escalated'
-                                            ? 'destructive'
-                                            : 'secondary'
-                                        }
-                                      >
-                                        {reminder.collectionStage}
-                                      </Badge>
-                                    </TableCell>
-                                    <TableCell className='max-w-[320px] text-sm text-muted-foreground'>
-                                      {reminder.outcome}
-                                    </TableCell>
-                                    <TableCell>{reminder.nextActionDate || '—'}</TableCell>
                                   </TableRow>
-                                ))
-                              )}
-                            </TableBody>
-                          </Table>
+                                ) : (
+                                  financeProfile.reminders.map((reminder) => (
+                                    <TableRow key={reminder.id}>
+                                      <TableCell>
+                                        <div className='font-medium'>{reminder.reminderDate}</div>
+                                        <div className='text-xs text-muted-foreground'>
+                                          {reminder.authorLabel}
+                                        </div>
+                                      </TableCell>
+                                      <TableCell>
+                                        <Badge variant='outline'>{reminder.channel}</Badge>
+                                      </TableCell>
+                                      <TableCell>
+                                        <Badge
+                                          variant={
+                                            reminder.collectionStage === 'Escalated'
+                                              ? 'destructive'
+                                              : 'secondary'
+                                          }
+                                        >
+                                          {reminder.collectionStage}
+                                        </Badge>
+                                      </TableCell>
+                                      <TableCell className='max-w-[320px] text-sm text-muted-foreground'>
+                                        {reminder.outcome}
+                                      </TableCell>
+                                      <TableCell>{reminder.nextActionDate || '—'}</TableCell>
+                                    </TableRow>
+                                  ))
+                                )}
+                              </TableBody>
+                            </Table>
+                          </div>
                         </div>
                       </div>
                       <div className='rounded-xl border border-border/60 p-4'>

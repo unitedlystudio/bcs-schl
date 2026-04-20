@@ -107,7 +107,7 @@ export function FinanceChargeSheet({
   };
 
   const content = (
-    <div className='grid gap-4'>
+    <div className='grid min-w-0 gap-4'>
       <div className='grid gap-2'>
         <Label htmlFor='chargeTitle'>Charge title</Label>
         <Input
@@ -199,7 +199,7 @@ export function FinanceChargeSheet({
   if (isMobile)
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent>
+        <DrawerContent className='overflow-x-hidden'>
           <DrawerHeader>
             <DrawerTitle>Add finance charge</DrawerTitle>
             <DrawerDescription>
@@ -207,7 +207,7 @@ export function FinanceChargeSheet({
               billing profile.
             </DrawerDescription>
           </DrawerHeader>
-          <div className='max-h-[70vh] overflow-y-auto px-4'>{content}</div>
+          <div className='max-h-[70vh] overflow-x-hidden overflow-y-auto px-4'>{content}</div>
           <DrawerFooter>{footer}</DrawerFooter>
         </DrawerContent>
       </Drawer>
@@ -284,7 +284,7 @@ export function FinancePaymentSheet({
   };
 
   const content = (
-    <div className='grid gap-4'>
+    <div className='grid min-w-0 gap-4'>
       <div className='grid gap-4 md:grid-cols-2'>
         <div className='grid gap-2'>
           <Label htmlFor='paymentAmount'>Amount</Label>
@@ -360,14 +360,14 @@ export function FinancePaymentSheet({
   if (isMobile)
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent>
+        <DrawerContent className='overflow-x-hidden'>
           <DrawerHeader>
             <DrawerTitle>Record payment</DrawerTitle>
             <DrawerDescription>
               Log actual payments separately from pricing rules and outstanding charges.
             </DrawerDescription>
           </DrawerHeader>
-          <div className='max-h-[70vh] overflow-y-auto px-4'>{content}</div>
+          <div className='max-h-[70vh] overflow-x-hidden overflow-y-auto px-4'>{content}</div>
           <DrawerFooter>{footer}</DrawerFooter>
         </DrawerContent>
       </Drawer>
@@ -462,7 +462,7 @@ export function FinanceReminderSheet({
   };
 
   const content = (
-    <div className='grid gap-4'>
+    <div className='grid min-w-0 gap-4'>
       <div className='grid gap-4 md:grid-cols-2'>
         <div className='grid gap-2'>
           <Label htmlFor='reminderDate'>Reminder date</Label>
@@ -557,7 +557,7 @@ export function FinanceReminderSheet({
   if (isMobile)
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent>
+        <DrawerContent className='overflow-x-hidden'>
           <DrawerHeader>
             <DrawerTitle>Log finance reminder</DrawerTitle>
             <DrawerDescription>
@@ -565,7 +565,7 @@ export function FinanceReminderSheet({
               student account.
             </DrawerDescription>
           </DrawerHeader>
-          <div className='max-h-[70vh] overflow-y-auto px-4'>{content}</div>
+          <div className='max-h-[70vh] overflow-x-hidden overflow-y-auto px-4'>{content}</div>
           <DrawerFooter>{footer}</DrawerFooter>
         </DrawerContent>
       </Drawer>
@@ -672,7 +672,7 @@ export function FinanceFamilyPaymentSheet({
   };
 
   const content = familyAccount ? (
-    <div className='grid gap-4'>
+    <div className='grid min-w-0 gap-4'>
       <div className='rounded-xl border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground'>
         <div className='font-medium text-foreground'>{familyAccount.accountLabel}</div>
         <div className='mt-1'>{familyAccount.primaryGuardianName || 'No guardian set'}</div>
@@ -735,9 +735,9 @@ export function FinanceFamilyPaymentSheet({
         {familyAccount.members.map((member) => (
           <div
             key={member.profileId}
-            className='grid gap-3 rounded-xl border border-border/60 p-4 md:grid-cols-[minmax(0,1fr)_140px] md:items-end'
+            className='grid min-w-0 gap-3 rounded-xl border border-border/60 p-4 md:grid-cols-[minmax(0,1fr)_140px] md:items-end'
           >
-            <div>
+            <div className='min-w-0'>
               <div className='font-medium'>{member.studentName}</div>
               <div className='text-xs text-muted-foreground'>
                 {member.className}
@@ -786,14 +786,14 @@ export function FinanceFamilyPaymentSheet({
   if (isMobile)
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent>
+        <DrawerContent className='overflow-x-hidden'>
           <DrawerHeader>
             <DrawerTitle>Allocate family payment</DrawerTitle>
             <DrawerDescription>
               Record one household payment and split it across linked student billing profiles.
             </DrawerDescription>
           </DrawerHeader>
-          <div className='max-h-[70vh] overflow-y-auto px-4'>{content}</div>
+          <div className='max-h-[70vh] overflow-x-hidden overflow-y-auto px-4'>{content}</div>
           <DrawerFooter>{footer}</DrawerFooter>
         </DrawerContent>
       </Drawer>

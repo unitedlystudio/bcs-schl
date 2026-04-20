@@ -117,15 +117,22 @@ function BillingItemsEditor({
   };
 
   return (
-    <div className='grid gap-3'>
-      <div className='flex items-center justify-between gap-2'>
-        <div>
+    <div className='grid min-w-0 gap-3'>
+      <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+        <div className='min-w-0'>
           <div className='text-sm font-medium'>Monthly billing items</div>
           <div className='text-sm text-muted-foreground'>
             Model lunch plans, extra lessons, extracurriculars, and included items per student.
           </div>
         </div>
-        <Button type='button' variant='outline' size='sm' onClick={addItem} disabled={disabled}>
+        <Button
+          type='button'
+          variant='outline'
+          size='sm'
+          className='w-full sm:w-auto'
+          onClick={addItem}
+          disabled={disabled}
+        >
           <Icons.add className='mr-2 h-4 w-4' />
           Add item
         </Button>
@@ -138,9 +145,9 @@ function BillingItemsEditor({
         </div>
       ) : (
         items.map((item, index) => (
-          <div key={item.id} className='rounded-xl border border-border/60 p-4'>
-            <div className='flex items-center justify-between gap-3'>
-              <div className='flex items-center gap-2'>
+          <div key={item.id} className='min-w-0 rounded-xl border border-border/60 p-4'>
+            <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+              <div className='flex min-w-0 flex-wrap items-center gap-2'>
                 <Badge variant='outline'>Item {index + 1}</Badge>
                 <Badge variant={item.billingBehavior === 'Charged' ? 'default' : 'secondary'}>
                   {item.billingBehavior}
@@ -150,6 +157,7 @@ function BillingItemsEditor({
                 type='button'
                 variant='ghost'
                 size='sm'
+                className='w-full sm:w-auto'
                 onClick={() => removeItem(item.id)}
                 disabled={disabled}
               >
@@ -258,7 +266,7 @@ function ProfileFields({
   isEdit: boolean;
 }) {
   return (
-    <div className='grid gap-5'>
+    <div className='grid min-w-0 gap-5'>
       <div className='grid gap-2'>
         <Label>Student</Label>
         <Select value={values.studentId} onValueChange={(value) => onChange('studentId', value)}>
@@ -668,14 +676,14 @@ export function FinanceProfileSheet({
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent>
+        <DrawerContent className='overflow-x-hidden'>
           <DrawerHeader>
             <DrawerTitle>{isEdit ? 'Manage billing profile' : 'Add billing profile'}</DrawerTitle>
             <DrawerDescription>
               Keep tuition, add-ons, and collection terms attached to the student finance profile.
             </DrawerDescription>
           </DrawerHeader>
-          <div className='max-h-[70vh] overflow-y-auto px-4'>{content}</div>
+          <div className='max-h-[70vh] overflow-x-hidden overflow-y-auto px-4'>{content}</div>
           <DrawerFooter>{footer}</DrawerFooter>
         </DrawerContent>
       </Drawer>
