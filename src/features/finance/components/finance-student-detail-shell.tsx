@@ -217,13 +217,25 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
               </div>
 
               <Tabs defaultValue='summary' className='gap-4'>
-                <TabsList className='flex h-auto flex-wrap justify-start'>
-                  <TabsTrigger value='summary'>Summary</TabsTrigger>
-                  <TabsTrigger value='setup'>Billing setup</TabsTrigger>
-                  <TabsTrigger value='charges'>Charges</TabsTrigger>
-                  <TabsTrigger value='payments'>Payments</TabsTrigger>
-                  <TabsTrigger value='follow-up'>Follow-up</TabsTrigger>
-                </TabsList>
+                <div className='overflow-x-auto pb-1'>
+                  <TabsList className='inline-flex h-12 min-w-max items-center justify-start gap-1 rounded-xl p-1'>
+                    <TabsTrigger value='summary' className='min-h-10 px-4'>
+                      Summary
+                    </TabsTrigger>
+                    <TabsTrigger value='setup' className='min-h-10 px-4'>
+                      Billing setup
+                    </TabsTrigger>
+                    <TabsTrigger value='charges' className='min-h-10 px-4'>
+                      Charges
+                    </TabsTrigger>
+                    <TabsTrigger value='payments' className='min-h-10 px-4'>
+                      Payments
+                    </TabsTrigger>
+                    <TabsTrigger value='follow-up' className='min-h-10 px-4'>
+                      Follow-up
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
 
                 <TabsContent value='summary'>
                   <div className='grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]'>
@@ -289,7 +301,7 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                       </CardContent>
                     </Card>
 
-                    <Card className='border-border/60'>
+                    <Card className='overflow-hidden border-border/60'>
                       <CardHeader>
                         <CardTitle>Upcoming finance operations</CardTitle>
                         <CardDescription>
@@ -332,7 +344,7 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                 </TabsContent>
 
                 <TabsContent value='setup'>
-                  <Card className='border-border/60'>
+                  <Card className='overflow-hidden border-border/60'>
                     <CardHeader>
                       <CardTitle>Billing setup</CardTitle>
                       <CardDescription>
@@ -510,7 +522,7 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                 </TabsContent>
 
                 <TabsContent value='charges'>
-                  <Card className='border-border/60'>
+                  <Card className='overflow-hidden border-border/60'>
                     <CardHeader>
                       <CardTitle>Charge ledger</CardTitle>
                       <CardDescription>
@@ -532,6 +544,8 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                                 <TableHead>Date</TableHead>
                                 <TableHead>Due</TableHead>
                                 <TableHead className='text-right'>Amount</TableHead>
+                                <TableHead className='text-right'>Applied</TableHead>
+                                <TableHead className='text-right'>Remaining</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -544,14 +558,25 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                                     </div>
                                   </TableCell>
                                   <TableCell>
-                                    <Badge variant={chargeVariant(charge.status)}>
-                                      {charge.status}
-                                    </Badge>
+                                    <div className='flex flex-col gap-1'>
+                                      <Badge variant={chargeVariant(charge.status)}>
+                                        {charge.status}
+                                      </Badge>
+                                      <span className='text-muted-foreground text-xs'>
+                                        {charge.settlementLabel}
+                                      </span>
+                                    </div>
                                   </TableCell>
                                   <TableCell>{charge.chargeDate}</TableCell>
                                   <TableCell>{charge.dueDate}</TableCell>
                                   <TableCell className='text-right font-medium'>
                                     {currency(charge.amount)}
+                                  </TableCell>
+                                  <TableCell className='text-right font-medium'>
+                                    {currency(charge.appliedAmount)}
+                                  </TableCell>
+                                  <TableCell className='text-right font-medium'>
+                                    {currency(charge.balanceRemaining)}
                                   </TableCell>
                                 </TableRow>
                               ))}
@@ -564,7 +589,7 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                 </TabsContent>
 
                 <TabsContent value='payments'>
-                  <Card className='border-border/60'>
+                  <Card className='overflow-hidden border-border/60'>
                     <CardHeader>
                       <CardTitle>Payment history</CardTitle>
                       <CardDescription>
@@ -586,6 +611,8 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                                 <TableHead>Reference</TableHead>
                                 <TableHead>Note</TableHead>
                                 <TableHead className='text-right'>Amount</TableHead>
+                                <TableHead className='text-right'>Applied</TableHead>
+                                <TableHead className='text-right'>Unapplied</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -598,9 +625,20 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                                   <TableCell>{payment.reference || '—'}</TableCell>
                                   <TableCell className='max-w-[280px] text-sm text-muted-foreground'>
                                     {payment.note || '—'}
+                                    <div className='text-xs text-muted-foreground'>
+                                      {payment.appliedChargeCount
+                                        ? `Matched to ${payment.appliedChargeCount} charge${payment.appliedChargeCount === 1 ? '' : 's'}`
+                                        : 'Not matched to charges yet'}
+                                    </div>
                                   </TableCell>
                                   <TableCell className='text-right font-medium'>
                                     {currency(payment.amount)}
+                                  </TableCell>
+                                  <TableCell className='text-right font-medium'>
+                                    {currency(payment.appliedAmount)}
+                                  </TableCell>
+                                  <TableCell className='text-right font-medium'>
+                                    {currency(payment.unappliedAmount)}
                                   </TableCell>
                                 </TableRow>
                               ))}
@@ -613,7 +651,7 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                 </TabsContent>
 
                 <TabsContent value='follow-up'>
-                  <Card className='border-border/60'>
+                  <Card className='overflow-hidden border-border/60'>
                     <CardHeader>
                       <CardTitle>Follow-up & collections</CardTitle>
                       <CardDescription>

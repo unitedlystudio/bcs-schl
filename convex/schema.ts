@@ -315,6 +315,18 @@ export default defineSchema({
     .index('by_profile', ['billingProfileId', 'createdAt'])
     .index('by_createdAt', ['createdAt']),
 
+  financePaymentApplications: defineTable({
+    billingProfileId: v.id('studentBillingProfiles'),
+    paymentId: v.id('financePayments'),
+    chargeId: v.id('financeCharges'),
+    amount: v.number(),
+    appliedAt: v.number()
+  })
+    .index('by_profile', ['billingProfileId', 'appliedAt'])
+    .index('by_payment', ['paymentId', 'appliedAt'])
+    .index('by_charge', ['chargeId', 'appliedAt'])
+    .index('by_appliedAt', ['appliedAt']),
+
   admissionsEnquiries: defineTable({
     studentName: v.string(),
     familyName: v.string(),

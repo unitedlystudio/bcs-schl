@@ -20,6 +20,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FinanceAccessGate } from './finance-access-gate';
 import { FinanceOverviewGrid } from './finance-overview-grid';
+import { FinanceCollectionsGrid } from './finance-collections-grid';
 import { FinanceProfileSheet } from './finance-profile-sheet';
 import { FinanceFamilyPaymentSheet } from './finance-record-sheets';
 import { useFinanceAccess } from '../hooks/use-finance-access';
@@ -241,13 +242,25 @@ export default function FinanceShell() {
                 dedicated student finance screen when you need the full story.
               </div>
             </div>
-            <TabsList className='flex h-auto flex-wrap justify-start'>
-              <TabsTrigger value='student-billing'>Student billing</TabsTrigger>
-              <TabsTrigger value='charges-ledger'>Charges</TabsTrigger>
-              <TabsTrigger value='payments-ledger'>Payments</TabsTrigger>
-              <TabsTrigger value='collections'>Collections</TabsTrigger>
-              <TabsTrigger value='family-accounts'>Families</TabsTrigger>
-            </TabsList>
+            <div className='overflow-x-auto pb-1'>
+              <TabsList className='inline-flex h-12 min-w-max items-center justify-start gap-1 rounded-xl p-1'>
+                <TabsTrigger value='student-billing' className='min-h-10 px-4'>
+                  Student billing
+                </TabsTrigger>
+                <TabsTrigger value='charges-ledger' className='min-h-10 px-4'>
+                  Charges
+                </TabsTrigger>
+                <TabsTrigger value='payments-ledger' className='min-h-10 px-4'>
+                  Payments
+                </TabsTrigger>
+                <TabsTrigger value='collections' className='min-h-10 px-4'>
+                  Collections
+                </TabsTrigger>
+                <TabsTrigger value='family-accounts' className='min-h-10 px-4'>
+                  Families
+                </TabsTrigger>
+              </TabsList>
+            </div>
           </div>
 
           <TabsContent value='student-billing'>
@@ -278,7 +291,7 @@ export default function FinanceShell() {
           </TabsContent>
 
           <TabsContent value='charges-ledger'>
-            <Card className='border-border/60'>
+            <Card className='overflow-hidden border-border/60'>
               <CardHeader>
                 <CardTitle>School charge ledger</CardTitle>
                 <CardDescription>
@@ -338,7 +351,7 @@ export default function FinanceShell() {
           </TabsContent>
 
           <TabsContent value='payments-ledger'>
-            <Card className='border-border/60'>
+            <Card className='overflow-hidden border-border/60'>
               <CardHeader>
                 <CardTitle>School payment intake</CardTitle>
                 <CardDescription>
@@ -396,77 +409,29 @@ export default function FinanceShell() {
           </TabsContent>
 
           <TabsContent value='collections'>
-            <Card className='border-border/60'>
+            <Card className='overflow-hidden border-border/60'>
               <CardHeader>
                 <CardTitle>Collections queue</CardTitle>
                 <CardDescription>
-                  Focus this view on students needing reminder calls, payment-plan review, or direct
-                  collection follow-up.
+                  Use a grid for overdue and active follow-up accounts, then open each record in a
+                  side drawer without losing your place.
                 </CardDescription>
               </CardHeader>
-              <CardContent className='grid gap-3'>
+              <CardContent>
                 {collectionsRows.length === 0 ? (
                   <LedgerEmpty
                     title='No overdue student accounts are visible right now.'
                     description='When balances become overdue or arrears are added, those accounts will surface here.'
                   />
                 ) : (
-                  collectionsRows.map((row) => (
-                    <div key={row.profileId} className='rounded-xl border border-border/60 p-4'>
-                      <div className='flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between'>
-                        <div className='space-y-2'>
-                          <div className='flex flex-wrap items-center gap-2'>
-                            <div className='font-medium'>{row.studentName}</div>
-                            <Badge variant='outline'>{row.className}</Badge>
-                            {row.academicYear ? (
-                              <Badge variant='outline'>{row.academicYear}</Badge>
-                            ) : null}
-                            <Badge variant={billingVariant(row.billingStatus)}>
-                              {row.billingStatus}
-                            </Badge>
-                          </div>
-                          <div className='text-sm text-muted-foreground'>
-                            Outstanding {currency(row.totalOutstanding)} • Monthly total{' '}
-                            {currency(row.effectiveMonthlyFee)}
-                          </div>
-                          <div className='text-sm text-muted-foreground'>
-                            {row.familyLabel || 'No family/account label'} •{' '}
-                            {row.paymentPlan || 'No payment plan set'}
-                          </div>
-                          <div className='text-xs text-muted-foreground'>
-                            {row.collectionStage} via {row.reminderChannel}
-                            {row.nextActionDate ? ` • next action ${row.nextActionDate}` : ''}
-                          </div>
-                          <div className='text-xs text-muted-foreground'>
-                            {row.recentReminderDate
-                              ? `Latest reminder ${row.recentReminderDate} • ${row.recentReminderOutcome}`
-                              : 'No reminder history logged yet'}
-                            {row.reminderCount ? ` • ${row.reminderCount} touches logged` : ''}
-                          </div>
-                          <div className='text-xs text-muted-foreground'>
-                            Last payment {row.recentPaymentDate || 'not recorded'}
-                            {row.recentPaymentAmount
-                              ? ` • ${currency(row.recentPaymentAmount)}`
-                              : ''}
-                          </div>
-                        </div>
-                        <div className='flex flex-wrap gap-2'>
-                          <Button asChild variant='outline' size='sm'>
-                            <Link href={`/dashboard/billing/${row.studentId}`}>
-                              Open student finance
-                            </Link>
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))
+                  <FinanceCollectionsGrid rows={collectionsRows} />
                 )}
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value='family-accounts'>
-            <Card className='border-border/60'>
+            <Card className='overflow-hidden border-border/60'>
               <CardHeader>
                 <CardTitle>Family accounts</CardTitle>
                 <CardDescription>

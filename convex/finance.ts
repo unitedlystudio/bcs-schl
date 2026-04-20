@@ -431,6 +431,9 @@ type FinanceProfileDetail = EnrichedProfile & {
     chargeDate: string;
     dueDate: string;
     status: (typeof CHARGE_STATUSES)[number];
+    appliedAmount: number;
+    balanceRemaining: number;
+    settlementLabel: string;
     updatedAt: number;
   }>;
   payments: Array<{
@@ -440,6 +443,9 @@ type FinanceProfileDetail = EnrichedProfile & {
     method: (typeof PAYMENT_METHODS)[number];
     reference: string;
     note: string;
+    appliedAmount: number;
+    unappliedAmount: number;
+    appliedChargeCount: number;
     createdAt: number;
   }>;
   reminders: ReminderLogView[];
@@ -467,6 +473,17 @@ async function enrichProfile(
     .withIndex('by_profile', (q) => q.eq('billingProfileId', profile._id))
     .order('desc')
     .collect();
+  const applications = await ctx.db
+    .query('financePaymentApplications')
+    .withIndex('by_profile', (q) => q.eq('billingProfileId', profile._id))
+    .collect();
+  const appliedByChargeId = new Map<string, number>();
+  for (const application of applications) {
+    appliedByChargeId.set(
+      application.chargeId,
+      (appliedByChargeId.get(application.chargeId) ?? 0) + application.amount
+    );
+  }
   const familyAccount = profile.familyAccountId ? await ctx.db.get(profile.familyAccountId) : null;
   const familyProfiles = profile.familyAccountId
     ? await ctx.db
@@ -478,10 +495,13 @@ async function enrichProfile(
   const latestReminder = [...reminders].sort(compareReminderRecency)[0];
 
   const unpaidCharges = charges.filter(
-    (charge) => charge.status === 'Pending' || charge.status === 'Overdue'
+    (charge) => charge.status !== 'Waived' && charge.status !== 'Paid'
   );
   const totalOutstanding =
-    unpaidCharges.reduce((sum, charge) => sum + charge.amount, 0) + profile.arrearsBalance;
+    unpaidCharges.reduce(
+      (sum, charge) => sum + Math.max(charge.amount - (appliedByChargeId.get(charge._id) ?? 0), 0),
+      0
+    ) + profile.arrearsBalance;
 
   const billingItems = normalizeBillingItems(
     profile.billingItems as BillingItemInput[] | undefined
@@ -571,6 +591,11 @@ export const summary = query({
       .withIndex('by_updatedAt')
       .order('desc')
       .collect();
+    const applications = await ctx.db
+      .query('financePaymentApplications')
+      .withIndex('by_appliedAt')
+      .order('desc')
+      .collect();
     const familyAccounts = await ctx.db
       .query('financeFamilyAccounts')
       .withIndex('by_updatedAt')
@@ -582,9 +607,20 @@ export const summary = query({
       .order('desc')
       .collect();
 
+    const appliedByChargeId = new Map<string, number>();
+    for (const application of applications) {
+      appliedByChargeId.set(
+        application.chargeId,
+        (appliedByChargeId.get(application.chargeId) ?? 0) + application.amount
+      );
+    }
     const outstandingCharges = charges
-      .filter((charge) => charge.status === 'Pending' || charge.status === 'Overdue')
-      .reduce((sum, charge) => sum + charge.amount, 0);
+      .filter((charge) => charge.status !== 'Waived' && charge.status !== 'Paid')
+      .reduce(
+        (sum, charge) =>
+          sum + Math.max(charge.amount - (appliedByChargeId.get(charge._id) ?? 0), 0),
+        0
+      );
     const arrearsBalance = profiles.reduce((sum, profile) => sum + profile.arrearsBalance, 0);
     const collectedThisMonth = payments
       .filter((payment) => payment.paidAt.slice(0, 7) === new Date().toISOString().slice(0, 7))
@@ -730,6 +766,27 @@ async function loadProfileDetail(
     .withIndex('by_profile', (q) => q.eq('billingProfileId', billingProfileId))
     .order('desc')
     .collect();
+  const applications = await ctx.db
+    .query('financePaymentApplications')
+    .withIndex('by_profile', (q) => q.eq('billingProfileId', billingProfileId))
+    .collect();
+  const appliedByChargeId = new Map<string, number>();
+  const appliedByPaymentId = new Map<string, number>();
+  const chargeCountByPaymentId = new Map<string, number>();
+  for (const application of applications) {
+    appliedByChargeId.set(
+      application.chargeId,
+      (appliedByChargeId.get(application.chargeId) ?? 0) + application.amount
+    );
+    appliedByPaymentId.set(
+      application.paymentId,
+      (appliedByPaymentId.get(application.paymentId) ?? 0) + application.amount
+    );
+    chargeCountByPaymentId.set(
+      application.paymentId,
+      (chargeCountByPaymentId.get(application.paymentId) ?? 0) + 1
+    );
+  }
   // eslint-disable-next-line unicorn/no-array-sort
   const sortedReminders = [...reminders].sort(compareReminderRecency);
   const familyAccount = enriched.familyAccountId
@@ -741,25 +798,50 @@ async function loadProfileDetail(
     familyAccount,
     relatedProfiles:
       familyAccount?.members.filter((member) => member.studentId !== enriched.studentId) ?? [],
-    charges: charges.map((charge) => ({
-      id: charge._id,
-      title: charge.title,
-      category: charge.category,
-      amount: charge.amount,
-      chargeDate: charge.chargeDate,
-      dueDate: charge.dueDate,
-      status: charge.status,
-      updatedAt: charge.updatedAt
-    })),
-    payments: payments.map((payment) => ({
-      id: payment._id,
-      amount: payment.amount,
-      paidAt: payment.paidAt,
-      method: payment.method,
-      reference: payment.reference ?? '',
-      note: payment.note ?? '',
-      createdAt: payment.createdAt
-    })),
+    charges: charges.map((charge) => {
+      const derivedAppliedAmount = appliedByChargeId.get(charge._id) ?? 0;
+      const appliedAmount =
+        charge.status === 'Paid'
+          ? Math.max(derivedAppliedAmount, charge.amount)
+          : derivedAppliedAmount;
+      const balanceRemaining =
+        charge.status === 'Paid' ? 0 : Math.max(charge.amount - appliedAmount, 0);
+      return {
+        id: charge._id,
+        title: charge.title,
+        category: charge.category,
+        amount: charge.amount,
+        chargeDate: charge.chargeDate,
+        dueDate: charge.dueDate,
+        status: charge.status,
+        appliedAmount,
+        balanceRemaining,
+        settlementLabel:
+          charge.status === 'Paid'
+            ? 'Settled'
+            : balanceRemaining <= 0
+              ? 'Settled'
+              : appliedAmount > 0
+                ? 'Partially settled'
+                : 'Open',
+        updatedAt: charge.updatedAt
+      };
+    }),
+    payments: payments.map((payment) => {
+      const appliedAmount = appliedByPaymentId.get(payment._id) ?? 0;
+      return {
+        id: payment._id,
+        amount: payment.amount,
+        paidAt: payment.paidAt,
+        method: payment.method,
+        reference: payment.reference ?? '',
+        note: payment.note ?? '',
+        appliedAmount,
+        unappliedAmount: Math.max(payment.amount - appliedAmount, 0),
+        appliedChargeCount: chargeCountByPaymentId.get(payment._id) ?? 0,
+        createdAt: payment.createdAt
+      };
+    }),
     reminders: sortedReminders.map((reminder) => ({
       id: reminder._id,
       reminderDate: reminder.reminderDate,
@@ -812,6 +894,66 @@ const billingItemValidator = v.object({
 
 const collectionStageValidator = v.union(...COLLECTION_STAGES.map((item) => v.literal(item)));
 const reminderChannelValidator = v.union(...REMINDER_CHANNELS.map((item) => v.literal(item)));
+
+async function applyPaymentToCharges(
+  ctx: MutationCtx,
+  billingProfileId: Id<'studentBillingProfiles'>,
+  paymentId: Id<'financePayments'>,
+  amount: number
+) {
+  const charges = await ctx.db
+    .query('financeCharges')
+    .withIndex('by_profile', (q) => q.eq('billingProfileId', billingProfileId))
+    .collect();
+  const applications = await ctx.db
+    .query('financePaymentApplications')
+    .withIndex('by_profile', (q) => q.eq('billingProfileId', billingProfileId))
+    .collect();
+
+  const appliedByChargeId = new Map<string, number>();
+  for (const application of applications) {
+    appliedByChargeId.set(
+      application.chargeId,
+      (appliedByChargeId.get(application.chargeId) ?? 0) + application.amount
+    );
+  }
+
+  // eslint-disable-next-line unicorn/no-array-sort
+  const orderedCharges = [...charges].sort(
+    (left, right) =>
+      left.dueDate.localeCompare(right.dueDate) || left.chargeDate.localeCompare(right.chargeDate)
+  );
+
+  let remaining = amount;
+  const timestamp = Date.now();
+
+  for (const charge of orderedCharges) {
+    if (charge.status === 'Waived' || charge.status === 'Paid') continue;
+    const alreadyApplied = appliedByChargeId.get(charge._id) ?? 0;
+    const balanceRemaining = Math.max(charge.amount - alreadyApplied, 0);
+    if (balanceRemaining <= 0) continue;
+    if (remaining <= 0) break;
+
+    const appliedAmount = Math.min(remaining, balanceRemaining);
+    await ctx.db.insert('financePaymentApplications', {
+      billingProfileId,
+      paymentId,
+      chargeId: charge._id,
+      amount: appliedAmount,
+      appliedAt: timestamp
+    });
+
+    const nextBalanceRemaining = balanceRemaining - appliedAmount;
+    if (nextBalanceRemaining <= 0) {
+      await ctx.db.patch(charge._id, {
+        status: 'Paid',
+        updatedAt: timestamp
+      });
+    }
+
+    remaining -= appliedAmount;
+  }
+}
 
 export const createProfile = mutation({
   args: {
@@ -920,6 +1062,7 @@ export const addPayment = mutation({
     const existing = await ctx.db.get(args.billingProfileId);
     if (!existing) throw new Error('Billing profile not found.');
     const paymentId = await ctx.db.insert('financePayments', normalizePayment(args));
+    await applyPaymentToCharges(ctx, args.billingProfileId, paymentId, args.amount);
     await ctx.db.patch(args.billingProfileId, { updatedAt: Date.now() });
     return { paymentId };
   }
@@ -983,6 +1126,7 @@ export const allocateFamilyPayment = mutation({
         })
       );
       paymentIds.push(paymentId);
+      await applyPaymentToCharges(ctx, allocation.billingProfileId, paymentId, allocation.amount);
       await ctx.db.patch(allocation.billingProfileId, { updatedAt: timestamp });
     }
 

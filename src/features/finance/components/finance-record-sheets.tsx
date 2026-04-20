@@ -36,6 +36,14 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useIsMobile } from '@/hooks/use-mobile';
 
+function currency(value: number) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0
+  }).format(value);
+}
+
 export function FinanceChargeSheet({
   open,
   onOpenChange,
@@ -734,7 +742,9 @@ export function FinanceFamilyPaymentSheet({
               <div className='text-xs text-muted-foreground'>
                 {member.className}
                 {member.academicYear ? ` • ${member.academicYear}` : ''}
-                {member.totalOutstanding ? ` • outstanding ${member.totalOutstanding}` : ''}
+                {member.totalOutstanding
+                  ? ` • outstanding ${currency(member.totalOutstanding)}`
+                  : ''}
               </div>
             </div>
             <div className='grid gap-2'>
