@@ -19,6 +19,8 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { OperationsOverrideSheet } from './operations-override-sheet';
 import { OperationsTimeSlotSheet } from './operations-timeslot-sheet';
 import { TimetableEntrySheet } from './operations-entry-sheet';
@@ -104,12 +106,21 @@ export default function OperationsShell() {
         }
       : 'skip'
   );
+  const staffingBoard = useQuery(
+    api.staffing.listDailyCoverBoard,
+    selectedDate
+      ? {
+          date: selectedDate
+        }
+      : 'skip'
+  );
 
   if (
     !filters ||
     !summary ||
     (selectedAcademicYear && selectedClassName && week === undefined) ||
-    !dayBoard
+    !dayBoard ||
+    staffingBoard === undefined
   ) {
     return (
       <div className='rounded-2xl border border-border/50 bg-background/70 p-6 text-sm text-muted-foreground'>
@@ -129,16 +140,53 @@ export default function OperationsShell() {
 
   return (
     <div className='flex flex-1 flex-col gap-4'>
-      <Card>
-        <CardHeader>
-          <CardTitle>Timetable & operations</CardTitle>
-          <CardDescription>
-            Split timetable structure, school-day timing, lunch flow, medical visibility, and daily
-            operational overrides away from loose spreadsheets.
-          </CardDescription>
+      <Card className='border-border/60'>
+        <CardHeader className='gap-4 pb-4'>
+          <div className='flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between'>
+            <div className='space-y-1'>
+              <CardTitle>Timetable & operations</CardTitle>
+              <CardDescription>
+                Keep the stable timetable backbone separate from the live day board so class
+                changes, staffing, and medical context stay readable.
+              </CardDescription>
+            </div>
+            <div className='flex flex-wrap gap-2'>
+              <Button
+                variant='outline'
+                onClick={() => {
+                  setActiveTimeSlotId(null);
+                  setTimeSlotSheetOpen(true);
+                }}
+              >
+                <Icons.add className='mr-2 h-4 w-4' />
+                Manage times
+              </Button>
+              <Button
+                variant='outline'
+                onClick={() => {
+                  setActiveEntryId(null);
+                  setEntryDefaults({});
+                  setEntrySheetOpen(true);
+                }}
+              >
+                <Icons.add className='mr-2 h-4 w-4' />
+                Add timetable block
+              </Button>
+              <Button
+                variant='outline'
+                onClick={() => {
+                  setActiveOverrideId(null);
+                  setOverrideSheetOpen(true);
+                }}
+              >
+                <Icons.add className='mr-2 h-4 w-4' />
+                Add override
+              </Button>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent className='grid gap-3'>
-          <div className='grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px_auto]'>
+        <CardContent className='grid gap-4'>
+          <div className='grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px_220px]'>
             <div className='grid gap-2'>
               <div className='text-sm font-medium'>Academic year</div>
               <Select value={selectedAcademicYear} onValueChange={setSelectedAcademicYear}>
@@ -180,43 +228,22 @@ export default function OperationsShell() {
                 onChange={(event) => setSelectedDate(event.target.value)}
               />
             </div>
-            <div className='flex flex-wrap items-end gap-2 xl:justify-end'>
-              <Button
-                variant='outline'
-                onClick={() => {
-                  setActiveTimeSlotId(null);
-                  setTimeSlotSheetOpen(true);
-                }}
-              >
-                <Icons.add className='mr-2 h-4 w-4' />
-                Manage times
-              </Button>
-              <Button
-                variant='outline'
-                onClick={() => {
-                  setActiveEntryId(null);
-                  setEntryDefaults({});
-                  setEntrySheetOpen(true);
-                }}
-              >
-                <Icons.add className='mr-2 h-4 w-4' />
-                Add timetable block
-              </Button>
-              <Button
-                variant='outline'
-                onClick={() => {
-                  setActiveOverrideId(null);
-                  setOverrideSheetOpen(true);
-                }}
-              >
-                <Icons.add className='mr-2 h-4 w-4' />
-                Add override
-              </Button>
+            <div className='rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-sm text-muted-foreground'>
+              {selectedAcademicYear && selectedClassName
+                ? `${selectedClassName} • ${selectedAcademicYear} • ${dayBoard.weekday}`
+                : 'Choose an academic year and class to anchor the weekly and daily boards.'}
             </div>
           </div>
-          <div className='text-sm text-muted-foreground'>
-            Use weekly timetable blocks for the stable school structure, then log day-specific
-            changes as operational overrides instead of rewriting the timetable every time.
+          <div className='grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]'>
+            <div className='text-sm text-muted-foreground'>
+              Use weekly timetable blocks for the stable school structure, then record day-specific
+              changes as overrides so the live board stays readable without rewriting the whole
+              week.
+            </div>
+            <div className='rounded-xl border border-border/60 bg-muted/20 px-3 py-3 text-sm text-muted-foreground'>
+              Staffing cover, overrides, and medical flags should all be surfaced in the same daily
+              review window before school starts.
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -260,335 +287,420 @@ export default function OperationsShell() {
         </Card>
       </div>
 
-      <div className='grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(340px,0.9fr)]'>
-        <div className='grid gap-4'>
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {selectedClassName && selectedAcademicYear
-                  ? `${selectedClassName} weekly timetable`
-                  : 'Weekly timetable'}
-              </CardTitle>
-              <CardDescription>
-                {selectedAcademicYear && selectedClassName
-                  ? `${selectedAcademicYear} • stable class schedule backbone`
-                  : 'Choose a class to inspect the weekly structure.'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {!selectedAcademicYear || !selectedClassName || !week ? (
-                <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
-                  Choose an academic year and class to view the timetable grid.
-                </div>
-              ) : week.timeSlots.length === 0 ? (
-                <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
-                  No school-day time slots exist yet. Add the day structure first.
-                </div>
-              ) : (
-                <div className='overflow-x-auto'>
-                  <table className='w-full min-w-[960px] border-separate border-spacing-0'>
-                    <thead>
-                      <tr>
-                        <th className='sticky left-0 z-10 w-48 border-b bg-background px-4 py-3 text-left text-sm font-medium'>
-                          Time slot
-                        </th>
-                        {WEEKDAYS.map((weekday) => (
-                          <th
-                            key={weekday}
-                            className='border-b bg-background px-4 py-3 text-left text-sm font-medium'
-                          >
-                            {weekday}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {week.timeSlots.map((slot) => (
-                        <tr key={slot.id}>
-                          <td className='sticky left-0 z-10 min-w-48 border-b bg-background align-top'>
-                            <div className='px-4 py-4'>
-                              <div className='font-medium'>{slot.label}</div>
-                              <div className='mt-1 text-sm text-muted-foreground'>
-                                {slot.timeRangeLabel}
-                              </div>
-                              <div className='mt-2'>
-                                <Badge variant={blockVariant(slot.blockType)}>
-                                  {slot.blockType}
-                                </Badge>
-                              </div>
-                            </div>
-                          </td>
-                          {WEEKDAYS.map((weekday) => {
-                            const entry = slot.entries[weekday];
-                            return (
-                              <td
-                                key={`${slot.id}-${weekday}`}
-                                className='min-w-56 border-b align-top'
+      <Tabs defaultValue='weekly' className='gap-4'>
+        <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
+          <div>
+            <div className='text-base font-semibold'>Operations workspace</div>
+            <div className='text-sm text-muted-foreground'>
+              Split the stable timetable from the live school-day review so operators can focus
+              faster.
+            </div>
+          </div>
+          <TabsList>
+            <TabsTrigger value='weekly'>Weekly timetable</TabsTrigger>
+            <TabsTrigger value='day'>Day board</TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value='weekly'>
+          <div className='grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(340px,0.9fr)]'>
+            <div className='grid gap-4'>
+              <Card className='border-border/60'>
+                <CardHeader>
+                  <CardTitle>
+                    {selectedClassName && selectedAcademicYear
+                      ? `${selectedClassName} weekly timetable`
+                      : 'Weekly timetable'}
+                  </CardTitle>
+                  <CardDescription>
+                    {selectedAcademicYear && selectedClassName
+                      ? `${selectedAcademicYear} • stable class schedule backbone`
+                      : 'Choose a class to inspect the weekly structure.'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {!selectedAcademicYear || !selectedClassName || !week ? (
+                    <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
+                      Choose an academic year and class to view the timetable grid.
+                    </div>
+                  ) : week.timeSlots.length === 0 ? (
+                    <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
+                      No school-day time slots exist yet. Add the day structure first.
+                    </div>
+                  ) : (
+                    <div className='overflow-x-auto'>
+                      <table className='w-full min-w-[960px] border-separate border-spacing-0'>
+                        <thead>
+                          <tr>
+                            <th className='sticky left-0 z-10 w-48 border-b bg-background px-4 py-3 text-left text-sm font-medium'>
+                              Time slot
+                            </th>
+                            {WEEKDAYS.map((weekday) => (
+                              <th
+                                key={weekday}
+                                className='border-b bg-background px-4 py-3 text-left text-sm font-medium'
                               >
-                                <div className='h-full px-3 py-3'>
-                                  {entry ? (
-                                    <div className='rounded-xl border border-border/60 bg-muted/20 p-3'>
-                                      <div className='flex items-start justify-between gap-2'>
-                                        <div className='font-medium'>{entry.activityTitle}</div>
-                                        <Button
-                                          variant='ghost'
-                                          size='sm'
+                                {weekday}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {week.timeSlots.map((slot) => (
+                            <tr key={slot.id}>
+                              <td className='sticky left-0 z-10 min-w-48 border-b bg-background align-top'>
+                                <div className='px-4 py-4'>
+                                  <div className='font-medium'>{slot.label}</div>
+                                  <div className='mt-1 text-sm text-muted-foreground'>
+                                    {slot.timeRangeLabel}
+                                  </div>
+                                  <div className='mt-2'>
+                                    <Badge variant={blockVariant(slot.blockType)}>
+                                      {slot.blockType}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              </td>
+                              {WEEKDAYS.map((weekday) => {
+                                const entry = slot.entries[weekday];
+                                return (
+                                  <td
+                                    key={`${slot.id}-${weekday}`}
+                                    className='min-w-56 border-b align-top'
+                                  >
+                                    <div className='h-full px-3 py-3'>
+                                      {entry ? (
+                                        <div className='rounded-xl border border-border/60 bg-muted/20 p-3'>
+                                          <div className='flex items-start justify-between gap-2'>
+                                            <div className='font-medium'>{entry.activityTitle}</div>
+                                            <Button
+                                              variant='ghost'
+                                              size='sm'
+                                              onClick={() => {
+                                                setActiveEntryId(entry.id);
+                                                setEntryDefaults({});
+                                                setEntrySheetOpen(true);
+                                              }}
+                                            >
+                                              Manage
+                                            </Button>
+                                          </div>
+                                          <div className='mt-2 text-sm text-muted-foreground'>
+                                            {entry.leadTeacherName}
+                                            {entry.location ? ` • ${entry.location}` : ''}
+                                          </div>
+                                          {entry.note ? (
+                                            <div className='mt-2 text-sm text-muted-foreground'>
+                                              {entry.note}
+                                            </div>
+                                          ) : null}
+                                          <div className='mt-3 flex flex-wrap gap-2'>
+                                            {entry.area ? (
+                                              <Badge variant='outline'>{entry.area}</Badge>
+                                            ) : null}
+                                            {entry.specialistLabel ? (
+                                              <Badge variant='secondary'>
+                                                {entry.specialistLabel}
+                                              </Badge>
+                                            ) : null}
+                                            {entry.lunchLabel ? (
+                                              <Badge variant='outline'>{entry.lunchLabel}</Badge>
+                                            ) : null}
+                                            {entry.themeLabel ? (
+                                              <Badge variant='outline'>{entry.themeLabel}</Badge>
+                                            ) : null}
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          type='button'
+                                          className='flex h-full min-h-28 w-full items-center justify-center rounded-xl border border-dashed border-border/60 text-sm text-muted-foreground transition hover:border-primary/40 hover:text-foreground'
                                           onClick={() => {
-                                            setActiveEntryId(entry.id);
-                                            setEntryDefaults({});
+                                            setActiveEntryId(null);
+                                            setEntryDefaults({ weekday, timeSlotId: slot.id });
                                             setEntrySheetOpen(true);
                                           }}
                                         >
-                                          Manage
-                                        </Button>
-                                      </div>
-                                      <div className='mt-2 text-sm text-muted-foreground'>
-                                        {entry.leadTeacherName}
-                                        {entry.location ? ` • ${entry.location}` : ''}
-                                      </div>
-                                      {entry.note ? (
-                                        <div className='mt-2 text-sm text-muted-foreground'>
-                                          {entry.note}
-                                        </div>
-                                      ) : null}
-                                      <div className='mt-3 flex flex-wrap gap-2'>
-                                        {entry.area ? (
-                                          <Badge variant='outline'>{entry.area}</Badge>
-                                        ) : null}
-                                        {entry.specialistLabel ? (
-                                          <Badge variant='secondary'>{entry.specialistLabel}</Badge>
-                                        ) : null}
-                                        {entry.lunchLabel ? (
-                                          <Badge variant='outline'>{entry.lunchLabel}</Badge>
-                                        ) : null}
-                                        {entry.themeLabel ? (
-                                          <Badge variant='outline'>{entry.themeLabel}</Badge>
-                                        ) : null}
-                                      </div>
+                                          Add block
+                                        </button>
+                                      )}
                                     </div>
-                                  ) : (
-                                    <button
-                                      type='button'
-                                      className='flex h-full min-h-28 w-full items-center justify-center rounded-xl border border-dashed border-border/60 text-sm text-muted-foreground transition hover:border-primary/40 hover:text-foreground'
-                                      onClick={() => {
-                                        setActiveEntryId(null);
-                                        setEntryDefaults({ weekday, timeSlotId: slot.id });
-                                        setEntrySheetOpen(true);
-                                      }}
-                                    >
-                                      Add block
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
 
-        <div className='grid gap-4'>
-          <Card>
-            <CardHeader>
-              <CardTitle>School day structure</CardTitle>
-              <CardDescription>
-                Stable day timings from the spreadsheet’s Times tab. Manage these first, then place
-                weekly class blocks into them.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className='space-y-3'>
-              {filters.timeSlots.length === 0 ? (
-                <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
-                  No time slots yet. Add the first school-day block.
-                </div>
-              ) : (
-                filters.timeSlots.map((slot) => (
-                  <div key={slot.id} className='rounded-xl border border-border/60 p-3'>
-                    <div className='flex items-start justify-between gap-2'>
-                      <div>
-                        <div className='font-medium'>{slot.label}</div>
-                        <div className='mt-1 text-sm text-muted-foreground'>
-                          {slot.startTime}–{slot.endTime}
+            <div className='grid gap-4'>
+              <Card className='border-border/60'>
+                <CardHeader>
+                  <CardTitle>School day structure</CardTitle>
+                  <CardDescription>
+                    Stable day timings from the spreadsheet’s Times tab. Manage these first, then
+                    place weekly class blocks into them.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className='space-y-3'>
+                  {filters.timeSlots.length === 0 ? (
+                    <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
+                      No time slots yet. Add the first school-day block.
+                    </div>
+                  ) : (
+                    filters.timeSlots.map((slot) => (
+                      <div key={slot.id} className='rounded-xl border border-border/60 p-3'>
+                        <div className='flex items-start justify-between gap-2'>
+                          <div>
+                            <div className='font-medium'>{slot.label}</div>
+                            <div className='mt-1 text-sm text-muted-foreground'>
+                              {slot.startTime}–{slot.endTime}
+                            </div>
+                          </div>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            onClick={() => {
+                              setActiveTimeSlotId(slot.id);
+                              setTimeSlotSheetOpen(true);
+                            }}
+                          >
+                            Edit
+                          </Button>
+                        </div>
+                        <div className='mt-2 flex flex-wrap gap-2'>
+                          <Badge variant={blockVariant(slot.blockType)}>{slot.blockType}</Badge>
+                          {!slot.isActive ? <Badge variant='outline'>Inactive</Badge> : null}
                         </div>
                       </div>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        onClick={() => {
-                          setActiveTimeSlotId(slot.id);
-                          setTimeSlotSheetOpen(true);
-                        }}
-                      >
-                        Edit
-                      </Button>
-                    </div>
-                    <div className='mt-2 flex flex-wrap gap-2'>
-                      <Badge variant={blockVariant(slot.blockType)}>{slot.blockType}</Badge>
-                      {!slot.isActive ? <Badge variant='outline'>Inactive</Badge> : null}
-                    </div>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>{dayBoard.weekday} operations board</CardTitle>
-              <CardDescription>
-                Today’s class blocks and overrides should stay visible without rewriting the
-                timetable.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className='space-y-4'>
-              <div className='space-y-3'>
-                <div className='text-sm font-medium'>Scheduled blocks</div>
-                {dayBoard.blocks.length === 0 ? (
-                  <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
-                    No scheduled blocks for this class/date yet.
+        <TabsContent value='day'>
+          <div className='grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.95fr)]'>
+            <Card className='border-border/60'>
+              <CardHeader>
+                <CardTitle>{dayBoard.weekday} operations board</CardTitle>
+                <CardDescription>
+                  Use this view for the live school day: scheduled blocks, staffing cover,
+                  overrides, and student medical context.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className='space-y-5'>
+                <div className='space-y-3'>
+                  <div className='flex items-center justify-between gap-2'>
+                    <div className='text-sm font-medium'>Scheduled blocks</div>
+                    <div className='text-xs text-muted-foreground'>
+                      {selectedClassName ? `${selectedClassName} • ${selectedDate}` : selectedDate}
+                    </div>
                   </div>
-                ) : (
-                  dayBoard.blocks.map((block) => (
-                    <div key={block.id} className='rounded-xl border border-border/60 p-3'>
-                      <div className='flex items-start justify-between gap-2'>
-                        <div>
-                          <div className='font-medium'>{block.activityTitle}</div>
-                          <div className='mt-1 text-sm text-muted-foreground'>
-                            {block.timeSlotLabel} • {block.timeRangeLabel}
+                  {dayBoard.blocks.length === 0 ? (
+                    <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
+                      No scheduled blocks for this class/date yet.
+                    </div>
+                  ) : (
+                    dayBoard.blocks.map((block) => (
+                      <div key={block.id} className='rounded-xl border border-border/60 p-3'>
+                        <div className='flex items-start justify-between gap-2'>
+                          <div>
+                            <div className='font-medium'>{block.activityTitle}</div>
+                            <div className='mt-1 text-sm text-muted-foreground'>
+                              {block.timeSlotLabel} • {block.timeRangeLabel}
+                            </div>
+                            <div className='mt-1 text-sm text-muted-foreground'>
+                              {block.leadTeacherName}
+                              {block.location ? ` • ${block.location}` : ''}
+                            </div>
                           </div>
-                          <div className='mt-1 text-sm text-muted-foreground'>
-                            {block.leadTeacherName}
-                            {block.location ? ` • ${block.location}` : ''}
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            onClick={() => {
+                              setActiveEntryId(block.id);
+                              setEntryDefaults({});
+                              setEntrySheetOpen(true);
+                            }}
+                          >
+                            Edit
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <Separator />
+
+                <div className='space-y-3'>
+                  <div className='flex items-center justify-between gap-2'>
+                    <div className='text-sm font-medium'>Staffing cover board</div>
+                    <Button asChild variant='ghost' size='sm'>
+                      <Link href='/dashboard/staffing'>Open staffing</Link>
+                    </Button>
+                  </div>
+                  {staffingBoard.length === 0 ? (
+                    <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
+                      No staffing cover assignments for this date.
+                    </div>
+                  ) : (
+                    staffingBoard.map((assignment) => (
+                      <div key={assignment.id} className='rounded-xl border border-border/60 p-3'>
+                        <div className='flex items-start justify-between gap-2'>
+                          <div>
+                            <div className='flex flex-wrap items-center gap-2'>
+                              <div className='font-medium'>
+                                {assignment.className || 'Unassigned class'}
+                                {assignment.timeSlotLabel ? ` • ${assignment.timeSlotLabel}` : ''}
+                              </div>
+                              <Badge
+                                variant={overrideVariant(
+                                  assignment.status === 'Open'
+                                    ? 'Open'
+                                    : assignment.status === 'Confirmed'
+                                      ? 'Confirmed'
+                                      : 'Resolved'
+                                )}
+                              >
+                                {assignment.status}
+                              </Badge>
+                            </div>
+                            <div className='mt-1 text-sm text-muted-foreground'>
+                              Primary: {assignment.primaryTeacherName}
+                            </div>
+                            <div className='mt-1 text-sm text-muted-foreground'>
+                              Cover owner: {assignment.coverTeacherName}
+                            </div>
+                            {assignment.note ? (
+                              <div className='mt-2 text-sm'>{assignment.note}</div>
+                            ) : null}
+                          </div>
+                          <Button asChild variant='ghost' size='sm'>
+                            <Link href='/dashboard/staffing'>Manage</Link>
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <Separator />
+
+                <div className='space-y-3'>
+                  <div className='flex items-center justify-between gap-2'>
+                    <div className='text-sm font-medium'>Overrides</div>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      onClick={() => {
+                        setActiveOverrideId(null);
+                        setOverrideSheetOpen(true);
+                      }}
+                    >
+                      Add
+                    </Button>
+                  </div>
+                  {dayBoard.overrides.length === 0 ? (
+                    <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
+                      No overrides for this date.
+                    </div>
+                  ) : (
+                    dayBoard.overrides.map((override) => (
+                      <div key={override.id} className='rounded-xl border border-border/60 p-3'>
+                        <div className='flex items-start justify-between gap-2'>
+                          <div>
+                            <div className='flex flex-wrap items-center gap-2'>
+                              <div className='font-medium'>{override.title}</div>
+                              <Badge variant='outline'>{override.overrideType}</Badge>
+                              <Badge variant={overrideVariant(override.status)}>
+                                {override.status}
+                              </Badge>
+                            </div>
+                            <div className='mt-1 text-sm text-muted-foreground'>
+                              {override.timeSlotLabel}
+                              {override.className ? ` • ${override.className}` : ''}
+                            </div>
+                            <div className='mt-1 text-sm text-muted-foreground'>
+                              {override.teacherName || 'No teacher linked'}
+                              {override.studentName ? ` • ${override.studentName}` : ''}
+                            </div>
+                            <div className='mt-2 text-sm'>{override.summary}</div>
+                          </div>
+                          <div className='flex flex-col gap-2'>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              onClick={() => {
+                                setActiveOverrideId(override.id);
+                                setOverrideSheetOpen(true);
+                              }}
+                            >
+                              Manage
+                            </Button>
+                            {override.status !== 'Resolved' ? (
+                              <Button
+                                variant='outline'
+                                size='sm'
+                                onClick={() => handleResolveOverride(override.id)}
+                              >
+                                Resolve
+                              </Button>
+                            ) : null}
                           </div>
                         </div>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          onClick={() => {
-                            setActiveEntryId(block.id);
-                            setEntryDefaults({});
-                            setEntrySheetOpen(true);
-                          }}
-                        >
-                          Edit
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className='border-border/60'>
+              <CardHeader>
+                <CardTitle>Medical visibility</CardTitle>
+                <CardDescription>
+                  Reuse core student medical flags here so daily operations can see them without
+                  turning timetable rows into a data dump.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className='space-y-3'>
+                {dayBoard.medicalFlags.length === 0 ? (
+                  <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
+                    No medical flags surfaced for this class.
+                  </div>
+                ) : (
+                  dayBoard.medicalFlags.map((item) => (
+                    <div key={item.studentId} className='rounded-xl border border-border/60 p-3'>
+                      <div className='flex items-start justify-between gap-2'>
+                        <div>
+                          <div className='font-medium'>{item.studentName}</div>
+                          <div className='mt-1 text-sm text-muted-foreground'>
+                            {item.className}
+                            {item.academicYear ? ` • ${item.academicYear}` : ''}
+                          </div>
+                          <div className='mt-2 text-sm'>{item.medicalFlag}</div>
+                        </div>
+                        <Button asChild variant='ghost' size='sm'>
+                          <Link href='/dashboard/students'>Students</Link>
                         </Button>
                       </div>
                     </div>
                   ))
                 )}
-              </div>
-
-              <div className='space-y-3'>
-                <div className='flex items-center justify-between gap-2'>
-                  <div className='text-sm font-medium'>Overrides</div>
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    onClick={() => {
-                      setActiveOverrideId(null);
-                      setOverrideSheetOpen(true);
-                    }}
-                  >
-                    Add
-                  </Button>
-                </div>
-                {dayBoard.overrides.length === 0 ? (
-                  <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
-                    No overrides for this date.
-                  </div>
-                ) : (
-                  dayBoard.overrides.map((override) => (
-                    <div key={override.id} className='rounded-xl border border-border/60 p-3'>
-                      <div className='flex items-start justify-between gap-2'>
-                        <div>
-                          <div className='flex flex-wrap items-center gap-2'>
-                            <div className='font-medium'>{override.title}</div>
-                            <Badge variant='outline'>{override.overrideType}</Badge>
-                            <Badge variant={overrideVariant(override.status)}>
-                              {override.status}
-                            </Badge>
-                          </div>
-                          <div className='mt-1 text-sm text-muted-foreground'>
-                            {override.timeSlotLabel}
-                            {override.className ? ` • ${override.className}` : ''}
-                          </div>
-                          <div className='mt-1 text-sm text-muted-foreground'>
-                            {override.teacherName || 'No teacher linked'}
-                            {override.studentName ? ` • ${override.studentName}` : ''}
-                          </div>
-                          <div className='mt-2 text-sm'>{override.summary}</div>
-                        </div>
-                        <div className='flex flex-col gap-2'>
-                          <Button
-                            variant='ghost'
-                            size='sm'
-                            onClick={() => {
-                              setActiveOverrideId(override.id);
-                              setOverrideSheetOpen(true);
-                            }}
-                          >
-                            Manage
-                          </Button>
-                          {override.status !== 'Resolved' ? (
-                            <Button
-                              variant='outline'
-                              size='sm'
-                              onClick={() => handleResolveOverride(override.id)}
-                            >
-                              Resolve
-                            </Button>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Medical visibility</CardTitle>
-              <CardDescription>
-                Reuse core student medical flags here so daily operations can see them without
-                turning timetable rows into a data dump.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className='space-y-3'>
-              {dayBoard.medicalFlags.length === 0 ? (
-                <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
-                  No medical flags surfaced for this class.
-                </div>
-              ) : (
-                dayBoard.medicalFlags.map((item) => (
-                  <div key={item.studentId} className='rounded-xl border border-border/60 p-3'>
-                    <div className='flex items-start justify-between gap-2'>
-                      <div>
-                        <div className='font-medium'>{item.studentName}</div>
-                        <div className='mt-1 text-sm text-muted-foreground'>
-                          {item.className}
-                          {item.academicYear ? ` • ${item.academicYear}` : ''}
-                        </div>
-                        <div className='mt-2 text-sm'>{item.medicalFlag}</div>
-                      </div>
-                      <Button asChild variant='ghost' size='sm'>
-                        <Link href='/dashboard/students'>Students</Link>
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       <OperationsTimeSlotSheet
         open={timeSlotSheetOpen}
