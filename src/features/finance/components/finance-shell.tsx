@@ -148,15 +148,15 @@ export default function FinanceShell() {
     <FinanceAccessGate>
       <div className='flex flex-1 flex-col gap-4'>
         <Card className='border-border/60'>
-          <CardHeader className='gap-4 pb-4'>
+          <CardHeader className='gap-6 pb-4'>
             <div className='flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between'>
-              <div className='space-y-3'>
+              <div className='min-w-0 space-y-3'>
                 <div className='space-y-1'>
-                  <CardTitle>Finance & Fees</CardTitle>
-                  <CardDescription>
-                    Run finance as a school-wide operations surface first, then open a dedicated
-                    student finance screen for each child’s billing setup, history, collections
-                    posture, and next actions.
+                  <CardTitle className='text-2xl'>Finance & Fees</CardTitle>
+                  <CardDescription className='max-w-3xl text-sm leading-6'>
+                    Run finance as a proper school-wide operations workspace first, then move into a
+                    dedicated student finance screen for billing setup, ledger detail, payment
+                    intake, and collections follow-up.
                   </CardDescription>
                 </div>
                 <div className='flex flex-wrap gap-2 text-xs text-muted-foreground'>
@@ -165,17 +165,30 @@ export default function FinanceShell() {
                   <Badge variant='outline'>Accounts-only workflow</Badge>
                 </div>
               </div>
-              <div className='flex flex-wrap gap-2'>
+              <div className='flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap'>
                 {hasFinanceWriteAccess ? (
-                  <Button variant='outline' onClick={() => setProfileSheetOpen(true)}>
-                    Add billing profile
-                  </Button>
+                  <>
+                    <Button
+                      variant='outline'
+                      className='w-full sm:w-auto'
+                      onClick={() => setProfileSheetOpen(true)}
+                    >
+                      Add billing profile
+                    </Button>
+                    <Button
+                      variant='outline'
+                      className='w-full sm:w-auto'
+                      onClick={() => setBillingRunSheetOpen(true)}
+                    >
+                      Generate billing run
+                    </Button>
+                  </>
                 ) : null}
               </div>
             </div>
           </CardHeader>
-          <CardContent className='grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]'>
-            <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-3'>
+          <CardContent className='grid gap-4'>
+            <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-4'>
               <MetricCard
                 label='Profiles'
                 value={`${summary.profiles}`}
@@ -217,53 +230,61 @@ export default function FinanceShell() {
                 hint='Accounts needing stronger intervention'
               />
             </div>
-            <div className='rounded-2xl border border-border/60 bg-muted/20 p-4'>
-              <div className='text-sm font-medium'>Spreadsheet-informed workspace split</div>
-              <div className='mt-2 text-sm text-muted-foreground'>
-                The finance spreadsheet research points to four real work lanes instead of one giant
-                fee table: student billing setup, charge ledger, payment intake, and collections.
+            <div className='grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]'>
+              <div className='rounded-2xl border border-border/60 p-5'>
+                <div className='text-sm font-medium'>Finance workspace</div>
+                <div className='mt-2 text-sm leading-6 text-muted-foreground'>
+                  The school finance surface is split into real work lanes instead of one giant fee
+                  table: student billing, charge ledger, payment intake, collections, and linked
+                  family accounts.
+                </div>
               </div>
-              <Separator className='my-4' />
-              <div className='grid gap-2 text-sm text-muted-foreground'>
-                <div>Student billing keeps the school-wide browse view.</div>
-                <div>Charges groups school-issued tuition, registration, lunch, and extras.</div>
-                <div>Payments keeps incoming money and references in one place.</div>
-                <div>Collections isolates overdue families and follow-up workload.</div>
-                <div>Families groups linked siblings under one billing account owner.</div>
+              <div className='rounded-2xl border border-border/60 bg-muted/20 p-5'>
+                <div className='text-sm font-medium'>Operational breakdown</div>
+                <Separator className='my-4' />
+                <div className='grid gap-2 text-sm text-muted-foreground'>
+                  <div>Student billing keeps the school-wide browse view.</div>
+                  <div>Charges tracks issued tuition, registration, lunch, and extras.</div>
+                  <div>Payments keeps incoming money and references together.</div>
+                  <div>Collections isolates overdue families and next-action workload.</div>
+                  <div>Families groups linked siblings under one account owner.</div>
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Tabs defaultValue='student-billing' className='gap-4'>
-          <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
-            <div>
-              <div className='text-base font-semibold'>Finance workspace</div>
-              <div className='text-sm text-muted-foreground'>
-                Browse students on desktop, scan the same workflow on mobile, and move into the
-                dedicated student finance screen when you need the full story.
+          <Card className='border-border/60'>
+            <CardHeader className='gap-4 pb-4'>
+              <div className='space-y-1'>
+                <CardTitle className='text-base'>Finance workspace</CardTitle>
+                <CardDescription className='max-w-3xl'>
+                  Browse students on desktop, scan the same workflow on mobile, and move into the
+                  dedicated student finance screen when you need the full story.
+                </CardDescription>
               </div>
-            </div>
-            <div className='overflow-x-auto pb-1'>
-              <TabsList className='inline-flex h-12 min-w-max items-center justify-start gap-1 rounded-xl p-1'>
-                <TabsTrigger value='student-billing' className='min-h-10 px-4'>
-                  Student billing
-                </TabsTrigger>
-                <TabsTrigger value='charges-ledger' className='min-h-10 px-4'>
-                  Charges
-                </TabsTrigger>
-                <TabsTrigger value='payments-ledger' className='min-h-10 px-4'>
-                  Payments
-                </TabsTrigger>
-                <TabsTrigger value='collections' className='min-h-10 px-4'>
-                  Collections
-                </TabsTrigger>
-                <TabsTrigger value='family-accounts' className='min-h-10 px-4'>
-                  Families
-                </TabsTrigger>
-              </TabsList>
-            </div>
-          </div>
+              <div className='overflow-x-auto pb-1'>
+                <TabsList className='inline-flex h-12 min-w-max items-center justify-start gap-1 rounded-xl p-1'>
+                  <TabsTrigger value='student-billing' className='min-h-10 px-4'>
+                    Student billing
+                  </TabsTrigger>
+                  <TabsTrigger value='charges-ledger' className='min-h-10 px-4'>
+                    Charges
+                  </TabsTrigger>
+                  <TabsTrigger value='payments-ledger' className='min-h-10 px-4'>
+                    Payments
+                  </TabsTrigger>
+                  <TabsTrigger value='collections' className='min-h-10 px-4'>
+                    Collections
+                  </TabsTrigger>
+                  <TabsTrigger value='family-accounts' className='min-h-10 px-4'>
+                    Families
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+            </CardHeader>
+          </Card>
 
           <TabsContent value='student-billing'>
             {rows.length === 0 ? (
