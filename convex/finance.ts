@@ -434,6 +434,7 @@ type FinanceProfileDetail = EnrichedProfile & {
     appliedAmount: number;
     balanceRemaining: number;
     settlementLabel: string;
+    applicationCount: number;
     updatedAt: number;
   }>;
   payments: Array<{
@@ -446,6 +447,15 @@ type FinanceProfileDetail = EnrichedProfile & {
     appliedAmount: number;
     unappliedAmount: number;
     appliedChargeCount: number;
+    settlementLabel: string;
+    applications: Array<{
+      id: string;
+      chargeId: string;
+      chargeTitle: string;
+      chargeDueDate: string;
+      chargeStatus: (typeof CHARGE_STATUSES)[number];
+      amount: number;
+    }>;
     createdAt: number;
   }>;
   reminders: ReminderLogView[];
@@ -793,42 +803,80 @@ async function loadProfileDetail(
     ? await buildFamilyAccountSummary(ctx, enriched.familyAccountId as Id<'financeFamilyAccounts'>)
     : null;
 
+  const applicationsByPaymentId = new Map<string, typeof applications>();
+  for (const application of applications) {
+    const list = applicationsByPaymentId.get(application.paymentId) ?? [];
+    list.push(application);
+    applicationsByPaymentId.set(application.paymentId, list);
+  }
+
+  const chargeViews = charges.map((charge) => {
+    const derivedAppliedAmount = appliedByChargeId.get(charge._id) ?? 0;
+    const appliedAmount =
+      charge.status === 'Paid'
+        ? Math.max(derivedAppliedAmount, charge.amount)
+        : derivedAppliedAmount;
+    const balanceRemaining =
+      charge.status === 'Paid' ? 0 : Math.max(charge.amount - appliedAmount, 0);
+
+    return {
+      id: charge._id,
+      title: charge.title,
+      category: charge.category,
+      amount: charge.amount,
+      chargeDate: charge.chargeDate,
+      dueDate: charge.dueDate,
+      status: charge.status,
+      appliedAmount,
+      balanceRemaining,
+      settlementLabel:
+        charge.status === 'Paid'
+          ? 'Settled'
+          : balanceRemaining <= 0
+            ? 'Settled'
+            : appliedAmount > 0
+              ? 'Partially settled'
+              : 'Open',
+      applicationCount: applications.filter((application) => application.chargeId === charge._id)
+        .length,
+      updatedAt: charge.updatedAt
+    };
+  });
+  const chargeViewById = new Map(chargeViews.map((charge) => [charge.id, charge]));
+
   return {
     ...enriched,
     familyAccount,
     relatedProfiles:
       familyAccount?.members.filter((member) => member.studentId !== enriched.studentId) ?? [],
-    charges: charges.map((charge) => {
-      const derivedAppliedAmount = appliedByChargeId.get(charge._id) ?? 0;
-      const appliedAmount =
-        charge.status === 'Paid'
-          ? Math.max(derivedAppliedAmount, charge.amount)
-          : derivedAppliedAmount;
-      const balanceRemaining =
-        charge.status === 'Paid' ? 0 : Math.max(charge.amount - appliedAmount, 0);
-      return {
-        id: charge._id,
-        title: charge.title,
-        category: charge.category,
-        amount: charge.amount,
-        chargeDate: charge.chargeDate,
-        dueDate: charge.dueDate,
-        status: charge.status,
-        appliedAmount,
-        balanceRemaining,
-        settlementLabel:
-          charge.status === 'Paid'
-            ? 'Settled'
-            : balanceRemaining <= 0
-              ? 'Settled'
-              : appliedAmount > 0
-                ? 'Partially settled'
-                : 'Open',
-        updatedAt: charge.updatedAt
-      };
-    }),
+    charges: chargeViews,
     payments: payments.map((payment) => {
       const appliedAmount = appliedByPaymentId.get(payment._id) ?? 0;
+      const unappliedAmount = Math.max(payment.amount - appliedAmount, 0);
+      const paymentApplications = (applicationsByPaymentId.get(payment._id) ?? [])
+        .map((application) => {
+          const charge = chargeViewById.get(application.chargeId);
+          if (!charge) return null;
+
+          return {
+            id: application._id,
+            chargeId: application.chargeId,
+            chargeTitle: charge.title,
+            chargeDueDate: charge.dueDate,
+            chargeStatus: charge.status,
+            amount: application.amount
+          };
+        })
+        .filter(
+          (application): application is NonNullable<typeof application> => application !== null
+        )
+        // eslint-disable-next-line unicorn/no-array-sort
+        .sort(
+          (left, right) =>
+            left.chargeDueDate.localeCompare(right.chargeDueDate) ||
+            left.chargeTitle.localeCompare(right.chargeTitle)
+        );
+
       return {
         id: payment._id,
         amount: payment.amount,
@@ -837,8 +885,15 @@ async function loadProfileDetail(
         reference: payment.reference ?? '',
         note: payment.note ?? '',
         appliedAmount,
-        unappliedAmount: Math.max(payment.amount - appliedAmount, 0),
+        unappliedAmount,
         appliedChargeCount: chargeCountByPaymentId.get(payment._id) ?? 0,
+        settlementLabel:
+          appliedAmount <= 0
+            ? 'Unapplied'
+            : unappliedAmount <= 0
+              ? 'Fully settled'
+              : 'Partially settled',
+        applications: paymentApplications,
         createdAt: payment.createdAt
       };
     }),
@@ -943,15 +998,48 @@ async function applyPaymentToCharges(
       appliedAt: timestamp
     });
 
-    const nextBalanceRemaining = balanceRemaining - appliedAmount;
-    if (nextBalanceRemaining <= 0) {
+    remaining -= appliedAmount;
+  }
+
+  await syncChargeStatuses(ctx, billingProfileId, timestamp);
+}
+
+async function syncChargeStatuses(
+  ctx: MutationCtx,
+  billingProfileId: Id<'studentBillingProfiles'>,
+  timestamp = Date.now()
+) {
+  const charges = await ctx.db
+    .query('financeCharges')
+    .withIndex('by_profile', (q) => q.eq('billingProfileId', billingProfileId))
+    .collect();
+  const applications = await ctx.db
+    .query('financePaymentApplications')
+    .withIndex('by_profile', (q) => q.eq('billingProfileId', billingProfileId))
+    .collect();
+
+  const appliedByChargeId = new Map<string, number>();
+  for (const application of applications) {
+    appliedByChargeId.set(
+      application.chargeId,
+      (appliedByChargeId.get(application.chargeId) ?? 0) + application.amount
+    );
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  for (const charge of charges) {
+    if (charge.status === 'Waived') continue;
+
+    const appliedAmount = appliedByChargeId.get(charge._id) ?? 0;
+    const nextStatus: (typeof CHARGE_STATUSES)[number] =
+      appliedAmount >= charge.amount ? 'Paid' : charge.dueDate < today ? 'Overdue' : 'Pending';
+
+    if (charge.status !== nextStatus) {
       await ctx.db.patch(charge._id, {
-        status: 'Paid',
+        status: nextStatus,
         updatedAt: timestamp
       });
     }
-
-    remaining -= appliedAmount;
   }
 }
 
@@ -1134,6 +1222,123 @@ export const allocateFamilyPayment = mutation({
       paymentIds,
       allocationCount: allocations.length,
       totalAmount
+    };
+  }
+});
+
+export const reallocatePaymentApplications = mutation({
+  args: {
+    paymentId: v.id('financePayments'),
+    allocations: v.array(
+      v.object({
+        chargeId: v.id('financeCharges'),
+        amount: v.number()
+      })
+    )
+  },
+  handler: async (ctx, args) => {
+    await requireFinanceWriteUser(ctx);
+
+    const payment = await ctx.db.get(args.paymentId);
+    if (!payment) {
+      throw new Error('Payment not found.');
+    }
+
+    const normalizedAllocations = args.allocations
+      .map((allocation) => ({
+        chargeId: allocation.chargeId,
+        amount: allocation.amount
+      }))
+      .filter((allocation) => allocation.amount > 0);
+
+    const uniqueChargeIds = new Set(normalizedAllocations.map((allocation) => allocation.chargeId));
+    if (uniqueChargeIds.size !== normalizedAllocations.length) {
+      throw new Error('Each charge can only appear once in a payment settlement.');
+    }
+
+    const totalAllocated = normalizedAllocations.reduce(
+      (sum, allocation) => sum + allocation.amount,
+      0
+    );
+    if (totalAllocated > payment.amount) {
+      throw new Error('Allocated amount cannot exceed the payment total.');
+    }
+
+    const profileCharges = await ctx.db
+      .query('financeCharges')
+      .withIndex('by_profile', (q) => q.eq('billingProfileId', payment.billingProfileId))
+      .collect();
+    const chargeById = new Map(profileCharges.map((charge) => [charge._id, charge]));
+
+    const profileApplications = await ctx.db
+      .query('financePaymentApplications')
+      .withIndex('by_profile', (q) => q.eq('billingProfileId', payment.billingProfileId))
+      .collect();
+    const currentPaymentApplications = profileApplications.filter(
+      (application) => application.paymentId === args.paymentId
+    );
+
+    const existingAllocationByChargeId = new Map<string, number>();
+    for (const application of currentPaymentApplications) {
+      existingAllocationByChargeId.set(
+        application.chargeId,
+        (existingAllocationByChargeId.get(application.chargeId) ?? 0) + application.amount
+      );
+    }
+
+    const otherAppliedByChargeId = new Map<string, number>();
+    for (const application of profileApplications) {
+      if (application.paymentId === args.paymentId) continue;
+      otherAppliedByChargeId.set(
+        application.chargeId,
+        (otherAppliedByChargeId.get(application.chargeId) ?? 0) + application.amount
+      );
+    }
+
+    for (const allocation of normalizedAllocations) {
+      const charge = chargeById.get(allocation.chargeId);
+      if (!charge) {
+        throw new Error('All selected charges must belong to the same student billing profile.');
+      }
+      if (charge.status === 'Waived') {
+        throw new Error('Waived charges cannot receive payment settlement allocations.');
+      }
+
+      const availableCapacity = Math.max(
+        charge.amount - (otherAppliedByChargeId.get(charge._id) ?? 0),
+        0
+      );
+      if (allocation.amount > availableCapacity) {
+        throw new Error(`Settlement for ${charge.title} exceeds the remaining charge balance.`);
+      }
+    }
+
+    const timestamp = Date.now();
+    for (const application of currentPaymentApplications) {
+      await ctx.db.delete(application._id);
+    }
+
+    for (const allocation of normalizedAllocations) {
+      await ctx.db.insert('financePaymentApplications', {
+        billingProfileId: payment.billingProfileId,
+        paymentId: args.paymentId,
+        chargeId: allocation.chargeId,
+        amount: allocation.amount,
+        appliedAt: timestamp
+      });
+    }
+
+    await syncChargeStatuses(ctx, payment.billingProfileId, timestamp);
+    await ctx.db.patch(payment.billingProfileId, { updatedAt: timestamp });
+
+    return {
+      paymentId: args.paymentId,
+      allocatedAmount: totalAllocated,
+      unappliedAmount: Math.max(payment.amount - totalAllocated, 0),
+      changedChargeCount: new Set([
+        ...Array.from(existingAllocationByChargeId.keys()),
+        ...normalizedAllocations.map((allocation) => allocation.chargeId)
+      ]).size
     };
   }
 });

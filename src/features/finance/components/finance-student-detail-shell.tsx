@@ -30,6 +30,7 @@ import { FinanceAccessGate } from './finance-access-gate';
 import { FinanceProfileSheet } from './finance-profile-sheet';
 import {
   FinanceChargeSheet,
+  FinancePaymentSettlementSheet,
   FinancePaymentSheet,
   FinanceReminderSheet
 } from './finance-record-sheets';
@@ -68,6 +69,8 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
   const [profileSheetOpen, setProfileSheetOpen] = useState(false);
   const [chargeSheetOpen, setChargeSheetOpen] = useState(false);
   const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
+  const [paymentSettlementSheetOpen, setPaymentSettlementSheetOpen] = useState(false);
+  const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(null);
   const [reminderSheetOpen, setReminderSheetOpen] = useState(false);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -99,6 +102,10 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
       financeProfile?.billingItems.filter((item) => item.billingBehavior === 'Available') ?? [];
     return { charged, included, available };
   }, [financeProfile?.billingItems]);
+  const selectedPayment = useMemo(
+    () => financeProfile?.payments.find((payment) => payment.id === selectedPaymentId) ?? null,
+    [financeProfile?.payments, selectedPaymentId]
+  );
 
   if (!hasFinanceAccess) {
     return (
@@ -616,6 +623,11 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                                         <span className='text-muted-foreground text-xs'>
                                           {charge.settlementLabel}
                                         </span>
+                                        <span className='text-muted-foreground text-xs'>
+                                          {charge.applicationCount
+                                            ? `${charge.applicationCount} payment match${charge.applicationCount === 1 ? '' : 'es'}`
+                                            : 'No payment matches yet'}
+                                        </span>
                                       </div>
                                     </TableCell>
                                     <TableCell>{charge.chargeDate}</TableCell>
@@ -645,7 +657,8 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                     <CardHeader>
                       <CardTitle>Payment history</CardTitle>
                       <CardDescription>
-                        Recorded incoming payments and references for this student account.
+                        Recorded incoming payments, explicit charge matches, and remaining credit on
+                        this student account.
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -656,16 +669,19 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                       ) : (
                         <div className='overflow-hidden rounded-xl border border-border/60'>
                           <div className='w-full overflow-x-auto'>
-                            <Table className='min-w-[720px]'>
+                            <Table className='min-w-[900px]'>
                               <TableHeader>
                                 <TableRow>
                                   <TableHead>Paid at</TableHead>
                                   <TableHead>Method</TableHead>
                                   <TableHead>Reference</TableHead>
-                                  <TableHead>Note</TableHead>
+                                  <TableHead>Settlement</TableHead>
                                   <TableHead className='text-right'>Amount</TableHead>
                                   <TableHead className='text-right'>Applied</TableHead>
                                   <TableHead className='text-right'>Unapplied</TableHead>
+                                  {hasFinanceWriteAccess ? (
+                                    <TableHead className='text-right'>Actions</TableHead>
+                                  ) : null}
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
@@ -676,13 +692,23 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                                       <Badge variant='outline'>{payment.method}</Badge>
                                     </TableCell>
                                     <TableCell>{payment.reference || '—'}</TableCell>
-                                    <TableCell className='max-w-[280px] text-sm text-muted-foreground'>
-                                      {payment.note || '—'}
-                                      <div className='text-xs text-muted-foreground'>
+                                    <TableCell className='max-w-[320px] text-sm text-muted-foreground'>
+                                      <div>{payment.note || '—'}</div>
+                                      <div className='mt-1 text-xs text-muted-foreground'>
                                         {payment.appliedChargeCount
-                                          ? `Matched to ${payment.appliedChargeCount} charge${payment.appliedChargeCount === 1 ? '' : 's'}`
-                                          : 'Not matched to charges yet'}
+                                          ? `${payment.settlementLabel} • ${payment.appliedChargeCount} charge${payment.appliedChargeCount === 1 ? '' : 's'} matched`
+                                          : 'Unapplied credit on account'}
                                       </div>
+                                      {payment.applications.length > 0 ? (
+                                        <div className='mt-2 space-y-1 text-xs text-muted-foreground'>
+                                          {payment.applications.map((application) => (
+                                            <div key={application.chargeId}>
+                                              {application.chargeTitle} •{' '}
+                                              {currency(application.amount)}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : null}
                                     </TableCell>
                                     <TableCell className='text-right font-medium'>
                                       {currency(payment.amount)}
@@ -693,6 +719,20 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                                     <TableCell className='text-right font-medium'>
                                       {currency(payment.unappliedAmount)}
                                     </TableCell>
+                                    {hasFinanceWriteAccess ? (
+                                      <TableCell className='text-right'>
+                                        <Button
+                                          variant='outline'
+                                          size='sm'
+                                          onClick={() => {
+                                            setSelectedPaymentId(payment.id);
+                                            setPaymentSettlementSheetOpen(true);
+                                          }}
+                                        >
+                                          Settle payment
+                                        </Button>
+                                      </TableCell>
+                                    ) : null}
                                   </TableRow>
                                 ))}
                               </TableBody>
@@ -913,6 +953,12 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
             open={paymentSheetOpen}
             onOpenChange={setPaymentSheetOpen}
             billingProfileId={financeProfile?.id ?? null}
+          />
+          <FinancePaymentSettlementSheet
+            open={paymentSettlementSheetOpen}
+            onOpenChange={setPaymentSettlementSheetOpen}
+            payment={selectedPayment}
+            charges={financeProfile?.charges ?? []}
           />
           <FinanceReminderSheet
             open={reminderSheetOpen}

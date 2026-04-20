@@ -389,6 +389,319 @@ export function FinancePaymentSheet({
   );
 }
 
+export function FinancePaymentSettlementSheet({
+  open,
+  onOpenChange,
+  payment,
+  charges,
+  onSaved
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  payment: {
+    id: string;
+    amount: number;
+    paidAt: string;
+    method: 'Bank Transfer' | 'Cash' | 'Card' | 'Wallet' | 'Scholarship Credit';
+    reference: string;
+    note: string;
+    appliedAmount: number;
+    unappliedAmount: number;
+    settlementLabel: string;
+    applications: Array<{
+      chargeId: string;
+      amount: number;
+    }>;
+  } | null;
+  charges: Array<{
+    id: string;
+    title: string;
+    dueDate: string;
+    amount: number;
+    status: 'Pending' | 'Paid' | 'Overdue' | 'Waived';
+    appliedAmount: number;
+    balanceRemaining: number;
+  }>;
+  onSaved?: () => void;
+}) {
+  const isMobile = useIsMobile();
+  const reallocatePaymentApplications = useMutation(api.finance.reallocatePaymentApplications);
+  const [allocations, setAllocations] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!open || !payment) return;
+    setAllocations(
+      Object.fromEntries(
+        payment.applications.map((application) => [
+          application.chargeId,
+          String(application.amount)
+        ])
+      )
+    );
+  }, [open, payment]);
+
+  const chargeRows = charges
+    .filter((charge) => charge.status !== 'Waived')
+    .map((charge) => {
+      const currentAllocation = Number(allocations[charge.id] || 0);
+      const maxAssignable = Math.max(charge.amount - (charge.appliedAmount - currentAllocation), 0);
+      return {
+        ...charge,
+        currentAllocation,
+        maxAssignable,
+        otherPaymentsApplied: Math.max(charge.appliedAmount - currentAllocation, 0)
+      };
+    });
+
+  const totalAllocated = Object.values(allocations).reduce(
+    (sum, value) => sum + Number(value || 0),
+    0
+  );
+  const overAllocatedCharge = chargeRows.find(
+    (charge) => charge.currentAllocation > charge.maxAssignable
+  );
+  const exceedsPaymentTotal = payment ? totalAllocated > payment.amount : false;
+
+  const handleAutoFill = () => {
+    if (!payment) return;
+
+    let remaining = payment.amount;
+    const nextAllocations: Record<string, string> = {};
+    // eslint-disable-next-line unicorn/no-array-sort
+    const orderedCharges = [...chargeRows].sort(
+      (left, right) =>
+        left.dueDate.localeCompare(right.dueDate) || left.title.localeCompare(right.title)
+    );
+
+    for (const charge of orderedCharges) {
+      if (remaining <= 0) break;
+      const suggestedAmount = Math.min(remaining, charge.maxAssignable);
+      nextAllocations[charge.id] = suggestedAmount > 0 ? String(suggestedAmount) : '0';
+      remaining -= suggestedAmount;
+    }
+
+    setAllocations(nextAllocations);
+  };
+
+  const handleSubmit = async () => {
+    if (!payment) return;
+    if (overAllocatedCharge) {
+      toast.error(
+        `Settlement for ${overAllocatedCharge.title} is above the remaining charge balance.`
+      );
+      return;
+    }
+    if (exceedsPaymentTotal) {
+      toast.error('Allocated amount cannot exceed the payment total.');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      await reallocatePaymentApplications({
+        paymentId: payment.id as Id<'financePayments'>,
+        allocations: chargeRows
+          .map((charge) => ({
+            chargeId: charge.id as Id<'financeCharges'>,
+            amount: Number(allocations[charge.id] || 0)
+          }))
+          .filter((allocation) => allocation.amount > 0)
+      });
+      toast.success('Payment settlement updated');
+      onOpenChange(false);
+      onSaved?.();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update payment settlement');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const content = payment ? (
+    <div className='grid min-w-0 gap-4'>
+      <div className='grid gap-3 rounded-xl border border-border/60 bg-muted/20 p-4 text-sm md:grid-cols-2 xl:grid-cols-4'>
+        <div>
+          <div className='text-xs uppercase tracking-[0.12em] text-muted-foreground'>
+            Payment total
+          </div>
+          <div className='mt-1 font-medium text-foreground'>{currency(payment.amount)}</div>
+        </div>
+        <div>
+          <div className='text-xs uppercase tracking-[0.12em] text-muted-foreground'>
+            Allocated now
+          </div>
+          <div className='mt-1 font-medium text-foreground'>{currency(totalAllocated)}</div>
+        </div>
+        <div>
+          <div className='text-xs uppercase tracking-[0.12em] text-muted-foreground'>
+            Unapplied credit
+          </div>
+          <div className='mt-1 font-medium text-foreground'>
+            {currency(Math.max(payment.amount - totalAllocated, 0))}
+          </div>
+        </div>
+        <div>
+          <div className='text-xs uppercase tracking-[0.12em] text-muted-foreground'>
+            Payment context
+          </div>
+          <div className='mt-1 font-medium text-foreground'>
+            {payment.paidAt} • {payment.method}
+          </div>
+          <div className='text-xs text-muted-foreground'>
+            {payment.reference || payment.note || payment.settlementLabel}
+          </div>
+        </div>
+      </div>
+
+      <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+        <div className='text-sm text-muted-foreground'>
+          Rebalance how this payment settles individual charges. Leave some amount unassigned if it
+          should remain as credit on account.
+        </div>
+        <div className='flex flex-wrap gap-2'>
+          <Button
+            type='button'
+            variant='outline'
+            size='sm'
+            disabled={submitting}
+            onClick={handleAutoFill}
+          >
+            Autofill oldest open charges
+          </Button>
+          <Button
+            type='button'
+            variant='ghost'
+            size='sm'
+            disabled={submitting}
+            onClick={() => setAllocations({})}
+          >
+            Clear allocations
+          </Button>
+        </div>
+      </div>
+
+      <div className='grid gap-3'>
+        {chargeRows.length === 0 ? (
+          <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
+            No active charges available for settlement on this student account.
+          </div>
+        ) : (
+          chargeRows.map((charge) => (
+            <div
+              key={charge.id}
+              className='grid min-w-0 gap-3 rounded-xl border border-border/60 p-4 md:grid-cols-[minmax(0,1fr)_140px] md:items-end'
+            >
+              <div className='min-w-0'>
+                <div className='flex flex-wrap items-center gap-2'>
+                  <div className='font-medium'>{charge.title}</div>
+                  <span className='text-xs text-muted-foreground'>{charge.dueDate}</span>
+                </div>
+                <div className='mt-1 text-xs text-muted-foreground'>
+                  Charge {currency(charge.amount)} • other payments applied{' '}
+                  {currency(charge.otherPaymentsApplied)} • max assignable{' '}
+                  {currency(charge.maxAssignable)}
+                </div>
+              </div>
+              <div className='grid gap-2'>
+                <Label htmlFor={`settlement-${charge.id}`}>Allocate to charge</Label>
+                <div className='flex items-center gap-2'>
+                  <Input
+                    id={`settlement-${charge.id}`}
+                    type='number'
+                    min='0'
+                    value={allocations[charge.id] ?? '0'}
+                    onChange={(event) =>
+                      setAllocations((current) => ({
+                        ...current,
+                        [charge.id]: event.target.value
+                      }))
+                    }
+                    disabled={submitting}
+                  />
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    disabled={submitting || charge.maxAssignable <= 0}
+                    onClick={() =>
+                      setAllocations((current) => ({
+                        ...current,
+                        [charge.id]: String(charge.maxAssignable)
+                      }))
+                    }
+                  >
+                    Max
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {overAllocatedCharge ? (
+        <div className='rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive'>
+          {overAllocatedCharge.title} is allocated above its remaining charge balance.
+        </div>
+      ) : null}
+      {exceedsPaymentTotal ? (
+        <div className='rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive'>
+          Allocations are above the payment total.
+        </div>
+      ) : null}
+    </div>
+  ) : (
+    <div className='text-sm text-muted-foreground'>Choose a payment first.</div>
+  );
+
+  const footer = (
+    <>
+      <Button variant='outline' disabled={submitting} onClick={() => onOpenChange(false)}>
+        Cancel
+      </Button>
+      <Button
+        disabled={submitting || !payment || !!overAllocatedCharge || exceedsPaymentTotal}
+        onClick={handleSubmit}
+      >
+        {submitting ? <Icons.spinner className='mr-2 h-4 w-4 animate-spin' /> : null}
+        Save settlement
+      </Button>
+    </>
+  );
+
+  if (isMobile)
+    return (
+      <Drawer open={open} onOpenChange={onOpenChange}>
+        <DrawerContent className='overflow-x-hidden'>
+          <DrawerHeader>
+            <DrawerTitle>Manage payment settlement</DrawerTitle>
+            <DrawerDescription>
+              Explicitly match this payment to the charges it should settle.
+            </DrawerDescription>
+          </DrawerHeader>
+          <div className='max-h-[70vh] overflow-x-hidden overflow-y-auto px-4'>{content}</div>
+          <DrawerFooter>{footer}</DrawerFooter>
+        </DrawerContent>
+      </Drawer>
+    );
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className='sm:max-w-2xl'>
+        <SheetHeader>
+          <SheetTitle>Manage payment settlement</SheetTitle>
+          <SheetDescription>
+            Explicitly match this payment to the charges it should settle.
+          </SheetDescription>
+        </SheetHeader>
+        <div className='mt-6 grid gap-4'>{content}</div>
+        <SheetFooter className='mt-6'>{footer}</SheetFooter>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 export function FinanceReminderSheet({
   open,
   onOpenChange,
