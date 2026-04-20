@@ -1,15 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useMemo, useState } from 'react';
 import { useQuery } from 'convex/react';
 
 import { api } from '../../../../convex/_generated/api';
-import type { Id } from '../../../../convex/_generated/dataModel';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import {
   Table,
@@ -20,8 +18,10 @@ import {
   TableRow
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { FinanceAccessGate } from './finance-access-gate';
+import { FinanceOverviewGrid } from './finance-overview-grid';
 import { FinanceProfileSheet } from './finance-profile-sheet';
-import { FinanceChargeSheet, FinancePaymentSheet } from './finance-record-sheets';
+import { useFinanceAccess } from '../hooks/use-finance-access';
 
 function currency(value: number) {
   return new Intl.NumberFormat('en-US', {
@@ -45,43 +45,67 @@ function chargeVariant(status: 'Pending' | 'Paid' | 'Overdue' | 'Waived') {
 }
 
 export default function FinanceShell() {
-  const [search, setSearch] = useState('');
-  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const { hasFinanceAccess, hasFinanceWriteAccess } = useFinanceAccess();
   const [profileSheetOpen, setProfileSheetOpen] = useState(false);
-  const [chargeSheetOpen, setChargeSheetOpen] = useState(false);
-  const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
-
-  const searchArgs = search.trim() ? { search } : {};
-  const summary = useQuery(api.finance.summary, {});
-  const profilesQuery = useQuery(api.finance.list, searchArgs);
-  const profiles = useMemo(() => profilesQuery ?? [], [profilesQuery]);
-
-  useEffect(() => {
-    if (!selectedProfileId && profiles.length > 0) {
-      setSelectedProfileId(profiles[0].id);
-    }
-  }, [profiles, selectedProfileId]);
-
-  useEffect(() => {
-    if (selectedProfileId && !profiles.some((profile) => profile.id === selectedProfileId)) {
-      setSelectedProfileId(profiles[0]?.id ?? null);
-    }
-  }, [profiles, selectedProfileId]);
-
-  const selectedProfile = useQuery(
-    api.finance.getByProfileId,
-    selectedProfileId
-      ? { billingProfileId: selectedProfileId as Id<'studentBillingProfiles'> }
-      : 'skip'
+  const summary = useQuery(api.finance.summary, hasFinanceAccess ? {} : 'skip');
+  const profilesQuery = useQuery(api.finance.list, hasFinanceAccess ? {} : 'skip');
+  const ledgerActivity = useQuery(
+    api.finance.ledgerActivity,
+    hasFinanceAccess ? { limit: 16 } : 'skip'
   );
 
-  const hasSearch = search.trim().length > 0;
-  const overdueShare =
-    summary && summary.profiles > 0
-      ? Math.round((summary.overdueProfiles / summary.profiles) * 100)
-      : 0;
+  const rows = useMemo(
+    () =>
+      (profilesQuery ?? []).map((profile) => ({
+        profileId: profile.id,
+        studentId: profile.studentId,
+        studentName: profile.studentName,
+        className: profile.className,
+        academicYear: profile.academicYear,
+        billingStatus: profile.billingStatus,
+        tuitionMonthlyFee: profile.effectiveMonthlyFee - profile.billedAddOnMonthlyTotal,
+        billedAddOnCount: profile.billedAddOnCount,
+        billedAddOnMonthlyTotal: profile.billedAddOnMonthlyTotal,
+        billingItemsSummary: profile.billingItemsSummary,
+        effectiveMonthlyFee: profile.effectiveMonthlyFee,
+        totalOutstanding: profile.totalOutstanding,
+        recentPaymentAmount: profile.recentPaymentAmount,
+        recentPaymentDate: profile.recentPaymentDate,
+        paymentPlan: profile.paymentPlan
+      })),
+    [profilesQuery]
+  );
 
-  if (!summary || profilesQuery === undefined) {
+  const collectionsRows = useMemo(
+    () =>
+      [...rows]
+        .filter((row) => row.billingStatus === 'Overdue' || row.totalOutstanding > 0)
+        .sort((left, right) => right.totalOutstanding - left.totalOutstanding),
+    [rows]
+  );
+
+  const paymentPlanCount = useMemo(
+    () => rows.filter((row) => row.paymentPlan.trim().length > 0).length,
+    [rows]
+  );
+  const monthlyRunRate = useMemo(
+    () => rows.reduce((sum, row) => sum + row.effectiveMonthlyFee, 0),
+    [rows]
+  );
+  const addOnRevenue = useMemo(
+    () => rows.reduce((sum, row) => sum + row.billedAddOnMonthlyTotal, 0),
+    [rows]
+  );
+
+  if (!hasFinanceAccess) {
+    return (
+      <FinanceAccessGate>
+        <div />
+      </FinanceAccessGate>
+    );
+  }
+
+  if (!summary || profilesQuery === undefined || ledgerActivity === undefined) {
     return (
       <div className='rounded-2xl border border-border/50 bg-background/70 p-6 text-sm text-muted-foreground'>
         Loading finance workflow...
@@ -90,443 +114,334 @@ export default function FinanceShell() {
   }
 
   return (
-    <div className='flex flex-1 flex-col gap-4'>
-      <Card className='border-border/60'>
-        <CardHeader className='gap-4 pb-4'>
-          <div className='flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between'>
-            <div className='space-y-1'>
-              <CardTitle>Finance & fees</CardTitle>
-              <CardDescription>
-                Keep billing rules, arrears, scholarships, charges, and payments visible without
-                bloating the student directory.
-              </CardDescription>
-            </div>
-            <div className='flex flex-wrap gap-2'>
-              <Button
-                variant='outline'
-                onClick={() => {
-                  setSelectedProfileId(null);
-                  setProfileSheetOpen(true);
-                }}
-              >
-                Add billing profile
-              </Button>
-            </div>
-          </div>
-          <div className='grid gap-3 xl:grid-cols-[minmax(0,1fr)_280px]'>
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder='Search student, class, year, status, scholarship, plan, or notes'
-            />
-            <div className='rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-sm text-muted-foreground'>
-              {hasSearch
-                ? `${profiles.length} billing profile${profiles.length === 1 ? '' : 's'} match the current search.`
-                : `${profiles.length} billing profile${profiles.length === 1 ? '' : 's'} currently tracked by finance.`}
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
-
-      <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-5'>
+    <FinanceAccessGate>
+      <div className='flex flex-1 flex-col gap-4'>
         <Card className='border-border/60'>
-          <CardHeader className='pb-2'>
-            <CardDescription>Profiles</CardDescription>
-            <CardTitle className='text-2xl'>{summary.profiles}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card className='border-border/60'>
-          <CardHeader className='pb-2'>
-            <CardDescription>Overdue</CardDescription>
-            <CardTitle className='text-2xl'>{summary.overdueProfiles}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card className='border-border/60'>
-          <CardHeader className='pb-2'>
-            <CardDescription>Scholarship</CardDescription>
-            <CardTitle className='text-2xl'>{summary.scholarshipProfiles}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card className='border-border/60'>
-          <CardHeader className='pb-2'>
-            <CardDescription>Outstanding</CardDescription>
-            <CardTitle className='text-2xl'>{currency(summary.totalOutstanding)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card className='border-border/60'>
-          <CardHeader className='pb-2'>
-            <CardDescription>Collected this month</CardDescription>
-            <CardTitle className='text-2xl'>{currency(summary.collectedThisMonth)}</CardTitle>
-          </CardHeader>
-        </Card>
-      </div>
-
-      {profiles.length === 0 ? (
-        <Card>
-          <CardContent className='flex flex-col items-start gap-4 p-6'>
-            <div>
-              <div className='font-medium'>
-                {hasSearch
-                  ? `No billing profiles found for “${search.trim()}”.`
-                  : 'No finance profiles yet.'}
+          <CardHeader className='gap-4 pb-4'>
+            <div className='flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between'>
+              <div className='space-y-3'>
+                <div className='space-y-1'>
+                  <CardTitle>Finance & Fees</CardTitle>
+                  <CardDescription>
+                    Run finance as a school-wide operations surface first, then open a dedicated
+                    student finance screen for each child’s billing setup, history, collections
+                    posture, and next actions.
+                  </CardDescription>
+                </div>
+                <div className='flex flex-wrap gap-2 text-xs text-muted-foreground'>
+                  <Badge variant='outline'>200+ student ready</Badge>
+                  <Badge variant='outline'>Per-student finance detail</Badge>
+                  <Badge variant='outline'>Accounts-only workflow</Badge>
+                </div>
               </div>
-              <div className='mt-1 text-sm text-muted-foreground'>
-                {hasSearch
-                  ? 'Try a broader search once more billing records have been added.'
-                  : 'Create the first billing profile so pricing rules and arrears leave the spreadsheet layer.'}
+              <div className='flex flex-wrap gap-2'>
+                {hasFinanceWriteAccess ? (
+                  <Button variant='outline' onClick={() => setProfileSheetOpen(true)}>
+                    Add billing profile
+                  </Button>
+                ) : null}
               </div>
             </div>
-            {!hasSearch ? (
-              <Button onClick={() => setProfileSheetOpen(true)}>Add first billing profile</Button>
-            ) : null}
+          </CardHeader>
+          <CardContent className='grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]'>
+            <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-3'>
+              <MetricCard
+                label='Profiles'
+                value={`${summary.profiles}`}
+                hint='Student accounts with billing setup'
+              />
+              <MetricCard
+                label='Monthly run rate'
+                value={currency(monthlyRunRate)}
+                hint='Current recurring tuition + charged add-ons'
+              />
+              <MetricCard
+                label='Outstanding'
+                value={currency(summary.totalOutstanding)}
+                hint='Open balances including arrears'
+              />
+              <MetricCard
+                label='Collected this month'
+                value={currency(summary.collectedThisMonth)}
+                hint='Recorded incoming payments this month'
+              />
+              <MetricCard
+                label='On payment plans'
+                value={`${paymentPlanCount}`}
+                hint='Families with structured payment terms'
+              />
+              <MetricCard
+                label='Add-on revenue'
+                value={currency(addOnRevenue)}
+                hint='Lunch, activities, transport, extras'
+              />
+            </div>
+            <div className='rounded-2xl border border-border/60 bg-muted/20 p-4'>
+              <div className='text-sm font-medium'>Spreadsheet-informed workspace split</div>
+              <div className='mt-2 text-sm text-muted-foreground'>
+                The finance spreadsheet research points to four real work lanes instead of one giant
+                fee table: student billing setup, charge ledger, payment intake, and collections.
+              </div>
+              <Separator className='my-4' />
+              <div className='grid gap-2 text-sm text-muted-foreground'>
+                <div>Student billing keeps the school-wide browse view.</div>
+                <div>Charges groups school-issued tuition, registration, lunch, and extras.</div>
+                <div>Payments keeps incoming money and references in one place.</div>
+                <div>Collections isolates overdue families and follow-up workload.</div>
+              </div>
+            </div>
           </CardContent>
         </Card>
-      ) : (
-        <div className='grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]'>
-          <Card className='border-border/60 xl:h-[calc(100dvh-20rem)]'>
-            <CardHeader className='pb-3'>
-              <CardTitle className='text-base'>Billing profiles</CardTitle>
-              <CardDescription>
-                Use this rail for quick selection. The detail view handles charges, payments, and
-                rules.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className='grid gap-3 overflow-y-auto pr-2'>
-              {profiles.map((profile) => {
-                const isActive = selectedProfileId === profile.id;
-                return (
-                  <button
-                    key={profile.id}
-                    type='button'
-                    onClick={() => setSelectedProfileId(profile.id)}
-                    className={`rounded-xl border px-4 py-3 text-left transition-colors ${
-                      isActive
-                        ? 'border-primary/60 bg-primary/5 shadow-sm'
-                        : 'border-border/60 hover:bg-muted/30'
-                    }`}
-                  >
-                    <div className='flex flex-wrap items-center gap-2'>
-                      <div className='font-medium'>{profile.studentName}</div>
-                      <Badge variant={billingVariant(profile.billingStatus)}>
-                        {profile.billingStatus}
-                      </Badge>
-                      {profile.scholarshipType ? (
-                        <Badge variant='secondary'>{profile.scholarshipType}</Badge>
-                      ) : null}
-                    </div>
-                    <div className='mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground'>
-                      <span>{profile.className}</span>
-                      {profile.academicYear ? <span>{profile.academicYear}</span> : null}
-                      <span>Fee {currency(profile.effectiveMonthlyFee)}</span>
-                    </div>
-                    <div className='mt-3 grid gap-2 sm:grid-cols-2'>
-                      <div>
-                        <div className='text-[11px] uppercase tracking-[0.12em] text-muted-foreground'>
-                          Outstanding
-                        </div>
-                        <div className='mt-1 font-medium'>{currency(profile.totalOutstanding)}</div>
-                      </div>
-                      <div>
-                        <div className='text-[11px] uppercase tracking-[0.12em] text-muted-foreground'>
-                          Recent payment
-                        </div>
-                        <div className='mt-1 font-medium'>
-                          {profile.recentPaymentAmount
-                            ? currency(profile.recentPaymentAmount)
-                            : 'No recent payment'}
-                        </div>
-                      </div>
-                    </div>
-                    {profile.paymentPlan || profile.notesSummary ? (
-                      <div className='mt-3 line-clamp-2 text-sm text-muted-foreground'>
-                        {profile.paymentPlan || profile.notesSummary}
-                      </div>
-                    ) : null}
-                  </button>
-                );
-              })}
-            </CardContent>
-          </Card>
 
-          <div className='grid gap-4'>
-            <Card className='border-border/60'>
-              <CardContent className='grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_240px]'>
-                <div className='space-y-4'>
-                  {!selectedProfileId ? (
-                    <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
-                      Select a billing profile to inspect finance detail.
-                    </div>
-                  ) : selectedProfile === undefined ? (
-                    <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
-                      Loading finance detail...
-                    </div>
-                  ) : !selectedProfile ? (
-                    <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
-                      Billing profile could not be loaded.
-                    </div>
-                  ) : (
-                    <>
-                      <div className='flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
-                        <div className='space-y-2'>
-                          <div className='flex flex-wrap items-center gap-2'>
-                            <h3 className='text-lg font-semibold'>{selectedProfile.studentName}</h3>
-                            <Badge variant='outline'>{selectedProfile.className}</Badge>
-                            {selectedProfile.academicYear ? (
-                              <Badge variant='outline'>{selectedProfile.academicYear}</Badge>
-                            ) : null}
-                            <Badge variant={billingVariant(selectedProfile.billingStatus)}>
-                              {selectedProfile.billingStatus}
-                            </Badge>
-                            {selectedProfile.scholarshipType ? (
-                              <Badge variant='secondary'>{selectedProfile.scholarshipType}</Badge>
-                            ) : null}
-                          </div>
-                          <p className='max-w-3xl text-sm text-muted-foreground'>
-                            {selectedProfile.notesSummary ||
-                              'Use the profile to keep billing rules and actual money movement separate but visible together.'}
-                          </p>
-                        </div>
-                        <div className='flex flex-wrap gap-2'>
-                          <Button
-                            variant='outline'
-                            size='sm'
-                            onClick={() => setChargeSheetOpen(true)}
-                          >
-                            Add charge
-                          </Button>
-                          <Button
-                            variant='outline'
-                            size='sm'
-                            onClick={() => setPaymentSheetOpen(true)}
-                          >
-                            Record payment
-                          </Button>
-                          <Button
-                            variant='outline'
-                            size='sm'
-                            onClick={() => setProfileSheetOpen(true)}
-                          >
-                            Edit profile
-                          </Button>
-                        </div>
-                      </div>
+        <Tabs defaultValue='student-billing' className='gap-4'>
+          <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
+            <div>
+              <div className='text-base font-semibold'>Finance workspace</div>
+              <div className='text-sm text-muted-foreground'>
+                Browse students on desktop, scan the same workflow on mobile, and move into the
+                dedicated student finance screen when you need the full story.
+              </div>
+            </div>
+            <TabsList className='flex h-auto flex-wrap justify-start'>
+              <TabsTrigger value='student-billing'>Student billing</TabsTrigger>
+              <TabsTrigger value='charges-ledger'>Charges</TabsTrigger>
+              <TabsTrigger value='payments-ledger'>Payments</TabsTrigger>
+              <TabsTrigger value='collections'>Collections</TabsTrigger>
+            </TabsList>
+          </div>
 
-                      <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-4'>
-                        <div className='rounded-xl border border-border/60 bg-muted/20 p-4'>
-                          <div className='text-[11px] uppercase tracking-[0.12em] text-muted-foreground'>
-                            Base fee
-                          </div>
-                          <div className='mt-2 text-xl font-semibold'>
-                            {currency(selectedProfile.baseMonthlyFee)}
-                          </div>
-                        </div>
-                        <div className='rounded-xl border border-border/60 bg-muted/20 p-4'>
-                          <div className='text-[11px] uppercase tracking-[0.12em] text-muted-foreground'>
-                            Effective fee
-                          </div>
-                          <div className='mt-2 text-xl font-semibold'>
-                            {currency(selectedProfile.effectiveMonthlyFee)}
-                          </div>
-                        </div>
-                        <div className='rounded-xl border border-border/60 bg-muted/20 p-4'>
-                          <div className='text-[11px] uppercase tracking-[0.12em] text-muted-foreground'>
-                            Arrears
-                          </div>
-                          <div className='mt-2 text-xl font-semibold'>
-                            {currency(selectedProfile.arrearsBalance)}
-                          </div>
-                        </div>
-                        <div className='rounded-xl border border-border/60 bg-muted/20 p-4'>
-                          <div className='text-[11px] uppercase tracking-[0.12em] text-muted-foreground'>
-                            Payment plan
-                          </div>
-                          <div className='mt-2 text-sm font-medium'>
-                            {selectedProfile.paymentPlan || 'No plan set'}
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                <div className='rounded-2xl border border-border/60 bg-muted/20 p-4'>
-                  <div className='text-sm font-medium'>Finance health</div>
-                  <div className='mt-1 text-sm text-muted-foreground'>
-                    Keep overdue share visible so Accounts can triage arrears before they spread.
+          <TabsContent value='student-billing'>
+            {rows.length === 0 ? (
+              <Card>
+                <CardContent className='flex flex-col items-start gap-4 p-6'>
+                  <div>
+                    <div className='font-medium'>No student finance profiles yet.</div>
+                    <div className='mt-1 text-sm text-muted-foreground'>
+                      Create the first billing profile so tuition, lunch plans, extra lessons, and
+                      ledger activity can be tracked per student.
+                    </div>
                   </div>
-                  <div className='mt-5 flex items-center justify-between text-sm'>
-                    <span className='text-muted-foreground'>Overdue profile share</span>
-                    <span className='font-medium'>{overdueShare}%</span>
-                  </div>
-                  <Progress value={overdueShare} className='mt-2' />
-                  <Separator className='my-4' />
-                  <div className='grid gap-2 text-sm text-muted-foreground'>
-                    <div>Pricing rules stay separate from actual payments.</div>
-                    <div>Scholarship and custom fee handling remain explicit.</div>
-                    <div>Outstanding balances stay visible per student family context.</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {selectedProfile ? (
-              <Card className='border-border/60'>
-                <CardContent className='p-5'>
-                  <Tabs defaultValue='charges' className='gap-4'>
-                    <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
-                      <div>
-                        <div className='text-base font-semibold'>Billing detail</div>
-                        <div className='text-sm text-muted-foreground'>
-                          Use compact records for charges and payments instead of long stacked
-                          cards.
-                        </div>
-                      </div>
-                      <TabsList>
-                        <TabsTrigger value='charges'>Charges</TabsTrigger>
-                        <TabsTrigger value='payments'>Payments</TabsTrigger>
-                        <TabsTrigger value='rules'>Rules</TabsTrigger>
-                      </TabsList>
-                    </div>
-
-                    <TabsContent value='charges'>
-                      {selectedProfile.charges.length === 0 ? (
-                        <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
-                          No charges recorded yet.
-                        </div>
-                      ) : (
-                        <div className='overflow-hidden rounded-xl border border-border/60'>
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Charge</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Due</TableHead>
-                                <TableHead className='text-right'>Amount</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {selectedProfile.charges.map((charge) => (
-                                <TableRow key={charge.id}>
-                                  <TableCell>
-                                    <div className='font-medium'>{charge.title}</div>
-                                    <div className='text-xs text-muted-foreground'>
-                                      {charge.category}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell>
-                                    <Badge variant={chargeVariant(charge.status)}>
-                                      {charge.status}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell>{charge.chargeDate}</TableCell>
-                                  <TableCell>{charge.dueDate}</TableCell>
-                                  <TableCell className='text-right font-medium'>
-                                    {currency(charge.amount)}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      )}
-                    </TabsContent>
-
-                    <TabsContent value='payments'>
-                      {selectedProfile.payments.length === 0 ? (
-                        <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
-                          No payments recorded yet.
-                        </div>
-                      ) : (
-                        <div className='overflow-hidden rounded-xl border border-border/60'>
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Paid at</TableHead>
-                                <TableHead>Method</TableHead>
-                                <TableHead>Reference</TableHead>
-                                <TableHead>Note</TableHead>
-                                <TableHead className='text-right'>Amount</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {selectedProfile.payments.map((payment) => (
-                                <TableRow key={payment.id}>
-                                  <TableCell>{payment.paidAt}</TableCell>
-                                  <TableCell>
-                                    <Badge variant='outline'>{payment.method}</Badge>
-                                  </TableCell>
-                                  <TableCell>{payment.reference || '—'}</TableCell>
-                                  <TableCell className='max-w-[280px] text-sm text-muted-foreground'>
-                                    {payment.note || '—'}
-                                  </TableCell>
-                                  <TableCell className='text-right font-medium'>
-                                    {currency(payment.amount)}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      )}
-                    </TabsContent>
-
-                    <TabsContent value='rules'>
-                      <div className='grid gap-3 md:grid-cols-2'>
-                        <div className='rounded-xl border border-border/60 p-4'>
-                          <div className='text-sm font-medium'>Pricing model</div>
-                          <div className='mt-3 grid gap-2 text-sm text-muted-foreground'>
-                            <div>Base monthly fee: {currency(selectedProfile.baseMonthlyFee)}</div>
-                            <div>
-                              Effective monthly fee: {currency(selectedProfile.effectiveMonthlyFee)}
-                            </div>
-                            <div>
-                              Scholarship:{' '}
-                              {selectedProfile.scholarshipType || 'No scholarship rule'}
-                            </div>
-                          </div>
-                        </div>
-                        <div className='rounded-xl border border-border/60 p-4'>
-                          <div className='text-sm font-medium'>Collections context</div>
-                          <div className='mt-3 grid gap-2 text-sm text-muted-foreground'>
-                            <div>Arrears balance: {currency(selectedProfile.arrearsBalance)}</div>
-                            <div>Payment plan: {selectedProfile.paymentPlan || 'No plan set'}</div>
-                            <div>
-                              Profile status:{' '}
-                              <Badge variant={billingVariant(selectedProfile.billingStatus)}>
-                                {selectedProfile.billingStatus}
-                              </Badge>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </TabsContent>
-                  </Tabs>
+                  {hasFinanceWriteAccess ? (
+                    <Button onClick={() => setProfileSheetOpen(true)}>
+                      Add first billing profile
+                    </Button>
+                  ) : null}
                 </CardContent>
               </Card>
-            ) : null}
-          </div>
-        </div>
-      )}
+            ) : (
+              <FinanceOverviewGrid
+                rows={rows}
+                onAddProfile={() => setProfileSheetOpen(true)}
+                canManageProfiles={hasFinanceWriteAccess}
+              />
+            )}
+          </TabsContent>
 
-      <FinanceProfileSheet
-        open={profileSheetOpen}
-        onOpenChange={setProfileSheetOpen}
-        billingProfileId={selectedProfileId}
-        onSaved={(billingProfileId) => {
-          if (billingProfileId) setSelectedProfileId(billingProfileId);
-        }}
-      />
-      <FinanceChargeSheet
-        open={chargeSheetOpen}
-        onOpenChange={setChargeSheetOpen}
-        billingProfileId={selectedProfileId}
-      />
-      <FinancePaymentSheet
-        open={paymentSheetOpen}
-        onOpenChange={setPaymentSheetOpen}
-        billingProfileId={selectedProfileId}
-      />
+          <TabsContent value='charges-ledger'>
+            <Card className='border-border/60'>
+              <CardHeader>
+                <CardTitle>School charge ledger</CardTitle>
+                <CardDescription>
+                  Recent charges across the school. Open a student to inspect or add full charge
+                  detail.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {ledgerActivity.charges.length === 0 ? (
+                  <LedgerEmpty
+                    title='No charges recorded yet.'
+                    description='Once tuition, registration, lunch, or extra activity charges are logged, they will appear here.'
+                  />
+                ) : (
+                  <div className='overflow-hidden rounded-xl border border-border/60'>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Student</TableHead>
+                          <TableHead>Charge</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Charge date</TableHead>
+                          <TableHead>Due</TableHead>
+                          <TableHead className='text-right'>Amount</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {ledgerActivity.charges.map((charge) => (
+                          <TableRow key={charge.id}>
+                            <TableCell>
+                              <div className='font-medium'>{charge.studentName}</div>
+                              <div className='text-xs text-muted-foreground'>
+                                {charge.className}
+                                {charge.academicYear ? ` • ${charge.academicYear}` : ''}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className='font-medium'>{charge.title}</div>
+                              <div className='text-xs text-muted-foreground'>{charge.category}</div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={chargeVariant(charge.status)}>{charge.status}</Badge>
+                            </TableCell>
+                            <TableCell>{charge.chargeDate}</TableCell>
+                            <TableCell>{charge.dueDate}</TableCell>
+                            <TableCell className='text-right font-medium'>
+                              {currency(charge.amount)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value='payments-ledger'>
+            <Card className='border-border/60'>
+              <CardHeader>
+                <CardTitle>School payment intake</CardTitle>
+                <CardDescription>
+                  Recent payment activity with method and reference context for Accounts.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {ledgerActivity.payments.length === 0 ? (
+                  <LedgerEmpty
+                    title='No payments recorded yet.'
+                    description='Recorded payments will appear here once finance teams begin logging intake.'
+                  />
+                ) : (
+                  <div className='overflow-hidden rounded-xl border border-border/60'>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Student</TableHead>
+                          <TableHead>Paid at</TableHead>
+                          <TableHead>Method</TableHead>
+                          <TableHead>Reference</TableHead>
+                          <TableHead>Note</TableHead>
+                          <TableHead className='text-right'>Amount</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {ledgerActivity.payments.map((payment) => (
+                          <TableRow key={payment.id}>
+                            <TableCell>
+                              <div className='font-medium'>{payment.studentName}</div>
+                              <div className='text-xs text-muted-foreground'>
+                                {payment.className}
+                                {payment.academicYear ? ` • ${payment.academicYear}` : ''}
+                              </div>
+                            </TableCell>
+                            <TableCell>{payment.paidAt}</TableCell>
+                            <TableCell>
+                              <Badge variant='outline'>{payment.method}</Badge>
+                            </TableCell>
+                            <TableCell>{payment.reference || '—'}</TableCell>
+                            <TableCell className='max-w-[280px] text-sm text-muted-foreground'>
+                              {payment.note || '—'}
+                            </TableCell>
+                            <TableCell className='text-right font-medium'>
+                              {currency(payment.amount)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value='collections'>
+            <Card className='border-border/60'>
+              <CardHeader>
+                <CardTitle>Collections queue</CardTitle>
+                <CardDescription>
+                  Focus this view on students needing reminder calls, payment-plan review, or direct
+                  collection follow-up.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className='grid gap-3'>
+                {collectionsRows.length === 0 ? (
+                  <LedgerEmpty
+                    title='No overdue student accounts are visible right now.'
+                    description='When balances become overdue or arrears are added, those accounts will surface here.'
+                  />
+                ) : (
+                  collectionsRows.map((row) => (
+                    <div key={row.profileId} className='rounded-xl border border-border/60 p-4'>
+                      <div className='flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between'>
+                        <div className='space-y-2'>
+                          <div className='flex flex-wrap items-center gap-2'>
+                            <div className='font-medium'>{row.studentName}</div>
+                            <Badge variant='outline'>{row.className}</Badge>
+                            {row.academicYear ? (
+                              <Badge variant='outline'>{row.academicYear}</Badge>
+                            ) : null}
+                            <Badge variant={billingVariant(row.billingStatus)}>
+                              {row.billingStatus}
+                            </Badge>
+                          </div>
+                          <div className='text-sm text-muted-foreground'>
+                            Outstanding {currency(row.totalOutstanding)} • Monthly total{' '}
+                            {currency(row.effectiveMonthlyFee)}
+                          </div>
+                          <div className='text-sm text-muted-foreground'>
+                            {row.paymentPlan || 'No payment plan set'}
+                          </div>
+                          <div className='text-xs text-muted-foreground'>
+                            Last payment {row.recentPaymentDate || 'not recorded'}
+                            {row.recentPaymentAmount
+                              ? ` • ${currency(row.recentPaymentAmount)}`
+                              : ''}
+                          </div>
+                        </div>
+                        <div className='flex flex-wrap gap-2'>
+                          <Button asChild variant='outline' size='sm'>
+                            <Link href={`/dashboard/billing/${row.studentId}`}>
+                              Open student finance
+                            </Link>
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        <FinanceProfileSheet
+          open={profileSheetOpen}
+          onOpenChange={setProfileSheetOpen}
+          onSaved={() => setProfileSheetOpen(false)}
+        />
+      </div>
+    </FinanceAccessGate>
+  );
+}
+
+function MetricCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <Card className='border-border/60'>
+      <CardHeader className='pb-2'>
+        <CardDescription>{label}</CardDescription>
+        <CardTitle className='text-2xl'>{value}</CardTitle>
+        {hint ? <div className='text-xs text-muted-foreground'>{hint}</div> : null}
+      </CardHeader>
+    </Card>
+  );
+}
+
+function LedgerEmpty({ title, description }: { title: string; description: string }) {
+  return (
+    <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
+      <div className='font-medium text-foreground'>{title}</div>
+      <div className='mt-1'>{description}</div>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Id, Doc } from './_generated/dataModel';
 import { v } from 'convex/values';
 
-import { requireAuthenticatedUser } from './lib/auth';
+import { requireFinanceReadUser, requireFinanceWriteUser } from './lib/auth';
 
 const BILLING_STATUSES = ['Current', 'Overdue', 'Scholarship', 'Custom'] as const;
 const SCHOLARSHIP_TYPES = [
@@ -13,9 +13,41 @@ const SCHOLARSHIP_TYPES = [
   'Hardship Support',
   'Negotiated Custom'
 ] as const;
-const CHARGE_CATEGORIES = ['Tuition', 'Registration', 'Meal Plan', 'Transport', 'Other'] as const;
+const BILLING_ITEM_CATEGORIES = [
+  'Lunch Plan',
+  'Extra Lesson',
+  'Extracurricular',
+  'Transport',
+  'Other'
+] as const;
+const BILLING_ITEM_BEHAVIORS = ['Included', 'Charged', 'Available'] as const;
+const CHARGE_CATEGORIES = [
+  'Tuition',
+  'Registration',
+  'Lunch Plan',
+  'Extra Lesson',
+  'Extracurricular',
+  'Transport',
+  'Other'
+] as const;
 const CHARGE_STATUSES = ['Pending', 'Paid', 'Overdue', 'Waived'] as const;
 const PAYMENT_METHODS = ['Bank Transfer', 'Cash', 'Card', 'Wallet', 'Scholarship Credit'] as const;
+
+type BillingItemCategory = (typeof BILLING_ITEM_CATEGORIES)[number];
+type BillingItemBehavior = (typeof BILLING_ITEM_BEHAVIORS)[number];
+type BillingItemInput = {
+  id: string;
+  label: string;
+  category: BillingItemCategory;
+  billingBehavior: BillingItemBehavior;
+  monthlyAmount: number;
+  notes?: string;
+  sortOrder: number;
+};
+
+type BillingItemView = BillingItemInput & {
+  notes: string;
+};
 
 function matchesSearch(
   item: {
@@ -26,6 +58,7 @@ function matchesSearch(
     scholarshipType: string;
     paymentPlan: string;
     notesSummary: string;
+    billingItemsSummary: string;
   },
   search?: string
 ) {
@@ -38,8 +71,47 @@ function matchesSearch(
     item.billingStatus,
     item.scholarshipType,
     item.paymentPlan,
-    item.notesSummary
+    item.notesSummary,
+    item.billingItemsSummary
   ].some((value) => value.toLowerCase().includes(needle));
+}
+
+function normalizeBillingItems(items?: BillingItemInput[]) {
+  return (items ?? []).reduce<BillingItemView[]>((sorted, item, index) => {
+    const label = item.label.trim();
+    if (!label) {
+      throw new Error('Billing item label is required.');
+    }
+    if (item.monthlyAmount < 0) {
+      throw new Error('Billing item amount cannot be negative.');
+    }
+
+    const normalized = {
+      id: item.id.trim() || `item-${index + 1}`,
+      label,
+      category: item.category,
+      billingBehavior: item.billingBehavior,
+      monthlyAmount: item.monthlyAmount,
+      notes: item.notes?.trim() ?? '',
+      sortOrder: item.sortOrder
+    };
+
+    const insertAt = sorted.findIndex((current) => current.sortOrder > normalized.sortOrder);
+    if (insertAt === -1) {
+      sorted.push(normalized);
+    } else {
+      sorted.splice(insertAt, 0, normalized);
+    }
+
+    return sorted;
+  }, []);
+}
+
+function summarizeBillingItems(items: BillingItemView[]) {
+  const charged = items.filter((item) => item.billingBehavior === 'Charged');
+  const included = items.filter((item) => item.billingBehavior === 'Included');
+  const labels = [...charged, ...included].map((item) => item.label);
+  return labels.join(' • ');
 }
 
 function normalizeProfile(input: {
@@ -51,6 +123,7 @@ function normalizeProfile(input: {
   customMonthlyFee?: number;
   arrearsBalance: number;
   paymentPlan?: string;
+  billingItems?: BillingItemInput[];
   notesSummary?: string;
 }) {
   if (input.baseMonthlyFee < 0) {
@@ -70,6 +143,7 @@ function normalizeProfile(input: {
     customMonthlyFee: input.customMonthlyFee,
     arrearsBalance: input.arrearsBalance,
     paymentPlan: input.paymentPlan?.trim() ?? '',
+    billingItems: normalizeBillingItems(input.billingItems),
     notesSummary: input.notesSummary?.trim() ?? '',
     updatedAt: Date.now()
   };
@@ -142,10 +216,15 @@ type EnrichedProfile = {
   customMonthlyFee: number;
   arrearsBalance: number;
   paymentPlan: string;
+  billingItems: BillingItemView[];
+  billingItemsSummary: string;
+  billedAddOnCount: number;
+  billedAddOnMonthlyTotal: number;
   notesSummary: string;
   totalOutstanding: number;
   chargesCount: number;
   recentPaymentAmount: number;
+  recentPaymentDate: string;
   updatedAt: number;
 };
 
@@ -194,9 +273,17 @@ async function enrichProfile(
   );
   const totalOutstanding =
     unpaidCharges.reduce((sum, charge) => sum + charge.amount, 0) + profile.arrearsBalance;
-  const effectiveMonthlyFee =
+
+  const billingItems = normalizeBillingItems(
+    profile.billingItems as BillingItemInput[] | undefined
+  );
+  const billedAddOns = billingItems.filter((item) => item.billingBehavior === 'Charged');
+  const billedAddOnMonthlyTotal = billedAddOns.reduce((sum, item) => sum + item.monthlyAmount, 0);
+
+  const effectiveBaseFee =
     profile.customMonthlyFee ??
     Math.round(profile.baseMonthlyFee * (1 - (profile.scholarshipPercent ?? 0) / 100));
+  const effectiveMonthlyFee = effectiveBaseFee + billedAddOnMonthlyTotal;
 
   return {
     id: profile._id,
@@ -213,10 +300,15 @@ async function enrichProfile(
     customMonthlyFee: profile.customMonthlyFee ?? 0,
     arrearsBalance: profile.arrearsBalance,
     paymentPlan: profile.paymentPlan ?? '',
+    billingItems,
+    billingItemsSummary: summarizeBillingItems(billingItems),
+    billedAddOnCount: billedAddOns.length,
+    billedAddOnMonthlyTotal,
     notesSummary: profile.notesSummary ?? '',
     totalOutstanding,
     chargesCount: charges.length,
     recentPaymentAmount: payments[0]?.amount ?? 0,
+    recentPaymentDate: payments[0]?.paidAt ?? '',
     updatedAt: profile.updatedAt
   };
 }
@@ -228,7 +320,7 @@ function isProfile(value: EnrichedProfile | null): value is EnrichedProfile {
 export const list = query({
   args: { search: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    await requireFinanceReadUser(ctx);
 
     const profiles = await ctx.db
       .query('studentBillingProfiles')
@@ -246,7 +338,7 @@ export const list = query({
 export const summary = query({
   args: {},
   handler: async (ctx) => {
-    await requireAuthenticatedUser(ctx);
+    await requireFinanceReadUser(ctx);
 
     const profiles = await ctx.db
       .query('studentBillingProfiles')
@@ -279,6 +371,87 @@ export const summary = query({
         .length,
       totalOutstanding: outstandingCharges + arrearsBalance,
       collectedThisMonth
+    };
+  }
+});
+
+export const ledgerActivity = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    await requireFinanceReadUser(ctx);
+
+    const limit = Math.max(1, Math.min(Math.floor(args.limit ?? 12), 50));
+    const profiles = await ctx.db
+      .query('studentBillingProfiles')
+      .withIndex('by_updatedAt')
+      .order('desc')
+      .collect();
+
+    const studentByProfileId = new Map<
+      string,
+      { studentName: string; className: string; academicYear: string }
+    >();
+
+    for (const profile of profiles) {
+      const student = await ctx.db.get(profile.studentId);
+      if (!student) continue;
+      studentByProfileId.set(profile._id, {
+        studentName: student.fullName,
+        className: student.className,
+        academicYear: student.academicYear ?? ''
+      });
+    }
+
+    const charges = (
+      await ctx.db.query('financeCharges').withIndex('by_updatedAt').order('desc').collect()
+    )
+      .map((charge) => {
+        const student = studentByProfileId.get(charge.billingProfileId);
+        if (!student) return null;
+        return {
+          id: charge._id,
+          billingProfileId: charge.billingProfileId,
+          studentName: student.studentName,
+          className: student.className,
+          academicYear: student.academicYear,
+          title: charge.title,
+          category: charge.category,
+          amount: charge.amount,
+          chargeDate: charge.chargeDate,
+          dueDate: charge.dueDate,
+          status: charge.status,
+          updatedAt: charge.updatedAt
+        };
+      })
+      .filter((charge): charge is NonNullable<typeof charge> => charge !== null)
+      .slice(0, limit);
+
+    const payments = (
+      await ctx.db.query('financePayments').withIndex('by_createdAt').order('desc').collect()
+    )
+      .map((payment) => {
+        const student = studentByProfileId.get(payment.billingProfileId);
+        if (!student) return null;
+        return {
+          id: payment._id,
+          billingProfileId: payment.billingProfileId,
+          studentName: student.studentName,
+          className: student.className,
+          academicYear: student.academicYear,
+          amount: payment.amount,
+          paidAt: payment.paidAt,
+          method: payment.method,
+          reference: payment.reference ?? '',
+          note: payment.note ?? '',
+          createdAt: payment.createdAt
+        };
+      })
+      .filter((payment): payment is NonNullable<typeof payment> => payment !== null)
+      .slice(0, limit);
+
+    return {
+      charges,
+      payments
     };
   }
 });
@@ -331,7 +504,7 @@ async function loadProfileDetail(
 export const getByProfileId = query({
   args: { billingProfileId: v.id('studentBillingProfiles') },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    await requireFinanceReadUser(ctx);
     return await loadProfileDetail(ctx, args.billingProfileId);
   }
 });
@@ -339,7 +512,7 @@ export const getByProfileId = query({
 export const getByStudentId = query({
   args: { studentId: v.id('students') },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    await requireFinanceReadUser(ctx);
     const profile = await ctx.db
       .query('studentBillingProfiles')
       .withIndex('by_student', (q) => q.eq('studentId', args.studentId))
@@ -348,6 +521,16 @@ export const getByStudentId = query({
     if (!profile) return null;
     return await loadProfileDetail(ctx, profile._id);
   }
+});
+
+const billingItemValidator = v.object({
+  id: v.string(),
+  label: v.string(),
+  category: v.union(...BILLING_ITEM_CATEGORIES.map((item) => v.literal(item))),
+  billingBehavior: v.union(...BILLING_ITEM_BEHAVIORS.map((item) => v.literal(item))),
+  monthlyAmount: v.number(),
+  notes: v.optional(v.string()),
+  sortOrder: v.number()
 });
 
 export const createProfile = mutation({
@@ -360,10 +543,11 @@ export const createProfile = mutation({
     customMonthlyFee: v.optional(v.number()),
     arrearsBalance: v.number(),
     paymentPlan: v.optional(v.string()),
+    billingItems: v.optional(v.array(billingItemValidator)),
     notesSummary: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    await requireFinanceWriteUser(ctx);
     const existing = await ctx.db
       .query('studentBillingProfiles')
       .withIndex('by_student', (q) => q.eq('studentId', args.studentId))
@@ -387,12 +571,16 @@ export const updateProfile = mutation({
     customMonthlyFee: v.optional(v.number()),
     arrearsBalance: v.number(),
     paymentPlan: v.optional(v.string()),
+    billingItems: v.optional(v.array(billingItemValidator)),
     notesSummary: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    await requireFinanceWriteUser(ctx);
     const existing = await ctx.db.get(args.billingProfileId);
     if (!existing) throw new Error('Billing profile not found.');
+    if (existing.studentId !== args.studentId) {
+      throw new Error('Changing the student on an existing billing profile is not allowed.');
+    }
     await ctx.db.patch(args.billingProfileId, normalizeProfile(args));
     return { billingProfileId: args.billingProfileId };
   }
@@ -409,7 +597,7 @@ export const addCharge = mutation({
     status: v.union(...CHARGE_STATUSES.map((item) => v.literal(item)))
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    await requireFinanceWriteUser(ctx);
     const existing = await ctx.db.get(args.billingProfileId);
     if (!existing) throw new Error('Billing profile not found.');
     const chargeId = await ctx.db.insert('financeCharges', normalizeCharge(args));
@@ -428,7 +616,7 @@ export const addPayment = mutation({
     note: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    await requireFinanceWriteUser(ctx);
     const existing = await ctx.db.get(args.billingProfileId);
     if (!existing) throw new Error('Billing profile not found.');
     const paymentId = await ctx.db.insert('financePayments', normalizePayment(args));

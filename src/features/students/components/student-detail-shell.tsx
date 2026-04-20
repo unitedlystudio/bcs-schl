@@ -7,6 +7,7 @@ import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { StudentFormSheetTrigger } from './add-student-sheet';
+import { useFinanceAccess } from '@/features/finance/hooks/use-finance-access';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -104,6 +105,7 @@ function LoadingProfile() {
 }
 
 export default function StudentDetailShell({ studentId }: { studentId: string }) {
+  const { hasFinanceAccess } = useFinanceAccess();
   const student = useQuery(api.students.getById, { studentId: studentId as Id<'students'> });
   const teachersQuery = useQuery(
     api.teachers.listForDirectory,
@@ -111,7 +113,7 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
   );
   const financeProfile = useQuery(
     api.finance.getByStudentId,
-    student ? { studentId: student.id as Id<'students'> } : 'skip'
+    hasFinanceAccess && student ? { studentId: student.id as Id<'students'> } : 'skip'
   );
   const concernCases = useQuery(
     api.concerns.recentForStudent,
@@ -276,15 +278,17 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
                 value={`${concernCases?.length ?? 0}`}
                 hint='Structured support / intervention cases on this student'
               />
-              <ProfileMetric
-                label='Finance profile'
-                value={financeProfile ? `$${financeProfile.effectiveMonthlyFee}` : 'Not set'}
-                hint={
-                  financeProfile
-                    ? `Outstanding $${financeProfile.totalOutstanding}`
-                    : 'Finance module not linked yet'
-                }
-              />
+              {hasFinanceAccess ? (
+                <ProfileMetric
+                  label='Finance profile'
+                  value={financeProfile ? `$${financeProfile.effectiveMonthlyFee}` : 'Not set'}
+                  hint={
+                    financeProfile
+                      ? `Outstanding $${financeProfile.totalOutstanding}`
+                      : 'Finance module not linked yet'
+                  }
+                />
+              ) : null}
               <ProfileMetric
                 label='Operational owner'
                 value={
@@ -631,15 +635,17 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
             <div>• Add teacher-owned follow-up threads and task handoff</div>
             <div>• Add family-level contact management beyond the single guardian block</div>
             <div>• Add finance and attendance alerts as linked operational modules</div>
-            <div>
-              • Manage billing rules in{' '}
-              <Link
-                className='font-medium text-foreground underline underline-offset-4'
-                href='/dashboard/billing'
-              >
-                Finance & Fees
-              </Link>
-            </div>
+            {hasFinanceAccess ? (
+              <div>
+                • Manage billing rules in{' '}
+                <Link
+                  className='font-medium text-foreground underline underline-offset-4'
+                  href={`/dashboard/billing/${student.id}`}
+                >
+                  Student Finance
+                </Link>
+              </div>
+            ) : null}
             <div>
               • Manage classroom ownership in{' '}
               <Link

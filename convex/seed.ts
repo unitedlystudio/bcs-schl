@@ -1,4 +1,5 @@
 import { mutation } from './_generated/server';
+import type { Id } from './_generated/dataModel';
 
 function buildAcademicYearFromDate(dateValue?: string) {
   const trimmed = dateValue?.trim() ?? '';
@@ -32,6 +33,8 @@ export const seedDemoData = mutation({
     const existingOperationTimeSlots = await ctx.db.query('operationsTimeSlots').collect();
     const existingTimetableEntries = await ctx.db.query('classTimetableEntries').collect();
     const existingOperationsOverrides = await ctx.db.query('operationsOverrides').collect();
+    const existingStaffLeaveRequests = await ctx.db.query('staffLeaveRequests').collect();
+    const existingStaffCoverAssignments = await ctx.db.query('staffCoverAssignments').collect();
 
     if (existingConversations.length === 0) {
       const alexId = await ctx.db.insert('conversations', {
@@ -369,6 +372,17 @@ export const seedDemoData = mutation({
           email: 'marcus.tan@schly.school',
           phone: '+62 812 3000 2102',
           sortName: 'Marcus Tan'
+        },
+        {
+          fullName: 'Fitria Mahesa',
+          preferredName: 'Fitria',
+          role: 'Teaching Assistant',
+          status: 'Active',
+          academicYear: '2025/2026',
+          homeroomClass: 'Class 2',
+          email: 'fitria.mahesa@schly.school',
+          phone: '+62 812 3000 2103',
+          sortName: 'Fitria Mahesa'
         }
       ] as const;
 
@@ -998,6 +1012,111 @@ export const seedDemoData = mutation({
             title: override.title,
             summary: override.summary,
             updatedAt: override.updatedAt
+          });
+        }
+      }
+    }
+
+    if (existingStaffLeaveRequests.length === 0 && existingStaffCoverAssignments.length === 0) {
+      const teachers = await ctx.db
+        .query('teachers')
+        .withIndex('by_sortName')
+        .order('asc')
+        .collect();
+      const teacherByPreferredName = new Map(
+        teachers.map((teacher) => [teacher.preferredName, teacher])
+      );
+      const todayLabel = new Date().toISOString().slice(0, 10);
+      const tomorrowLabel = new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString().slice(0, 10);
+      const twoDaysOutLabel = new Date(Date.now() + 1000 * 60 * 60 * 48).toISOString().slice(0, 10);
+      const alya = teacherByPreferredName.get('Alya');
+      const marcus = teacherByPreferredName.get('Marcus');
+      const fitria = teacherByPreferredName.get('Fitria');
+
+      const leaveRequestsByTeacher: {
+        alya?: { id: Id<'staffLeaveRequests'>; startDate: string; endDate: string };
+        marcus?: { id: Id<'staffLeaveRequests'>; startDate: string; endDate: string };
+      } = {};
+
+      if (existingStaffLeaveRequests.length === 0) {
+        if (alya) {
+          leaveRequestsByTeacher.alya = {
+            id: await ctx.db.insert('staffLeaveRequests', {
+              teacherId: alya._id,
+              leaveType: 'Training',
+              startDate: tomorrowLabel,
+              endDate: twoDaysOutLabel,
+              status: 'Approved',
+              reason:
+                'External literacy training with afternoon handoff back to homeroom planning.',
+              notesSummary: 'Generate cover for Class 2 numeracy and lunch flow blocks.',
+              requestedBy: 'Admin',
+              updatedAt: Date.now() - 1000 * 60 * 50
+            }),
+            startDate: tomorrowLabel,
+            endDate: twoDaysOutLabel
+          };
+        }
+
+        if (marcus) {
+          leaveRequestsByTeacher.marcus = {
+            id: await ctx.db.insert('staffLeaveRequests', {
+              teacherId: marcus._id,
+              leaveType: 'Sick',
+              startDate: todayLabel,
+              endDate: todayLabel,
+              status: 'Requested',
+              reason: 'Same-day sick leave notice before the specialist sports rotation.',
+              notesSummary: 'Leadership needs to confirm same-day specialist cover.',
+              requestedBy: 'Teacher',
+              updatedAt: Date.now() - 1000 * 60 * 15
+            }),
+            startDate: todayLabel,
+            endDate: todayLabel
+          };
+        }
+      }
+
+      if (existingStaffLeaveRequests.length === 0 && existingStaffCoverAssignments.length === 0) {
+        if (leaveRequestsByTeacher.alya && alya) {
+          await ctx.db.insert('staffCoverAssignments', {
+            leaveRequestId: leaveRequestsByTeacher.alya.id,
+            coverDate: leaveRequestsByTeacher.alya.startDate,
+            className: 'Class 2',
+            timeSlotLabel: 'Block 1',
+            primaryTeacherId: alya._id,
+            coverTeacherId: fitria?._id,
+            status: 'Assigned',
+            note: 'Numeracy small groups still need the targeted support table setup.',
+            updatedAt: Date.now() - 1000 * 60 * 30
+          });
+          await ctx.db.insert('staffCoverAssignments', {
+            leaveRequestId: leaveRequestsByTeacher.alya.id,
+            coverDate:
+              leaveRequestsByTeacher.alya.endDate >= leaveRequestsByTeacher.alya.startDate
+                ? leaveRequestsByTeacher.alya.endDate
+                : leaveRequestsByTeacher.alya.startDate,
+            className: 'Class 2',
+            timeSlotLabel: 'Lunch',
+            primaryTeacherId: alya._id,
+            coverTeacherId: fitria?._id,
+            status: 'Confirmed',
+            note: 'Keep dairy-free lunch check visible for Emmy during handoff.',
+            updatedAt: Date.now() - 1000 * 60 * 20
+          });
+        }
+
+        if (leaveRequestsByTeacher.marcus && marcus) {
+          await ctx.db.insert('staffCoverAssignments', {
+            leaveRequestId: leaveRequestsByTeacher.marcus.id,
+            coverDate: leaveRequestsByTeacher.marcus.startDate,
+            className: 'Class 5',
+            timeSlotLabel: 'Specialist / project',
+            primaryTeacherId: marcus._id,
+            coverTeacherId: undefined,
+            status: 'Open',
+            note: 'Sports specialist block still needs a same-day cover owner.',
+            updatedAt: Date.now() - 1000 * 60 * 10
           });
         }
       }

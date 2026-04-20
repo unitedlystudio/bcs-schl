@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { Icons } from '@/components/icons';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Drawer,
@@ -36,6 +37,25 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useIsMobile } from '@/hooks/use-mobile';
 
+const BILLING_ITEM_CATEGORIES = [
+  'Lunch Plan',
+  'Extra Lesson',
+  'Extracurricular',
+  'Transport',
+  'Other'
+] as const;
+const BILLING_ITEM_BEHAVIORS = ['Included', 'Charged', 'Available'] as const;
+
+type BillingItemFormValue = {
+  id: string;
+  label: string;
+  category: (typeof BILLING_ITEM_CATEGORIES)[number];
+  billingBehavior: (typeof BILLING_ITEM_BEHAVIORS)[number];
+  monthlyAmount: string;
+  notes: string;
+  sortOrder: number;
+};
+
 const DEFAULT_FORM = {
   studentId: '',
   baseMonthlyFee: '0',
@@ -45,10 +65,172 @@ const DEFAULT_FORM = {
   customMonthlyFee: '0',
   arrearsBalance: '0',
   paymentPlan: '',
+  billingItems: [] as BillingItemFormValue[],
   notesSummary: ''
 };
 
 type ProfileFormValues = typeof DEFAULT_FORM;
+
+function createBillingItem(seed?: Partial<BillingItemFormValue>): BillingItemFormValue {
+  return {
+    id: seed?.id ?? `billing-item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    label: seed?.label ?? '',
+    category: seed?.category ?? 'Lunch Plan',
+    billingBehavior: seed?.billingBehavior ?? 'Charged',
+    monthlyAmount: seed?.monthlyAmount ?? '0',
+    notes: seed?.notes ?? '',
+    sortOrder: seed?.sortOrder ?? 0
+  };
+}
+
+function BillingItemsEditor({
+  items,
+  onChange,
+  disabled
+}: {
+  items: BillingItemFormValue[];
+  onChange: (items: BillingItemFormValue[]) => void;
+  disabled: boolean;
+}) {
+  const updateItem = (id: string, updater: Partial<BillingItemFormValue>) => {
+    onChange(items.map((item) => (item.id === id ? { ...item, ...updater } : item)));
+  };
+
+  const removeItem = (id: string) => {
+    onChange(
+      items.filter((item) => item.id !== id).map((item, index) => ({ ...item, sortOrder: index }))
+    );
+  };
+
+  const addItem = () => {
+    onChange([...items, createBillingItem({ sortOrder: items.length })]);
+  };
+
+  return (
+    <div className='grid gap-3'>
+      <div className='flex items-center justify-between gap-2'>
+        <div>
+          <div className='text-sm font-medium'>Monthly billing items</div>
+          <div className='text-sm text-muted-foreground'>
+            Model lunch plans, extra lessons, extracurriculars, and included items per student.
+          </div>
+        </div>
+        <Button type='button' variant='outline' size='sm' onClick={addItem} disabled={disabled}>
+          <Icons.add className='mr-2 h-4 w-4' />
+          Add item
+        </Button>
+      </div>
+
+      {items.length === 0 ? (
+        <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
+          No monthly finance items added yet. Add lunch plans, transport, extra lessons, or
+          extracurriculars here.
+        </div>
+      ) : (
+        items.map((item, index) => (
+          <div key={item.id} className='rounded-xl border border-border/60 p-4'>
+            <div className='flex items-center justify-between gap-3'>
+              <div className='flex items-center gap-2'>
+                <Badge variant='outline'>Item {index + 1}</Badge>
+                <Badge variant={item.billingBehavior === 'Charged' ? 'default' : 'secondary'}>
+                  {item.billingBehavior}
+                </Badge>
+              </div>
+              <Button
+                type='button'
+                variant='ghost'
+                size='sm'
+                onClick={() => removeItem(item.id)}
+                disabled={disabled}
+              >
+                Remove
+              </Button>
+            </div>
+
+            <div className='mt-4 grid gap-4 md:grid-cols-2'>
+              <div className='grid gap-2'>
+                <Label>Label</Label>
+                <Input
+                  value={item.label}
+                  onChange={(event) => updateItem(item.id, { label: event.target.value })}
+                  placeholder='Lunch plan / Piano lesson / Football club'
+                  disabled={disabled}
+                />
+              </div>
+              <div className='grid gap-2'>
+                <Label>Category</Label>
+                <Select
+                  value={item.category}
+                  onValueChange={(value) =>
+                    updateItem(item.id, {
+                      category: value as BillingItemFormValue['category']
+                    })
+                  }
+                >
+                  <SelectTrigger disabled={disabled}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BILLING_ITEM_CATEGORIES.map((category) => (
+                      <SelectItem key={category} value={category}>
+                        {category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className='mt-4 grid gap-4 md:grid-cols-2'>
+              <div className='grid gap-2'>
+                <Label>Billing behavior</Label>
+                <Select
+                  value={item.billingBehavior}
+                  onValueChange={(value) =>
+                    updateItem(item.id, {
+                      billingBehavior: value as BillingItemFormValue['billingBehavior']
+                    })
+                  }
+                >
+                  <SelectTrigger disabled={disabled}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BILLING_ITEM_BEHAVIORS.map((behavior) => (
+                      <SelectItem key={behavior} value={behavior}>
+                        {behavior}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className='grid gap-2'>
+                <Label>Monthly amount</Label>
+                <Input
+                  type='number'
+                  value={item.monthlyAmount}
+                  onChange={(event) => updateItem(item.id, { monthlyAmount: event.target.value })}
+                  disabled={disabled}
+                />
+              </div>
+            </div>
+
+            <div className='mt-4 grid gap-2'>
+              <Label>Notes</Label>
+              <Textarea
+                value={item.notes}
+                onChange={(event) => updateItem(item.id, { notes: event.target.value })}
+                rows={2}
+                placeholder='Included in package / billed monthly / seasonal club etc.'
+                disabled={disabled}
+              />
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
 
 function ProfileFields({
   values,
@@ -66,7 +248,7 @@ function ProfileFields({
   isEdit: boolean;
 }) {
   return (
-    <div className='grid gap-4'>
+    <div className='grid gap-5'>
       <div className='grid gap-2'>
         <Label>Student</Label>
         <Select value={values.studentId} onValueChange={(value) => onChange('studentId', value)}>
@@ -86,7 +268,7 @@ function ProfileFields({
 
       <div className='grid gap-4 md:grid-cols-2'>
         <div className='grid gap-2'>
-          <Label htmlFor='baseMonthlyFee'>Base monthly fee</Label>
+          <Label htmlFor='baseMonthlyFee'>Base monthly tuition</Label>
           <Input
             id='baseMonthlyFee'
             type='number'
@@ -160,7 +342,7 @@ function ProfileFields({
 
       <div className='grid gap-4 md:grid-cols-2'>
         <div className='grid gap-2'>
-          <Label htmlFor='customMonthlyFee'>Custom monthly fee</Label>
+          <Label htmlFor='customMonthlyFee'>Custom tuition amount</Label>
           <Input
             id='customMonthlyFee'
             type='number'
@@ -181,13 +363,19 @@ function ProfileFields({
         </div>
       </div>
 
+      <BillingItemsEditor
+        items={values.billingItems}
+        onChange={(items) => onChange('billingItems', items)}
+        disabled={disabled}
+      />
+
       <div className='grid gap-2'>
         <Label htmlFor='notesSummary'>Finance notes</Label>
         <Textarea
           id='notesSummary'
           value={values.notesSummary}
           onChange={(event) => onChange('notesSummary', event.target.value)}
-          placeholder='Scholarship context, arrears handling, or negotiated terms.'
+          placeholder='Scholarship context, arrears handling, reminder policy, or family-specific terms.'
           disabled={disabled}
           rows={4}
         />
@@ -200,11 +388,13 @@ export function FinanceProfileSheet({
   open,
   onOpenChange,
   billingProfileId,
+  defaultStudentId,
   onSaved
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   billingProfileId?: string | null;
+  defaultStudentId?: string | null;
   onSaved?: (billingProfileId?: string) => void;
 }) {
   const isMobile = useIsMobile();
@@ -236,15 +426,27 @@ export function FinanceProfileSheet({
         customMonthlyFee: String(profile.customMonthlyFee),
         arrearsBalance: String(profile.arrearsBalance),
         paymentPlan: profile.paymentPlan,
+        billingItems: (profile.billingItems ?? []).map((item, index) => ({
+          id: item.id,
+          label: item.label,
+          category: item.category,
+          billingBehavior: item.billingBehavior,
+          monthlyAmount: String(item.monthlyAmount),
+          notes: item.notes ?? '',
+          sortOrder: item.sortOrder ?? index
+        })),
         notesSummary: profile.notesSummary
       });
       setErrors({});
       return;
     }
 
-    setValues(DEFAULT_FORM);
+    setValues({
+      ...DEFAULT_FORM,
+      studentId: defaultStudentId ?? ''
+    });
     setErrors({});
-  }, [open, isEdit, profile]);
+  }, [open, isEdit, profile, defaultStudentId]);
 
   const studentOptions = useMemo(
     () =>
@@ -264,8 +466,14 @@ export function FinanceProfileSheet({
     const nextErrors: Partial<Record<keyof ProfileFormValues, string>> = {};
     if (!values.studentId) nextErrors.studentId = 'Student is required.';
     if (Number(values.baseMonthlyFee) < 0) nextErrors.baseMonthlyFee = 'Fee cannot be negative.';
-    if (Number(values.arrearsBalance) < 0)
+    if (Number(values.arrearsBalance) < 0) {
       nextErrors.arrearsBalance = 'Arrears cannot be negative.';
+    }
+    if (
+      values.billingItems.some((item) => !item.label.trim() || Number(item.monthlyAmount || 0) < 0)
+    ) {
+      nextErrors.billingItems = 'Billing items need a label and non-negative monthly amount.';
+    }
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -293,6 +501,15 @@ export function FinanceProfileSheet({
         Number(values.customMonthlyFee || 0) > 0 ? Number(values.customMonthlyFee || 0) : undefined,
       arrearsBalance: Number(values.arrearsBalance || 0),
       paymentPlan: values.paymentPlan,
+      billingItems: values.billingItems.map((item, index) => ({
+        id: item.id,
+        label: item.label,
+        category: item.category,
+        billingBehavior: item.billingBehavior,
+        monthlyAmount: Number(item.monthlyAmount || 0),
+        notes: item.notes,
+        sortOrder: index
+      })),
       notesSummary: values.notesSummary
     };
 
@@ -325,14 +542,19 @@ export function FinanceProfileSheet({
     ) : isEdit && !profile ? (
       <div className='p-4 text-sm text-muted-foreground'>Billing profile could not be loaded.</div>
     ) : (
-      <ProfileFields
-        values={values}
-        onChange={onChange}
-        errors={errors}
-        students={studentOptions}
-        disabled={submitting}
-        isEdit={isEdit}
-      />
+      <div className='grid gap-2'>
+        <ProfileFields
+          values={values}
+          onChange={onChange}
+          errors={errors}
+          students={studentOptions}
+          disabled={submitting}
+          isEdit={isEdit}
+        />
+        {errors.billingItems ? (
+          <p className='text-sm text-destructive'>{errors.billingItems}</p>
+        ) : null}
+      </div>
     );
 
   const footer = (
@@ -354,8 +576,7 @@ export function FinanceProfileSheet({
           <DrawerHeader>
             <DrawerTitle>{isEdit ? 'Manage billing profile' : 'Add billing profile'}</DrawerTitle>
             <DrawerDescription>
-              Keep student finance separate from the student identity record while staying linked to
-              it.
+              Keep tuition, add-ons, and collection terms attached to the student finance profile.
             </DrawerDescription>
           </DrawerHeader>
           <div className='max-h-[70vh] overflow-y-auto px-4'>{content}</div>
@@ -367,12 +588,11 @@ export function FinanceProfileSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className='sm:max-w-2xl'>
+      <SheetContent className='sm:max-w-3xl'>
         <SheetHeader>
           <SheetTitle>{isEdit ? 'Manage billing profile' : 'Add billing profile'}</SheetTitle>
           <SheetDescription>
-            Keep student finance separate from the student identity record while staying linked to
-            it.
+            Keep tuition, add-ons, and collection terms attached to the student finance profile.
           </SheetDescription>
         </SheetHeader>
         <div className='mt-6 grid gap-4'>{content}</div>

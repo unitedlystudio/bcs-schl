@@ -51,7 +51,13 @@ export function FinanceChargeSheet({
   const addCharge = useMutation(api.finance.addCharge);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<
-    'Tuition' | 'Registration' | 'Meal Plan' | 'Transport' | 'Other'
+    | 'Tuition'
+    | 'Registration'
+    | 'Lunch Plan'
+    | 'Extra Lesson'
+    | 'Extracurricular'
+    | 'Transport'
+    | 'Other'
   >('Tuition');
   const [amount, setAmount] = useState('0');
   const [chargeDate, setChargeDate] = useState(new Date().toISOString().slice(0, 10));
@@ -113,7 +119,9 @@ export function FinanceChargeSheet({
             <SelectContent>
               <SelectItem value='Tuition'>Tuition</SelectItem>
               <SelectItem value='Registration'>Registration</SelectItem>
-              <SelectItem value='Meal Plan'>Meal Plan</SelectItem>
+              <SelectItem value='Lunch Plan'>Lunch Plan</SelectItem>
+              <SelectItem value='Extra Lesson'>Extra Lesson</SelectItem>
+              <SelectItem value='Extracurricular'>Extracurricular</SelectItem>
               <SelectItem value='Transport'>Transport</SelectItem>
               <SelectItem value='Other'>Other</SelectItem>
             </SelectContent>

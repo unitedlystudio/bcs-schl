@@ -183,6 +183,29 @@ export default defineSchema({
     customMonthlyFee: v.optional(v.number()),
     arrearsBalance: v.number(),
     paymentPlan: v.optional(v.string()),
+    billingItems: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          label: v.string(),
+          category: v.union(
+            v.literal('Lunch Plan'),
+            v.literal('Extra Lesson'),
+            v.literal('Extracurricular'),
+            v.literal('Transport'),
+            v.literal('Other')
+          ),
+          billingBehavior: v.union(
+            v.literal('Included'),
+            v.literal('Charged'),
+            v.literal('Available')
+          ),
+          monthlyAmount: v.number(),
+          notes: v.optional(v.string()),
+          sortOrder: v.number()
+        })
+      )
+    ),
     notesSummary: v.optional(v.string()),
     updatedAt: v.number()
   })
@@ -196,7 +219,9 @@ export default defineSchema({
     category: v.union(
       v.literal('Tuition'),
       v.literal('Registration'),
-      v.literal('Meal Plan'),
+      v.literal('Lunch Plan'),
+      v.literal('Extra Lesson'),
+      v.literal('Extracurricular'),
       v.literal('Transport'),
       v.literal('Other')
     ),
@@ -360,5 +385,57 @@ export default defineSchema({
     .index('by_date', ['overrideDate', 'updatedAt'])
     .index('by_class_date', ['className', 'overrideDate', 'updatedAt'])
     .index('by_status', ['status', 'updatedAt'])
+    .index('by_updatedAt', ['updatedAt']),
+
+  staffLeaveRequests: defineTable({
+    teacherId: v.id('teachers'),
+    leaveType: v.union(
+      v.literal('Annual'),
+      v.literal('Sick'),
+      v.literal('Emergency'),
+      v.literal('Personal'),
+      v.literal('Training'),
+      v.literal('Unpaid'),
+      v.literal('Other')
+    ),
+    startDate: v.string(),
+    endDate: v.string(),
+    status: v.union(
+      v.literal('Requested'),
+      v.literal('Approved'),
+      v.literal('Rejected'),
+      v.literal('Cancelled')
+    ),
+    reason: v.string(),
+    notesSummary: v.optional(v.string()),
+    requestedBy: v.string(),
+    updatedAt: v.number()
+  })
+    .index('by_teacher', ['teacherId', 'updatedAt'])
+    .index('by_status', ['status', 'updatedAt'])
+    .index('by_startDate', ['startDate', 'updatedAt'])
+    .index('by_updatedAt', ['updatedAt']),
+
+  staffCoverAssignments: defineTable({
+    leaveRequestId: v.id('staffLeaveRequests'),
+    coverDate: v.string(),
+    className: v.optional(v.string()),
+    timeSlotLabel: v.optional(v.string()),
+    primaryTeacherId: v.id('teachers'),
+    coverTeacherId: v.optional(v.id('teachers')),
+    status: v.union(
+      v.literal('Open'),
+      v.literal('Assigned'),
+      v.literal('Confirmed'),
+      v.literal('Completed')
+    ),
+    note: v.optional(v.string()),
+    updatedAt: v.number()
+  })
+    .index('by_leaveRequest', ['leaveRequestId', 'updatedAt'])
+    .index('by_coverDate', ['coverDate', 'updatedAt'])
+    .index('by_status', ['status', 'updatedAt'])
+    .index('by_primaryTeacher', ['primaryTeacherId', 'updatedAt'])
+    .index('by_coverTeacher', ['coverTeacherId', 'updatedAt'])
     .index('by_updatedAt', ['updatedAt'])
 });

@@ -91,6 +91,7 @@ export const navGroups: NavGroup[] = [
         icon: 'billing',
         isActive: false,
         shortcut: ['f', 'i'],
+        access: { requireOrg: true, permission: 'org:finance:read' },
         items: []
       },
       {
