@@ -64,7 +64,17 @@ export function useFilteredNavItems(items: NavItem[]) {
           if (!accessContext.hasOrg) {
             return false;
           }
-          if (!accessContext.permissions.includes(item.access.permission)) {
+
+          const hasRequestedPermission = accessContext.permissions.includes(item.access.permission);
+          const roleLower = accessContext.role?.toLowerCase() ?? '';
+          const hasFinanceRole = roleLower.includes('admin') || roleLower.includes('account');
+          const hasFinanceEquivalentPermission =
+            item.access.permission === 'org:finance:read' &&
+            (accessContext.permissions.includes('org:finance:write') ||
+              accessContext.permissions.includes('org:admin:manage') ||
+              hasFinanceRole);
+
+          if (!hasRequestedPermission && !hasFinanceEquivalentPermission) {
             return false;
           }
         }

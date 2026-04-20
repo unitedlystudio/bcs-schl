@@ -21,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FinanceAccessGate } from './finance-access-gate';
 import { FinanceOverviewGrid } from './finance-overview-grid';
 import { FinanceProfileSheet } from './finance-profile-sheet';
+import { FinanceFamilyPaymentSheet } from './finance-record-sheets';
 import { useFinanceAccess } from '../hooks/use-finance-access';
 
 function currency(value: number) {
@@ -47,6 +48,8 @@ function chargeVariant(status: 'Pending' | 'Paid' | 'Overdue' | 'Waived') {
 export default function FinanceShell() {
   const { hasFinanceAccess, hasFinanceWriteAccess } = useFinanceAccess();
   const [profileSheetOpen, setProfileSheetOpen] = useState(false);
+  const [familyPaymentSheetOpen, setFamilyPaymentSheetOpen] = useState(false);
+  const [selectedFamilyAccountId, setSelectedFamilyAccountId] = useState<string | null>(null);
   const summary = useQuery(api.finance.summary, hasFinanceAccess ? {} : 'skip');
   const profilesQuery = useQuery(api.finance.list, hasFinanceAccess ? {} : 'skip');
   const familyAccounts = useQuery(
@@ -111,6 +114,10 @@ export default function FinanceShell() {
   const monthlyRunRate = useMemo(
     () => rows.reduce((sum, row) => sum + row.effectiveMonthlyFee, 0),
     [rows]
+  );
+  const selectedFamilyAccount = useMemo(
+    () => (familyAccounts ?? []).find((account) => account.id === selectedFamilyAccountId) ?? null,
+    [familyAccounts, selectedFamilyAccountId]
   );
 
   if (!hasFinanceAccess) {
@@ -529,6 +536,18 @@ export default function FinanceShell() {
                           </div>
                         </div>
                         <div className='flex flex-wrap gap-2'>
+                          {hasFinanceWriteAccess ? (
+                            <Button
+                              variant='outline'
+                              size='sm'
+                              onClick={() => {
+                                setSelectedFamilyAccountId(account.id);
+                                setFamilyPaymentSheetOpen(true);
+                              }}
+                            >
+                              Allocate family payment
+                            </Button>
+                          ) : null}
                           {account.members.slice(0, 2).map((member) => (
                             <Button key={member.profileId} asChild variant='outline' size='sm'>
                               <Link href={`/dashboard/billing/${member.studentId}`}>
@@ -550,6 +569,20 @@ export default function FinanceShell() {
           open={profileSheetOpen}
           onOpenChange={setProfileSheetOpen}
           onSaved={() => setProfileSheetOpen(false)}
+        />
+        <FinanceFamilyPaymentSheet
+          open={familyPaymentSheetOpen}
+          onOpenChange={(open) => {
+            setFamilyPaymentSheetOpen(open);
+            if (!open) {
+              setSelectedFamilyAccountId(null);
+            }
+          }}
+          familyAccount={selectedFamilyAccount}
+          onSaved={() => {
+            setFamilyPaymentSheetOpen(false);
+            setSelectedFamilyAccountId(null);
+          }}
         />
       </div>
     </FinanceAccessGate>

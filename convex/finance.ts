@@ -795,6 +795,11 @@ export const getByStudentId = query({
   }
 });
 
+const familyPaymentAllocationValidator = v.object({
+  billingProfileId: v.id('studentBillingProfiles'),
+  amount: v.number()
+});
+
 const billingItemValidator = v.object({
   id: v.string(),
   label: v.string(),
@@ -917,6 +922,75 @@ export const addPayment = mutation({
     const paymentId = await ctx.db.insert('financePayments', normalizePayment(args));
     await ctx.db.patch(args.billingProfileId, { updatedAt: Date.now() });
     return { paymentId };
+  }
+});
+
+export const allocateFamilyPayment = mutation({
+  args: {
+    familyAccountId: v.id('financeFamilyAccounts'),
+    paidAt: v.string(),
+    method: v.union(...PAYMENT_METHODS.map((item) => v.literal(item))),
+    reference: v.optional(v.string()),
+    note: v.optional(v.string()),
+    allocations: v.array(familyPaymentAllocationValidator)
+  },
+  handler: async (ctx, args) => {
+    await requireFinanceWriteUser(ctx);
+
+    const familyAccount = await ctx.db.get(args.familyAccountId);
+    if (!familyAccount) {
+      throw new Error('Family account not found.');
+    }
+
+    const allocations = args.allocations.filter((allocation) => allocation.amount > 0);
+    if (allocations.length === 0) {
+      throw new Error('At least one positive family payment allocation is required.');
+    }
+
+    const uniqueProfileIds = new Set(allocations.map((allocation) => allocation.billingProfileId));
+    if (uniqueProfileIds.size !== allocations.length) {
+      throw new Error('Each student can only receive one allocation per family payment.');
+    }
+
+    const totalAmount = allocations.reduce((sum, allocation) => sum + allocation.amount, 0);
+    if (totalAmount <= 0) {
+      throw new Error('Family payment total must be greater than zero.');
+    }
+
+    const timestamp = Date.now();
+    const paymentIds: Id<'financePayments'>[] = [];
+
+    for (const allocation of allocations) {
+      const profile = await ctx.db.get(allocation.billingProfileId);
+      if (!profile) {
+        throw new Error('Allocated billing profile not found.');
+      }
+      if (profile.familyAccountId !== args.familyAccountId) {
+        throw new Error('All allocations must belong to the selected family account.');
+      }
+
+      const paymentId = await ctx.db.insert(
+        'financePayments',
+        normalizePayment({
+          billingProfileId: allocation.billingProfileId,
+          amount: allocation.amount,
+          paidAt: args.paidAt,
+          method: args.method,
+          reference: args.reference,
+          note: [args.note?.trim() ?? '', `Family account: ${familyAccount.accountLabel}`]
+            .filter(Boolean)
+            .join(' • ')
+        })
+      );
+      paymentIds.push(paymentId);
+      await ctx.db.patch(allocation.billingProfileId, { updatedAt: timestamp });
+    }
+
+    return {
+      paymentIds,
+      allocationCount: allocations.length,
+      totalAmount
+    };
   }
 });
 

@@ -579,3 +579,228 @@ export function FinanceReminderSheet({
     </Sheet>
   );
 }
+
+export function FinanceFamilyPaymentSheet({
+  open,
+  onOpenChange,
+  familyAccount,
+  onSaved
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  familyAccount: {
+    id: string;
+    accountLabel: string;
+    primaryGuardianName: string;
+    members: Array<{
+      profileId: string;
+      studentName: string;
+      className: string;
+      academicYear: string;
+      totalOutstanding: number;
+    }>;
+  } | null;
+  onSaved?: () => void;
+}) {
+  const isMobile = useIsMobile();
+  const allocateFamilyPayment = useMutation(api.finance.allocateFamilyPayment);
+  const [paidAt, setPaidAt] = useState(new Date().toISOString().slice(0, 10));
+  const [method, setMethod] = useState<
+    'Bank Transfer' | 'Cash' | 'Card' | 'Wallet' | 'Scholarship Credit'
+  >('Bank Transfer');
+  const [reference, setReference] = useState('');
+  const [note, setNote] = useState('');
+  const [allocations, setAllocations] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!open || !familyAccount) return;
+    setPaidAt(new Date().toISOString().slice(0, 10));
+    setMethod('Bank Transfer');
+    setReference('');
+    setNote('');
+    setAllocations(
+      Object.fromEntries(familyAccount.members.map((member) => [member.profileId, '0']))
+    );
+  }, [familyAccount, open]);
+
+  const totalAllocated = Object.values(allocations).reduce(
+    (sum, value) => sum + Number(value || 0),
+    0
+  );
+
+  const handleSubmit = async () => {
+    if (!familyAccount) return;
+    const normalizedAllocations = familyAccount.members
+      .map((member) => ({
+        billingProfileId: member.profileId as Id<'studentBillingProfiles'>,
+        amount: Number(allocations[member.profileId] || 0)
+      }))
+      .filter((allocation) => allocation.amount > 0);
+
+    if (normalizedAllocations.length === 0) {
+      toast.error('Add at least one positive allocation amount.');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      await allocateFamilyPayment({
+        familyAccountId: familyAccount.id as Id<'financeFamilyAccounts'>,
+        paidAt,
+        method,
+        reference,
+        note,
+        allocations: normalizedAllocations
+      });
+      toast.success('Family payment allocated');
+      onOpenChange(false);
+      onSaved?.();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to allocate family payment');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const content = familyAccount ? (
+    <div className='grid gap-4'>
+      <div className='rounded-xl border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground'>
+        <div className='font-medium text-foreground'>{familyAccount.accountLabel}</div>
+        <div className='mt-1'>{familyAccount.primaryGuardianName || 'No guardian set'}</div>
+      </div>
+      <div className='grid gap-4 md:grid-cols-2'>
+        <div className='grid gap-2'>
+          <Label htmlFor='familyPaidAt'>Paid date</Label>
+          <Input
+            id='familyPaidAt'
+            type='date'
+            value={paidAt}
+            onChange={(event) => setPaidAt(event.target.value)}
+            disabled={submitting}
+          />
+        </div>
+        <div className='grid gap-2'>
+          <Label>Method</Label>
+          <Select value={method} onValueChange={(value) => setMethod(value as typeof method)}>
+            <SelectTrigger disabled={submitting}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='Bank Transfer'>Bank Transfer</SelectItem>
+              <SelectItem value='Cash'>Cash</SelectItem>
+              <SelectItem value='Card'>Card</SelectItem>
+              <SelectItem value='Wallet'>Wallet</SelectItem>
+              <SelectItem value='Scholarship Credit'>Scholarship Credit</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className='grid gap-4 md:grid-cols-2'>
+        <div className='grid gap-2'>
+          <Label htmlFor='familyReference'>Reference</Label>
+          <Input
+            id='familyReference'
+            value={reference}
+            onChange={(event) => setReference(event.target.value)}
+            disabled={submitting}
+          />
+        </div>
+        <div className='grid gap-2'>
+          <Label>Total allocated</Label>
+          <Input value={String(totalAllocated || 0)} disabled />
+        </div>
+      </div>
+      <div className='grid gap-2'>
+        <Label htmlFor='familyPaymentNote'>Family payment note</Label>
+        <Textarea
+          id='familyPaymentNote'
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          rows={3}
+          placeholder='Optional household payment context or allocation note.'
+          disabled={submitting}
+        />
+      </div>
+      <div className='grid gap-3'>
+        <div className='text-sm font-medium'>Allocate across linked students</div>
+        {familyAccount.members.map((member) => (
+          <div
+            key={member.profileId}
+            className='grid gap-3 rounded-xl border border-border/60 p-4 md:grid-cols-[minmax(0,1fr)_140px] md:items-end'
+          >
+            <div>
+              <div className='font-medium'>{member.studentName}</div>
+              <div className='text-xs text-muted-foreground'>
+                {member.className}
+                {member.academicYear ? ` • ${member.academicYear}` : ''}
+                {member.totalOutstanding ? ` • outstanding ${member.totalOutstanding}` : ''}
+              </div>
+            </div>
+            <div className='grid gap-2'>
+              <Label htmlFor={`allocation-${member.profileId}`}>Allocated amount</Label>
+              <Input
+                id={`allocation-${member.profileId}`}
+                type='number'
+                min='0'
+                value={allocations[member.profileId] ?? '0'}
+                onChange={(event) =>
+                  setAllocations((current) => ({
+                    ...current,
+                    [member.profileId]: event.target.value
+                  }))
+                }
+                disabled={submitting}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : (
+    <div className='text-sm text-muted-foreground'>Choose a family account first.</div>
+  );
+
+  const footer = (
+    <>
+      <Button variant='outline' disabled={submitting} onClick={() => onOpenChange(false)}>
+        Cancel
+      </Button>
+      <Button disabled={submitting || !familyAccount || totalAllocated <= 0} onClick={handleSubmit}>
+        {submitting ? <Icons.spinner className='mr-2 h-4 w-4 animate-spin' /> : null}
+        Allocate family payment
+      </Button>
+    </>
+  );
+
+  if (isMobile)
+    return (
+      <Drawer open={open} onOpenChange={onOpenChange}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Allocate family payment</DrawerTitle>
+            <DrawerDescription>
+              Record one household payment and split it across linked student billing profiles.
+            </DrawerDescription>
+          </DrawerHeader>
+          <div className='max-h-[70vh] overflow-y-auto px-4'>{content}</div>
+          <DrawerFooter>{footer}</DrawerFooter>
+        </DrawerContent>
+      </Drawer>
+    );
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className='sm:max-w-2xl'>
+        <SheetHeader>
+          <SheetTitle>Allocate family payment</SheetTitle>
+          <SheetDescription>
+            Record one household payment and split it across linked student billing profiles.
+          </SheetDescription>
+        </SheetHeader>
+        <div className='mt-6 grid gap-4'>{content}</div>
+        <SheetFooter className='mt-6'>{footer}</SheetFooter>
+      </SheetContent>
+    </Sheet>
+  );
+}
