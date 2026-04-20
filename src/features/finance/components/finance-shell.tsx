@@ -23,6 +23,7 @@ import { FinanceOverviewGrid } from './finance-overview-grid';
 import { FinanceCollectionsGrid } from './finance-collections-grid';
 import { FinanceProfileSheet } from './finance-profile-sheet';
 import { FinanceFamilyPaymentSheet } from './finance-record-sheets';
+import { FinanceBillingRunSheet } from './finance-billing-run-sheet';
 import { useFinanceAccess } from '../hooks/use-finance-access';
 
 function currency(value: number) {
@@ -49,6 +50,7 @@ function chargeVariant(status: 'Pending' | 'Paid' | 'Overdue' | 'Waived') {
 export default function FinanceShell() {
   const { hasFinanceAccess, hasFinanceWriteAccess } = useFinanceAccess();
   const [profileSheetOpen, setProfileSheetOpen] = useState(false);
+  const [billingRunSheetOpen, setBillingRunSheetOpen] = useState(false);
   const [familyPaymentSheetOpen, setFamilyPaymentSheetOpen] = useState(false);
   const [selectedFamilyAccountId, setSelectedFamilyAccountId] = useState<string | null>(null);
   const summary = useQuery(api.finance.summary, hasFinanceAccess ? {} : 'skip');
@@ -292,12 +294,21 @@ export default function FinanceShell() {
 
           <TabsContent value='charges-ledger'>
             <Card className='overflow-hidden border-border/60'>
-              <CardHeader>
-                <CardTitle>School charge ledger</CardTitle>
-                <CardDescription>
-                  Recent charges across the school. Open a student to inspect or add full charge
-                  detail.
-                </CardDescription>
+              <CardHeader className='gap-4'>
+                <div className='flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
+                  <div>
+                    <CardTitle>School charge ledger</CardTitle>
+                    <CardDescription>
+                      Recent charges across the school. Open a student to inspect or add full charge
+                      detail.
+                    </CardDescription>
+                  </div>
+                  {hasFinanceWriteAccess ? (
+                    <Button variant='outline' onClick={() => setBillingRunSheetOpen(true)}>
+                      Generate billing run
+                    </Button>
+                  ) : null}
+                </div>
               </CardHeader>
               <CardContent>
                 {ledgerActivity.charges.length === 0 ? (
@@ -312,6 +323,7 @@ export default function FinanceShell() {
                         <TableRow>
                           <TableHead>Student</TableHead>
                           <TableHead>Charge</TableHead>
+                          <TableHead>Cycle</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead>Charge date</TableHead>
                           <TableHead>Due</TableHead>
@@ -332,6 +344,7 @@ export default function FinanceShell() {
                               <div className='font-medium'>{charge.title}</div>
                               <div className='text-xs text-muted-foreground'>{charge.category}</div>
                             </TableCell>
+                            <TableCell>{charge.billingCycleLabel}</TableCell>
                             <TableCell>
                               <Badge variant={chargeVariant(charge.status)}>{charge.status}</Badge>
                             </TableCell>
@@ -534,6 +547,11 @@ export default function FinanceShell() {
           open={profileSheetOpen}
           onOpenChange={setProfileSheetOpen}
           onSaved={() => setProfileSheetOpen(false)}
+        />
+        <FinanceBillingRunSheet
+          open={billingRunSheetOpen}
+          onOpenChange={setBillingRunSheetOpen}
+          onSaved={() => setBillingRunSheetOpen(false)}
         />
         <FinanceFamilyPaymentSheet
           open={familyPaymentSheetOpen}

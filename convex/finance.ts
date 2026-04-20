@@ -266,6 +266,61 @@ function deriveChargeCycleLabel(billingCycleLabel: string | undefined, chargeDat
   return 'One-off / manual';
 }
 
+function calculateEffectiveBaseFee(profile: Doc<'studentBillingProfiles'>) {
+  return (
+    profile.customMonthlyFee ??
+    Math.round(profile.baseMonthlyFee * (1 - (profile.scholarshipPercent ?? 0) / 100))
+  );
+}
+
+function buildRecurringChargesForProfile(
+  profile: Doc<'studentBillingProfiles'>,
+  cycleDate: string,
+  dueDate: string,
+  billingCycleLabel?: string
+) {
+  const billingItems = normalizeBillingItems(
+    profile.billingItems as BillingItemInput[] | undefined
+  );
+  const effectiveBaseFee = calculateEffectiveBaseFee(profile);
+  const charges: Array<{
+    title: string;
+    category: (typeof CHARGE_CATEGORIES)[number];
+    amount: number;
+    chargeDate: string;
+    dueDate: string;
+    billingCycleLabel?: string;
+    status: (typeof CHARGE_STATUSES)[number];
+  }> = [];
+
+  if (effectiveBaseFee > 0) {
+    charges.push({
+      title: 'Tuition',
+      category: 'Tuition',
+      amount: effectiveBaseFee,
+      chargeDate: cycleDate,
+      dueDate,
+      billingCycleLabel,
+      status: 'Pending'
+    });
+  }
+
+  for (const item of billingItems) {
+    if (item.billingBehavior !== 'Charged' || item.monthlyAmount <= 0) continue;
+    charges.push({
+      title: item.label,
+      category: item.category,
+      amount: item.monthlyAmount,
+      chargeDate: cycleDate,
+      dueDate,
+      billingCycleLabel,
+      status: 'Pending'
+    });
+  }
+
+  return charges;
+}
+
 function normalizePayment(input: {
   billingProfileId: Id<'studentBillingProfiles'>;
   amount: number;
@@ -758,6 +813,8 @@ export const ledgerActivity = query({
           amount: charge.amount,
           chargeDate: charge.chargeDate,
           dueDate: charge.dueDate,
+          billingCycleLabel:
+            charge.billingCycleLabel ?? deriveChargeCycleLabel(undefined, charge.chargeDate),
           status: charge.status,
           updatedAt: charge.updatedAt
         };
@@ -1160,6 +1217,104 @@ export const updateProfile = mutation({
     );
     await ctx.db.patch(args.billingProfileId, normalizeProfile({ ...args, familyAccountId }));
     return { billingProfileId: args.billingProfileId };
+  }
+});
+
+export const generateBillingCycleCharges = mutation({
+  args: {
+    cycleDate: v.string(),
+    dueDate: v.string(),
+    billingCycleLabel: v.optional(v.string())
+  },
+  handler: async (ctx, args) => {
+    await requireFinanceWriteUser(ctx);
+
+    const profiles = await ctx.db
+      .query('studentBillingProfiles')
+      .withIndex('by_updatedAt')
+      .order('desc')
+      .collect();
+
+    const cycleKey = deriveChargeCycleKey(args.cycleDate);
+    const generatedChargeIds: Id<'financeCharges'>[] = [];
+    let processedProfiles = 0;
+    let skippedProfiles = 0;
+    let duplicateCharges = 0;
+
+    for (const profile of profiles) {
+      const student = await ctx.db.get(profile.studentId);
+      if (!student || student.status !== 'Active') {
+        skippedProfiles += 1;
+        continue;
+      }
+
+      const existingCharges = await ctx.db
+        .query('financeCharges')
+        .withIndex('by_profile', (q) => q.eq('billingProfileId', profile._id))
+        .collect();
+      const existingCycleTitles = new Set(
+        existingCharges
+          .filter(
+            (charge) =>
+              (charge.billingCycleKey ?? deriveChargeCycleKey(charge.chargeDate)) === cycleKey
+          )
+          .map((charge) => charge.title.trim().toLowerCase())
+      );
+
+      const nextCharges = buildRecurringChargesForProfile(
+        profile,
+        args.cycleDate,
+        args.dueDate,
+        args.billingCycleLabel
+      );
+      if (nextCharges.length === 0) {
+        skippedProfiles += 1;
+        continue;
+      }
+
+      let generatedForProfile = 0;
+      for (const charge of nextCharges) {
+        const dedupeKey = charge.title.trim().toLowerCase();
+        if (existingCycleTitles.has(dedupeKey)) {
+          duplicateCharges += 1;
+          continue;
+        }
+
+        const chargeId = await ctx.db.insert(
+          'financeCharges',
+          normalizeCharge({
+            billingProfileId: profile._id,
+            title: charge.title,
+            category: charge.category,
+            amount: charge.amount,
+            chargeDate: charge.chargeDate,
+            dueDate: charge.dueDate,
+            billingCycleLabel: charge.billingCycleLabel,
+            status: charge.status
+          })
+        );
+        generatedChargeIds.push(chargeId);
+        existingCycleTitles.add(dedupeKey);
+        generatedForProfile += 1;
+      }
+
+      if (generatedForProfile > 0) {
+        processedProfiles += 1;
+        await ctx.db.patch(profile._id, { updatedAt: Date.now() });
+      } else {
+        skippedProfiles += 1;
+      }
+    }
+
+    return {
+      cycleKey,
+      billingCycleLabel: deriveChargeCycleLabel(args.billingCycleLabel, args.cycleDate),
+      generatedChargeCount: generatedChargeIds.length,
+      processedProfiles,
+      skippedProfiles,
+      duplicateCharges,
+      generatedChargeIds
+    };
   }
 });
 
