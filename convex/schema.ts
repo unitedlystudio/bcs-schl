@@ -279,6 +279,31 @@ export default defineSchema({
     .index('by_profile', ['billingProfileId', 'createdAt'])
     .index('by_createdAt', ['createdAt']),
 
+  financeReminderLogs: defineTable({
+    billingProfileId: v.id('studentBillingProfiles'),
+    reminderDate: v.string(),
+    channel: v.union(
+      v.literal('Email'),
+      v.literal('WhatsApp'),
+      v.literal('Phone'),
+      v.literal('In person'),
+      v.literal('Not set')
+    ),
+    collectionStage: v.union(
+      v.literal('No follow-up'),
+      v.literal('Reminder queued'),
+      v.literal('In contact'),
+      v.literal('Promise to pay'),
+      v.literal('Escalated')
+    ),
+    outcome: v.string(),
+    nextActionDate: v.optional(v.string()),
+    authorLabel: v.string(),
+    createdAt: v.number()
+  })
+    .index('by_profile', ['billingProfileId', 'createdAt'])
+    .index('by_createdAt', ['createdAt']),
+
   admissionsEnquiries: defineTable({
     studentName: v.string(),
     familyName: v.string(),

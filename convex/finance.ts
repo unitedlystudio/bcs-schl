@@ -57,6 +57,26 @@ type BillingItemView = BillingItemInput & {
   notes: string;
 };
 
+type ReminderLogView = {
+  id: string;
+  reminderDate: string;
+  channel: (typeof REMINDER_CHANNELS)[number];
+  collectionStage: (typeof COLLECTION_STAGES)[number];
+  outcome: string;
+  nextActionDate: string;
+  authorLabel: string;
+  createdAt: number;
+};
+
+function compareReminderRecency(
+  left: { reminderDate?: string; createdAt?: number },
+  right: { reminderDate?: string; createdAt?: number }
+) {
+  const dateCompare = (right.reminderDate ?? '').localeCompare(left.reminderDate ?? '');
+  if (dateCompare !== 0) return dateCompare;
+  return (right.createdAt ?? 0) - (left.createdAt ?? 0);
+}
+
 function matchesSearch(
   item: {
     studentName: string;
@@ -254,6 +274,9 @@ type EnrichedProfile = {
   chargesCount: number;
   recentPaymentAmount: number;
   recentPaymentDate: string;
+  reminderCount: number;
+  recentReminderDate: string;
+  recentReminderOutcome: string;
   updatedAt: number;
 };
 
@@ -277,6 +300,7 @@ type FinanceProfileDetail = EnrichedProfile & {
     note: string;
     createdAt: number;
   }>;
+  reminders: ReminderLogView[];
 };
 
 async function enrichProfile(
@@ -296,6 +320,13 @@ async function enrichProfile(
     .withIndex('by_profile', (q) => q.eq('billingProfileId', profile._id))
     .order('desc')
     .collect();
+  const reminders = await ctx.db
+    .query('financeReminderLogs')
+    .withIndex('by_profile', (q) => q.eq('billingProfileId', profile._id))
+    .order('desc')
+    .collect();
+  // eslint-disable-next-line unicorn/no-array-sort
+  const latestReminder = [...reminders].sort(compareReminderRecency)[0];
 
   const unpaidCharges = charges.filter(
     (charge) => charge.status === 'Pending' || charge.status === 'Overdue'
@@ -343,6 +374,9 @@ async function enrichProfile(
     chargesCount: charges.length,
     recentPaymentAmount: payments[0]?.amount ?? 0,
     recentPaymentDate: payments[0]?.paidAt ?? '',
+    reminderCount: reminders.length,
+    recentReminderDate: latestReminder?.reminderDate ?? '',
+    recentReminderOutcome: latestReminder?.outcome ?? '',
     updatedAt: profile.updatedAt
   };
 }
@@ -516,6 +550,13 @@ async function loadProfileDetail(
     .withIndex('by_profile', (q) => q.eq('billingProfileId', billingProfileId))
     .order('desc')
     .collect();
+  const reminders = await ctx.db
+    .query('financeReminderLogs')
+    .withIndex('by_profile', (q) => q.eq('billingProfileId', billingProfileId))
+    .order('desc')
+    .collect();
+  // eslint-disable-next-line unicorn/no-array-sort
+  const sortedReminders = [...reminders].sort(compareReminderRecency);
 
   return {
     ...enriched,
@@ -537,6 +578,16 @@ async function loadProfileDetail(
       reference: payment.reference ?? '',
       note: payment.note ?? '',
       createdAt: payment.createdAt
+    })),
+    reminders: sortedReminders.map((reminder) => ({
+      id: reminder._id,
+      reminderDate: reminder.reminderDate,
+      channel: reminder.channel,
+      collectionStage: reminder.collectionStage,
+      outcome: reminder.outcome,
+      nextActionDate: reminder.nextActionDate ?? '',
+      authorLabel: reminder.authorLabel,
+      createdAt: reminder.createdAt
     }))
   };
 }
@@ -675,5 +726,55 @@ export const addPayment = mutation({
     const paymentId = await ctx.db.insert('financePayments', normalizePayment(args));
     await ctx.db.patch(args.billingProfileId, { updatedAt: Date.now() });
     return { paymentId };
+  }
+});
+
+export const addReminderLog = mutation({
+  args: {
+    billingProfileId: v.id('studentBillingProfiles'),
+    reminderDate: v.string(),
+    channel: reminderChannelValidator,
+    collectionStage: collectionStageValidator,
+    outcome: v.string(),
+    nextActionDate: v.optional(v.string()),
+    authorLabel: v.optional(v.string())
+  },
+  handler: async (ctx, args) => {
+    await requireFinanceWriteUser(ctx);
+    const existing = await ctx.db.get(args.billingProfileId);
+    if (!existing) throw new Error('Billing profile not found.');
+
+    const outcome = args.outcome.trim();
+    if (!outcome) {
+      throw new Error('Reminder outcome is required.');
+    }
+
+    const timestamp = Date.now();
+    const nextActionDate = args.nextActionDate?.trim() ?? '';
+    const reminderId = await ctx.db.insert('financeReminderLogs', {
+      billingProfileId: args.billingProfileId,
+      reminderDate: args.reminderDate,
+      channel: args.channel,
+      collectionStage: args.collectionStage,
+      outcome,
+      nextActionDate,
+      authorLabel: args.authorLabel?.trim() || 'Accounts operator',
+      createdAt: timestamp
+    });
+
+    const shouldPromoteReminder = args.reminderDate >= (existing.lastReminderDate ?? '');
+    await ctx.db.patch(args.billingProfileId, {
+      ...(shouldPromoteReminder
+        ? {
+            reminderChannel: args.channel,
+            collectionStage: args.collectionStage,
+            lastReminderDate: args.reminderDate,
+            nextActionDate
+          }
+        : {}),
+      updatedAt: timestamp
+    });
+
+    return { reminderId };
   }
 });

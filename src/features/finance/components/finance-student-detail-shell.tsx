@@ -21,7 +21,11 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FinanceAccessGate } from './finance-access-gate';
 import { FinanceProfileSheet } from './finance-profile-sheet';
-import { FinanceChargeSheet, FinancePaymentSheet } from './finance-record-sheets';
+import {
+  FinanceChargeSheet,
+  FinancePaymentSheet,
+  FinanceReminderSheet
+} from './finance-record-sheets';
 import { useFinanceAccess } from '../hooks/use-finance-access';
 
 function currency(value: number) {
@@ -55,6 +59,7 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
   const [profileSheetOpen, setProfileSheetOpen] = useState(false);
   const [chargeSheetOpen, setChargeSheetOpen] = useState(false);
   const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
+  const [reminderSheetOpen, setReminderSheetOpen] = useState(false);
 
   const today = new Date().toISOString().slice(0, 10);
   const overdueCharges = useMemo(
@@ -156,6 +161,9 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                           </Button>
                           <Button variant='outline' onClick={() => setPaymentSheetOpen(true)}>
                             Record payment
+                          </Button>
+                          <Button variant='outline' onClick={() => setReminderSheetOpen(true)}>
+                            Log reminder
                           </Button>
                         </>
                       ) : null}
@@ -601,6 +609,58 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                             </TableBody>
                           </Table>
                         </div>
+                        <div className='overflow-hidden rounded-xl border border-border/60'>
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Reminder date</TableHead>
+                                <TableHead>Channel</TableHead>
+                                <TableHead>Collections stage</TableHead>
+                                <TableHead>Outcome</TableHead>
+                                <TableHead>Next action</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {financeProfile.reminders.length === 0 ? (
+                                <TableRow>
+                                  <TableCell colSpan={5} className='text-muted-foreground'>
+                                    No reminder timeline yet. Log the first outreach touch from the
+                                    finance actions above.
+                                  </TableCell>
+                                </TableRow>
+                              ) : (
+                                financeProfile.reminders.map((reminder) => (
+                                  <TableRow key={reminder.id}>
+                                    <TableCell>
+                                      <div className='font-medium'>{reminder.reminderDate}</div>
+                                      <div className='text-xs text-muted-foreground'>
+                                        {reminder.authorLabel}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Badge variant='outline'>{reminder.channel}</Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Badge
+                                        variant={
+                                          reminder.collectionStage === 'Escalated'
+                                            ? 'destructive'
+                                            : 'secondary'
+                                        }
+                                      >
+                                        {reminder.collectionStage}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell className='max-w-[320px] text-sm text-muted-foreground'>
+                                      {reminder.outcome}
+                                    </TableCell>
+                                    <TableCell>{reminder.nextActionDate || '—'}</TableCell>
+                                  </TableRow>
+                                ))
+                              )}
+                            </TableBody>
+                          </Table>
+                        </div>
                       </div>
                       <div className='rounded-xl border border-border/60 p-4'>
                         <div className='text-sm font-medium'>Collections posture</div>
@@ -615,6 +675,12 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                           </div>
                           <div>
                             Next action date: {financeProfile.nextActionDate || 'Not scheduled'}
+                          </div>
+                          <div>
+                            Reminder touches logged: {financeProfile.reminderCount}
+                            {financeProfile.recentReminderDate
+                              ? ` • latest ${financeProfile.recentReminderDate}`
+                              : ''}
                           </div>
                           <div>
                             Recommended next action:{' '}
@@ -652,6 +718,14 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
             open={paymentSheetOpen}
             onOpenChange={setPaymentSheetOpen}
             billingProfileId={financeProfile?.id ?? null}
+          />
+          <FinanceReminderSheet
+            open={reminderSheetOpen}
+            onOpenChange={setReminderSheetOpen}
+            billingProfileId={financeProfile?.id ?? null}
+            initialCollectionStage={financeProfile?.collectionStage}
+            initialReminderChannel={financeProfile?.reminderChannel}
+            initialNextActionDate={financeProfile?.nextActionDate ?? ''}
           />
         </div>
       )}

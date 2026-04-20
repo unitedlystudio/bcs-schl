@@ -517,7 +517,8 @@ export const seedDemoData = mutation({
               reference: 'EMMY-APR',
               note: 'April tuition settled in full.'
             }
-          ]
+          ],
+          reminders: []
         },
         {
           studentName: 'Bjorn Patten',
@@ -529,8 +530,8 @@ export const seedDemoData = mutation({
           arrearsBalance: 180,
           paymentPlan: 'Monthly with arrears catch-up',
           familyLabel: 'Patten siblings account',
-          collectionStage: 'Reminder queued',
-          reminderChannel: 'WhatsApp',
+          collectionStage: 'Promise to pay',
+          reminderChannel: 'Phone',
           lastReminderDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2)
             .toISOString()
             .slice(0, 10),
@@ -553,6 +554,32 @@ export const seedDemoData = mutation({
               method: 'Cash',
               reference: 'BJORN-PART',
               note: 'Partial payment received; remainder moved into arrears plan.'
+            }
+          ],
+          reminders: [
+            {
+              reminderDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 6)
+                .toISOString()
+                .slice(0, 10),
+              channel: 'WhatsApp',
+              collectionStage: 'Reminder queued',
+              outcome: 'Family acknowledged the balance and asked for three more days to pay.',
+              nextActionDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3)
+                .toISOString()
+                .slice(0, 10),
+              authorLabel: 'Accounts operator'
+            },
+            {
+              reminderDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2)
+                .toISOString()
+                .slice(0, 10),
+              channel: 'Phone',
+              collectionStage: 'Promise to pay',
+              outcome: 'Parent confirmed a part-payment will be sent before the next action date.',
+              nextActionDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 3)
+                .toISOString()
+                .slice(0, 10),
+              authorLabel: 'Accounts operator'
             }
           ]
         },
@@ -585,7 +612,22 @@ export const seedDemoData = mutation({
               status: 'Pending'
             }
           ],
-          payments: []
+          payments: [],
+          reminders: [
+            {
+              reminderDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5)
+                .toISOString()
+                .slice(0, 10),
+              channel: 'Email',
+              collectionStage: 'In contact',
+              outcome:
+                'Scholarship family replied and requested the updated payment schedule in writing.',
+              nextActionDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14)
+                .toISOString()
+                .slice(0, 10),
+              authorLabel: 'Accounts operator'
+            }
+          ]
         }
       ] as const;
 
@@ -633,6 +675,19 @@ export const seedDemoData = mutation({
             method: payment.method,
             reference: payment.reference,
             note: payment.note,
+            createdAt: updatedAt
+          });
+        }
+
+        for (const reminder of profile.reminders) {
+          await ctx.db.insert('financeReminderLogs', {
+            billingProfileId,
+            reminderDate: reminder.reminderDate,
+            channel: reminder.channel,
+            collectionStage: reminder.collectionStage,
+            outcome: reminder.outcome,
+            nextActionDate: reminder.nextActionDate,
+            authorLabel: reminder.authorLabel,
             createdAt: updatedAt
           });
         }

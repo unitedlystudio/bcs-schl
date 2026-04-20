@@ -67,6 +67,9 @@ export default function FinanceShell() {
         collectionStage: profile.collectionStage,
         reminderChannel: profile.reminderChannel,
         nextActionDate: profile.nextActionDate,
+        reminderCount: profile.reminderCount,
+        recentReminderDate: profile.recentReminderDate,
+        recentReminderOutcome: profile.recentReminderOutcome,
         tuitionMonthlyFee: profile.effectiveMonthlyFee - profile.billedAddOnMonthlyTotal,
         billedAddOnCount: profile.billedAddOnCount,
         billedAddOnMonthlyTotal: profile.billedAddOnMonthlyTotal,
@@ -406,6 +409,12 @@ export default function FinanceShell() {
                           <div className='text-xs text-muted-foreground'>
                             {row.collectionStage} via {row.reminderChannel}
                             {row.nextActionDate ? ` • next action ${row.nextActionDate}` : ''}
+                          </div>
+                          <div className='text-xs text-muted-foreground'>
+                            {row.recentReminderDate
+                              ? `Latest reminder ${row.recentReminderDate} • ${row.recentReminderOutcome}`
+                              : 'No reminder history logged yet'}
+                            {row.reminderCount ? ` • ${row.reminderCount} touches logged` : ''}
                           </div>
                           <div className='text-xs text-muted-foreground'>
                             Last payment {row.recentPaymentDate || 'not recorded'}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation } from 'convex/react';
 import { toast } from 'sonner';
 
@@ -372,6 +372,205 @@ export function FinancePaymentSheet({
           <SheetTitle>Record payment</SheetTitle>
           <SheetDescription>
             Log actual payments separately from pricing rules and outstanding charges.
+          </SheetDescription>
+        </SheetHeader>
+        <div className='mt-6 grid gap-4'>{content}</div>
+        <SheetFooter className='mt-6'>{footer}</SheetFooter>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+export function FinanceReminderSheet({
+  open,
+  onOpenChange,
+  billingProfileId,
+  initialCollectionStage = 'Reminder queued',
+  initialReminderChannel = 'Not set',
+  initialNextActionDate = '',
+  onSaved
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  billingProfileId: string | null;
+  initialCollectionStage?:
+    | 'No follow-up'
+    | 'Reminder queued'
+    | 'In contact'
+    | 'Promise to pay'
+    | 'Escalated';
+  initialReminderChannel?: 'Email' | 'WhatsApp' | 'Phone' | 'In person' | 'Not set';
+  initialNextActionDate?: string;
+  onSaved?: () => void;
+}) {
+  const isMobile = useIsMobile();
+  const addReminderLog = useMutation(api.finance.addReminderLog);
+  const [reminderDate, setReminderDate] = useState(new Date().toISOString().slice(0, 10));
+  const [channel, setChannel] = useState(initialReminderChannel);
+  const [collectionStage, setCollectionStage] = useState(initialCollectionStage);
+  const [nextActionDate, setNextActionDate] = useState(initialNextActionDate);
+  const [authorLabel, setAuthorLabel] = useState('Accounts operator');
+  const [outcome, setOutcome] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const reset = () => {
+    setReminderDate(new Date().toISOString().slice(0, 10));
+    setChannel(initialReminderChannel);
+    setCollectionStage(initialCollectionStage);
+    setNextActionDate(initialNextActionDate);
+    setAuthorLabel('Accounts operator');
+    setOutcome('');
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    setChannel(initialReminderChannel);
+    setCollectionStage(initialCollectionStage);
+    setNextActionDate(initialNextActionDate);
+  }, [initialCollectionStage, initialNextActionDate, initialReminderChannel, open]);
+
+  const handleSubmit = async () => {
+    if (!billingProfileId) return;
+    try {
+      setSubmitting(true);
+      await addReminderLog({
+        billingProfileId: billingProfileId as Id<'studentBillingProfiles'>,
+        reminderDate,
+        channel,
+        collectionStage,
+        nextActionDate,
+        authorLabel,
+        outcome
+      });
+      toast.success('Reminder logged');
+      onOpenChange(false);
+      reset();
+      onSaved?.();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to log reminder');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const content = (
+    <div className='grid gap-4'>
+      <div className='grid gap-4 md:grid-cols-2'>
+        <div className='grid gap-2'>
+          <Label htmlFor='reminderDate'>Reminder date</Label>
+          <Input
+            id='reminderDate'
+            type='date'
+            value={reminderDate}
+            onChange={(event) => setReminderDate(event.target.value)}
+            disabled={submitting}
+          />
+        </div>
+        <div className='grid gap-2'>
+          <Label>Channel</Label>
+          <Select value={channel} onValueChange={(value) => setChannel(value as typeof channel)}>
+            <SelectTrigger disabled={submitting}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='Email'>Email</SelectItem>
+              <SelectItem value='WhatsApp'>WhatsApp</SelectItem>
+              <SelectItem value='Phone'>Phone</SelectItem>
+              <SelectItem value='In person'>In person</SelectItem>
+              <SelectItem value='Not set'>Not set</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className='grid gap-4 md:grid-cols-2'>
+        <div className='grid gap-2'>
+          <Label>Collections stage after touch</Label>
+          <Select
+            value={collectionStage}
+            onValueChange={(value) => setCollectionStage(value as typeof collectionStage)}
+          >
+            <SelectTrigger disabled={submitting}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='No follow-up'>No follow-up</SelectItem>
+              <SelectItem value='Reminder queued'>Reminder queued</SelectItem>
+              <SelectItem value='In contact'>In contact</SelectItem>
+              <SelectItem value='Promise to pay'>Promise to pay</SelectItem>
+              <SelectItem value='Escalated'>Escalated</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className='grid gap-2'>
+          <Label htmlFor='nextActionDate'>Next action date</Label>
+          <Input
+            id='nextActionDate'
+            type='date'
+            value={nextActionDate}
+            onChange={(event) => setNextActionDate(event.target.value)}
+            disabled={submitting}
+          />
+        </div>
+      </div>
+      <div className='grid gap-2'>
+        <Label htmlFor='authorLabel'>Logged by</Label>
+        <Input
+          id='authorLabel'
+          value={authorLabel}
+          onChange={(event) => setAuthorLabel(event.target.value)}
+          disabled={submitting}
+        />
+      </div>
+      <div className='grid gap-2'>
+        <Label htmlFor='reminderOutcome'>Outcome / note</Label>
+        <Textarea
+          id='reminderOutcome'
+          value={outcome}
+          onChange={(event) => setOutcome(event.target.value)}
+          rows={4}
+          placeholder='What happened on this touch? Family replied, promised a date, requested plan details, no answer, etc.'
+          disabled={submitting}
+        />
+      </div>
+    </div>
+  );
+
+  const footer = (
+    <>
+      <Button variant='outline' disabled={submitting} onClick={() => onOpenChange(false)}>
+        Cancel
+      </Button>
+      <Button disabled={submitting || !billingProfileId || !outcome.trim()} onClick={handleSubmit}>
+        {submitting ? <Icons.spinner className='mr-2 h-4 w-4 animate-spin' /> : null}Log reminder
+      </Button>
+    </>
+  );
+
+  if (isMobile)
+    return (
+      <Drawer open={open} onOpenChange={onOpenChange}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Log finance reminder</DrawerTitle>
+            <DrawerDescription>
+              Capture the outreach touch, its outcome, and the next collections step for this
+              student account.
+            </DrawerDescription>
+          </DrawerHeader>
+          <div className='max-h-[70vh] overflow-y-auto px-4'>{content}</div>
+          <DrawerFooter>{footer}</DrawerFooter>
+        </DrawerContent>
+      </Drawer>
+    );
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className='sm:max-w-xl'>
+        <SheetHeader>
+          <SheetTitle>Log finance reminder</SheetTitle>
+          <SheetDescription>
+            Capture the outreach touch, its outcome, and the next collections step for this student
+            account.
           </SheetDescription>
         </SheetHeader>
         <div className='mt-6 grid gap-4'>{content}</div>
