@@ -246,6 +246,10 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                             label='Family account'
                             value={financeProfile.familyLabel || 'Not labelled yet'}
                           />
+                          <SummaryPill
+                            label='Linked students'
+                            value={`${financeProfile.familyStudentCount}`}
+                          />
                           <SummaryPill label='Collections' value={financeProfile.collectionStage} />
                           <SummaryPill label='Charges' value={`${financeProfile.charges.length}`} />
                         </div>
@@ -365,12 +369,16 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                           value={financeProfile.paymentPlan || 'No plan set'}
                         />
                         <SummaryPill
-                          label='Reminder channel'
-                          value={financeProfile.reminderChannel}
+                          label='Family owner'
+                          value={
+                            financeProfile.familyAccount?.primaryGuardianName ||
+                            financeProfile.familyPrimaryGuardianName ||
+                            'Not set'
+                          }
                         />
                         <SummaryPill
-                          label='Last reminder'
-                          value={financeProfile.lastReminderDate || 'Not sent'}
+                          label='Reminder channel'
+                          value={financeProfile.reminderChannel}
                         />
                         <SummaryPill
                           label='Next action'
@@ -423,6 +431,79 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                       </div>
                       <div className='rounded-xl border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground'>
                         {financeProfile.notesSummary || 'No finance notes recorded yet.'}
+                      </div>
+                      <div className='rounded-xl border border-border/60 p-4'>
+                        <div className='text-sm font-medium'>Family account context</div>
+                        {financeProfile.familyAccount ? (
+                          <div className='mt-3 grid gap-3'>
+                            <div className='text-sm text-muted-foreground'>
+                              {financeProfile.familyAccount.accountLabel} •{' '}
+                              {financeProfile.familyAccount.primaryGuardianName ||
+                                'No guardian set'}
+                              {financeProfile.familyAccount.primaryGuardianPhone
+                                ? ` • ${financeProfile.familyAccount.primaryGuardianPhone}`
+                                : ''}
+                            </div>
+                            <div className='grid gap-3 md:grid-cols-3'>
+                              <SummaryPill
+                                label='Family outstanding'
+                                value={currency(financeProfile.familyAccount.totalOutstanding)}
+                              />
+                              <SummaryPill
+                                label='Family run rate'
+                                value={currency(financeProfile.familyAccount.monthlyRunRate)}
+                              />
+                              <SummaryPill
+                                label='Students in account'
+                                value={`${financeProfile.familyAccount.studentCount}`}
+                              />
+                            </div>
+                            {financeProfile.relatedProfiles.length > 0 ? (
+                              <div className='overflow-hidden rounded-xl border border-border/60'>
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>Linked student</TableHead>
+                                      <TableHead>Status</TableHead>
+                                      <TableHead>Next action</TableHead>
+                                      <TableHead className='text-right'>Outstanding</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {financeProfile.relatedProfiles.map((member) => (
+                                      <TableRow key={member.profileId}>
+                                        <TableCell>
+                                          <div className='font-medium'>{member.studentName}</div>
+                                          <div className='text-xs text-muted-foreground'>
+                                            {member.className}
+                                            {member.academicYear ? ` • ${member.academicYear}` : ''}
+                                          </div>
+                                        </TableCell>
+                                        <TableCell>
+                                          <Badge variant={billingVariant(member.billingStatus)}>
+                                            {member.billingStatus}
+                                          </Badge>
+                                        </TableCell>
+                                        <TableCell>{member.nextActionDate || '—'}</TableCell>
+                                        <TableCell className='text-right font-medium'>
+                                          {currency(member.totalOutstanding)}
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            ) : (
+                              <div className='text-sm text-muted-foreground'>
+                                No additional linked students in this family account yet.
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className='mt-3 text-sm text-muted-foreground'>
+                            This billing profile is still operating as a standalone student account.
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -570,6 +651,22 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                                 <TableCell className='font-medium'>Family / account</TableCell>
                                 <TableCell>
                                   {financeProfile.familyLabel || 'Not labelled yet'}
+                                </TableCell>
+                              </TableRow>
+                              <TableRow>
+                                <TableCell className='font-medium'>Primary guardian</TableCell>
+                                <TableCell>
+                                  {financeProfile.familyAccount?.primaryGuardianName ||
+                                    financeProfile.familyPrimaryGuardianName ||
+                                    '—'}
+                                </TableCell>
+                              </TableRow>
+                              <TableRow>
+                                <TableCell className='font-medium'>Guardian phone</TableCell>
+                                <TableCell>
+                                  {financeProfile.familyAccount?.primaryGuardianPhone ||
+                                    financeProfile.familyPrimaryGuardianPhone ||
+                                    '—'}
                                 </TableCell>
                               </TableRow>
                               <TableRow>

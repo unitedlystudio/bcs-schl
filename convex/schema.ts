@@ -161,8 +161,18 @@ export default defineSchema({
     createdAt: v.number()
   }).index('by_case', ['caseId', 'createdAt']),
 
+  financeFamilyAccounts: defineTable({
+    accountLabel: v.string(),
+    primaryGuardianName: v.string(),
+    primaryGuardianPhone: v.string(),
+    updatedAt: v.number()
+  })
+    .index('by_label', ['accountLabel', 'updatedAt'])
+    .index('by_updatedAt', ['updatedAt']),
+
   studentBillingProfiles: defineTable({
     studentId: v.id('students'),
+    familyAccountId: v.optional(v.id('financeFamilyAccounts')),
     baseMonthlyFee: v.number(),
     billingStatus: v.union(
       v.literal('Current'),
@@ -231,6 +241,7 @@ export default defineSchema({
     updatedAt: v.number()
   })
     .index('by_student', ['studentId', 'updatedAt'])
+    .index('by_familyAccount', ['familyAccountId', 'updatedAt'])
     .index('by_status', ['billingStatus', 'updatedAt'])
     .index('by_updatedAt', ['updatedAt']),
 

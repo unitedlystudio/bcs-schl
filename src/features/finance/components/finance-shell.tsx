@@ -49,6 +49,10 @@ export default function FinanceShell() {
   const [profileSheetOpen, setProfileSheetOpen] = useState(false);
   const summary = useQuery(api.finance.summary, hasFinanceAccess ? {} : 'skip');
   const profilesQuery = useQuery(api.finance.list, hasFinanceAccess ? {} : 'skip');
+  const familyAccounts = useQuery(
+    api.finance.familyAccountsOverview,
+    hasFinanceAccess ? {} : 'skip'
+  );
   const ledgerActivity = useQuery(
     api.finance.ledgerActivity,
     hasFinanceAccess ? { limit: 16 } : 'skip'
@@ -63,7 +67,11 @@ export default function FinanceShell() {
         className: profile.className,
         academicYear: profile.academicYear,
         billingStatus: profile.billingStatus,
+        familyAccountId: profile.familyAccountId,
         familyLabel: profile.familyLabel,
+        familyPrimaryGuardianName: profile.familyPrimaryGuardianName,
+        familyPrimaryGuardianPhone: profile.familyPrimaryGuardianPhone,
+        familyStudentCount: profile.familyStudentCount,
         collectionStage: profile.collectionStage,
         reminderChannel: profile.reminderChannel,
         nextActionDate: profile.nextActionDate,
@@ -113,7 +121,12 @@ export default function FinanceShell() {
     );
   }
 
-  if (!summary || profilesQuery === undefined || ledgerActivity === undefined) {
+  if (
+    !summary ||
+    profilesQuery === undefined ||
+    familyAccounts === undefined ||
+    ledgerActivity === undefined
+  ) {
     return (
       <div className='rounded-2xl border border-border/50 bg-background/70 p-6 text-sm text-muted-foreground'>
         Loading finance workflow...
@@ -159,6 +172,11 @@ export default function FinanceShell() {
                 hint='Student accounts with billing setup'
               />
               <MetricCard
+                label='Family accounts'
+                value={`${summary.familyAccounts}`}
+                hint='Linked household billing groups'
+              />
+              <MetricCard
                 label='Monthly run rate'
                 value={currency(monthlyRunRate)}
                 hint='Current recurring tuition + charged add-ons'
@@ -201,6 +219,7 @@ export default function FinanceShell() {
                 <div>Charges groups school-issued tuition, registration, lunch, and extras.</div>
                 <div>Payments keeps incoming money and references in one place.</div>
                 <div>Collections isolates overdue families and follow-up workload.</div>
+                <div>Families groups linked siblings under one billing account owner.</div>
               </div>
             </div>
           </CardContent>
@@ -220,6 +239,7 @@ export default function FinanceShell() {
               <TabsTrigger value='charges-ledger'>Charges</TabsTrigger>
               <TabsTrigger value='payments-ledger'>Payments</TabsTrigger>
               <TabsTrigger value='collections'>Collections</TabsTrigger>
+              <TabsTrigger value='family-accounts'>Families</TabsTrigger>
             </TabsList>
           </div>
 
@@ -429,6 +449,93 @@ export default function FinanceShell() {
                               Open student finance
                             </Link>
                           </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value='family-accounts'>
+            <Card className='border-border/60'>
+              <CardHeader>
+                <CardTitle>Family accounts</CardTitle>
+                <CardDescription>
+                  Group siblings and shared payers under one household account so Accounts can scan
+                  guardian ownership, combined outstanding, and next actions.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className='grid gap-3'>
+                {familyAccounts.length === 0 ? (
+                  <LedgerEmpty
+                    title='No linked family accounts yet.'
+                    description='As soon as billing profiles share a family label, those students will appear here as one household account.'
+                  />
+                ) : (
+                  familyAccounts.map((account) => (
+                    <div key={account.id} className='rounded-xl border border-border/60 p-4'>
+                      <div className='flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between'>
+                        <div className='space-y-2'>
+                          <div className='flex flex-wrap items-center gap-2'>
+                            <div className='font-medium'>{account.accountLabel}</div>
+                            <Badge variant='outline'>{account.studentCount} students</Badge>
+                            <Badge
+                              variant={
+                                account.collectionStage === 'Escalated'
+                                  ? 'destructive'
+                                  : 'secondary'
+                              }
+                            >
+                              {account.collectionStage}
+                            </Badge>
+                          </div>
+                          <div className='text-sm text-muted-foreground'>
+                            {account.primaryGuardianName || 'No guardian set'}
+                            {account.primaryGuardianPhone
+                              ? ` • ${account.primaryGuardianPhone}`
+                              : ''}
+                          </div>
+                          <div className='text-sm text-muted-foreground'>
+                            Monthly run rate {currency(account.monthlyRunRate)} • Outstanding{' '}
+                            {currency(account.totalOutstanding)}
+                            {account.nextActionDate
+                              ? ` • next action ${account.nextActionDate}`
+                              : ''}
+                          </div>
+                          <div className='grid gap-2 pt-1'>
+                            {account.members.map((member) => (
+                              <div
+                                key={member.profileId}
+                                className='rounded-lg border border-border/50 bg-muted/15 px-3 py-2 text-sm'
+                              >
+                                <div className='flex flex-wrap items-center gap-2'>
+                                  <span className='font-medium'>{member.studentName}</span>
+                                  <span className='text-muted-foreground'>
+                                    {member.className}
+                                    {member.academicYear ? ` • ${member.academicYear}` : ''}
+                                  </span>
+                                  <Badge variant={billingVariant(member.billingStatus)}>
+                                    {member.billingStatus}
+                                  </Badge>
+                                </div>
+                                <div className='mt-1 text-xs text-muted-foreground'>
+                                  Outstanding {currency(member.totalOutstanding)} • Monthly total{' '}
+                                  {currency(member.effectiveMonthlyFee)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className='flex flex-wrap gap-2'>
+                          {account.members.slice(0, 2).map((member) => (
+                            <Button key={member.profileId} asChild variant='outline' size='sm'>
+                              <Link href={`/dashboard/billing/${member.studentId}`}>
+                                Open {member.studentName.split(' ')[0]}
+                              </Link>
+                            </Button>
+                          ))}
                         </div>
                       </div>
                     </div>

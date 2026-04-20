@@ -631,13 +631,30 @@ export const seedDemoData = mutation({
         }
       ] as const;
 
+      const familyAccountIds = new Map<string, Id<'financeFamilyAccounts'>>();
+
       for (const profile of profiles) {
         const student = studentByName.get(profile.studentName);
         if (!student) continue;
 
         const updatedAt = Date.now();
+        let familyAccountId: Id<'financeFamilyAccounts'> | undefined;
+        if (profile.familyLabel) {
+          familyAccountId = familyAccountIds.get(profile.familyLabel);
+          if (!familyAccountId) {
+            familyAccountId = await ctx.db.insert('financeFamilyAccounts', {
+              accountLabel: profile.familyLabel,
+              primaryGuardianName: student.guardianName,
+              primaryGuardianPhone: student.guardianPhone,
+              updatedAt
+            });
+            familyAccountIds.set(profile.familyLabel, familyAccountId);
+          }
+        }
+
         const billingProfileId = await ctx.db.insert('studentBillingProfiles', {
           studentId: student._id,
+          familyAccountId,
           baseMonthlyFee: profile.baseMonthlyFee,
           billingStatus: profile.billingStatus,
           scholarshipType: profile.scholarshipType,

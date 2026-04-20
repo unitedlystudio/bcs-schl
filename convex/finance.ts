@@ -150,6 +150,7 @@ function summarizeBillingItems(items: BillingItemView[]) {
 
 function normalizeProfile(input: {
   studentId: Id<'students'>;
+  familyAccountId?: Id<'financeFamilyAccounts'>;
   baseMonthlyFee: number;
   billingStatus: (typeof BILLING_STATUSES)[number];
   scholarshipType?: (typeof SCHOLARSHIP_TYPES)[number];
@@ -175,6 +176,7 @@ function normalizeProfile(input: {
 
   return {
     studentId: input.studentId,
+    familyAccountId: input.familyAccountId,
     baseMonthlyFee: input.baseMonthlyFee,
     billingStatus: input.billingStatus,
     scholarshipType: input.scholarshipType,
@@ -245,6 +247,140 @@ function normalizePayment(input: {
   };
 }
 
+async function ensureFamilyAccount(
+  ctx: MutationCtx,
+  studentId: Id<'students'>,
+  familyLabel?: string,
+  existingProfile?: Doc<'studentBillingProfiles'> | null
+): Promise<Id<'financeFamilyAccounts'> | undefined> {
+  const accountLabel = familyLabel?.trim() ?? '';
+  if (!accountLabel) return undefined;
+
+  const student = await ctx.db.get(studentId);
+  if (!student) {
+    throw new Error('Student not found for finance family account.');
+  }
+
+  const payload = {
+    accountLabel,
+    primaryGuardianName: student.guardianName.trim(),
+    primaryGuardianPhone: student.guardianPhone.trim(),
+    updatedAt: Date.now()
+  };
+
+  if (existingProfile?.familyAccountId) {
+    const existingAccount = await ctx.db.get(existingProfile.familyAccountId);
+    if (existingAccount) {
+      const linkedProfiles = await ctx.db
+        .query('studentBillingProfiles')
+        .withIndex('by_familyAccount', (q) =>
+          q.eq('familyAccountId', existingProfile.familyAccountId)
+        )
+        .collect();
+      if (existingAccount.accountLabel === accountLabel || linkedProfiles.length <= 1) {
+        await ctx.db.patch(existingAccount._id, payload);
+        return existingAccount._id;
+      }
+    }
+  }
+
+  const existingByLabel = await ctx.db
+    .query('financeFamilyAccounts')
+    .withIndex('by_label', (q) => q.eq('accountLabel', accountLabel))
+    .order('desc')
+    .first();
+  if (existingByLabel) {
+    await ctx.db.patch(existingByLabel._id, payload);
+    return existingByLabel._id;
+  }
+
+  return await ctx.db.insert('financeFamilyAccounts', payload);
+}
+
+type FamilyAccountMember = {
+  profileId: string;
+  studentId: string;
+  studentName: string;
+  className: string;
+  academicYear: string;
+  billingStatus: (typeof BILLING_STATUSES)[number];
+  totalOutstanding: number;
+  effectiveMonthlyFee: number;
+  nextActionDate: string;
+};
+
+type FamilyAccountSummary = {
+  id: string;
+  accountLabel: string;
+  primaryGuardianName: string;
+  primaryGuardianPhone: string;
+  studentCount: number;
+  totalOutstanding: number;
+  monthlyRunRate: number;
+  collectionStage: (typeof COLLECTION_STAGES)[number];
+  nextActionDate: string;
+  members: FamilyAccountMember[];
+};
+
+async function buildFamilyAccountSummary(
+  ctx: QueryCtx | MutationCtx,
+  familyAccountId: Id<'financeFamilyAccounts'>
+): Promise<FamilyAccountSummary | null> {
+  const account = await ctx.db.get(familyAccountId);
+  if (!account) return null;
+
+  const profiles = await ctx.db
+    .query('studentBillingProfiles')
+    .withIndex('by_familyAccount', (q) => q.eq('familyAccountId', familyAccountId))
+    .order('desc')
+    .collect();
+  const enrichedProfiles = (
+    await Promise.all(profiles.map((profile) => enrichProfile(ctx, profile)))
+  ).filter(isProfile);
+
+  const members = enrichedProfiles.map((profile) => ({
+    profileId: profile.id,
+    studentId: profile.studentId,
+    studentName: profile.studentName,
+    className: profile.className,
+    academicYear: profile.academicYear,
+    billingStatus: profile.billingStatus,
+    totalOutstanding: profile.totalOutstanding,
+    effectiveMonthlyFee: profile.effectiveMonthlyFee,
+    nextActionDate: profile.nextActionDate
+  }));
+
+  const collectionStage = members.some((member) => member.billingStatus === 'Overdue')
+    ? 'Escalated'
+    : enrichedProfiles.some((profile) => profile.collectionStage === 'Escalated')
+      ? 'Escalated'
+      : enrichedProfiles.some((profile) => profile.collectionStage === 'Promise to pay')
+        ? 'Promise to pay'
+        : enrichedProfiles.some((profile) => profile.collectionStage === 'In contact')
+          ? 'In contact'
+          : enrichedProfiles.some((profile) => profile.collectionStage === 'Reminder queued')
+            ? 'Reminder queued'
+            : 'No follow-up';
+
+  const nextActionDates = members.map((member) => member.nextActionDate).filter(Boolean);
+  // eslint-disable-next-line unicorn/no-array-sort
+  nextActionDates.sort((left, right) => left.localeCompare(right));
+  const nextActionDate = nextActionDates[0] ?? '';
+
+  return {
+    id: account._id,
+    accountLabel: account.accountLabel,
+    primaryGuardianName: account.primaryGuardianName,
+    primaryGuardianPhone: account.primaryGuardianPhone,
+    studentCount: members.length,
+    totalOutstanding: enrichedProfiles.reduce((sum, profile) => sum + profile.totalOutstanding, 0),
+    monthlyRunRate: enrichedProfiles.reduce((sum, profile) => sum + profile.effectiveMonthlyFee, 0),
+    collectionStage,
+    nextActionDate,
+    members
+  };
+}
+
 type EnrichedProfile = {
   id: string;
   studentId: string;
@@ -260,7 +396,11 @@ type EnrichedProfile = {
   customMonthlyFee: number;
   arrearsBalance: number;
   paymentPlan: string;
+  familyAccountId: string;
   familyLabel: string;
+  familyPrimaryGuardianName: string;
+  familyPrimaryGuardianPhone: string;
+  familyStudentCount: number;
   collectionStage: (typeof COLLECTION_STAGES)[number];
   reminderChannel: (typeof REMINDER_CHANNELS)[number];
   lastReminderDate: string;
@@ -281,6 +421,8 @@ type EnrichedProfile = {
 };
 
 type FinanceProfileDetail = EnrichedProfile & {
+  familyAccount: FamilyAccountSummary | null;
+  relatedProfiles: FamilyAccountMember[];
   charges: Array<{
     id: string;
     title: string;
@@ -325,6 +467,13 @@ async function enrichProfile(
     .withIndex('by_profile', (q) => q.eq('billingProfileId', profile._id))
     .order('desc')
     .collect();
+  const familyAccount = profile.familyAccountId ? await ctx.db.get(profile.familyAccountId) : null;
+  const familyProfiles = profile.familyAccountId
+    ? await ctx.db
+        .query('studentBillingProfiles')
+        .withIndex('by_familyAccount', (q) => q.eq('familyAccountId', profile.familyAccountId))
+        .collect()
+    : [];
   // eslint-disable-next-line unicorn/no-array-sort
   const latestReminder = [...reminders].sort(compareReminderRecency)[0];
 
@@ -360,7 +509,11 @@ async function enrichProfile(
     customMonthlyFee: profile.customMonthlyFee ?? 0,
     arrearsBalance: profile.arrearsBalance,
     paymentPlan: profile.paymentPlan ?? '',
-    familyLabel: profile.familyLabel ?? '',
+    familyAccountId: profile.familyAccountId ?? '',
+    familyLabel: familyAccount?.accountLabel ?? profile.familyLabel ?? '',
+    familyPrimaryGuardianName: familyAccount?.primaryGuardianName ?? student.guardianName,
+    familyPrimaryGuardianPhone: familyAccount?.primaryGuardianPhone ?? student.guardianPhone,
+    familyStudentCount: familyProfiles.length || 1,
     collectionStage: profile.collectionStage ?? 'No follow-up',
     reminderChannel: profile.reminderChannel ?? 'Not set',
     lastReminderDate: profile.lastReminderDate ?? '',
@@ -418,6 +571,11 @@ export const summary = query({
       .withIndex('by_updatedAt')
       .order('desc')
       .collect();
+    const familyAccounts = await ctx.db
+      .query('financeFamilyAccounts')
+      .withIndex('by_updatedAt')
+      .order('desc')
+      .collect();
     const payments = await ctx.db
       .query('financePayments')
       .withIndex('by_createdAt')
@@ -434,6 +592,7 @@ export const summary = query({
 
     return {
       profiles: profiles.length,
+      familyAccounts: familyAccounts.length,
       overdueProfiles: profiles.filter((profile) => profile.billingStatus === 'Overdue').length,
       scholarshipProfiles: profiles.filter((profile) => profile.billingStatus === 'Scholarship')
         .length,
@@ -446,6 +605,22 @@ export const summary = query({
       totalOutstanding: outstandingCharges + arrearsBalance,
       collectedThisMonth
     };
+  }
+});
+
+export const familyAccountsOverview = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireFinanceReadUser(ctx);
+
+    const accounts = await ctx.db
+      .query('financeFamilyAccounts')
+      .withIndex('by_updatedAt')
+      .order('desc')
+      .collect();
+    return (
+      await Promise.all(accounts.map((account) => buildFamilyAccountSummary(ctx, account._id)))
+    ).filter((account): account is NonNullable<typeof account> => account !== null);
   }
 });
 
@@ -557,9 +732,15 @@ async function loadProfileDetail(
     .collect();
   // eslint-disable-next-line unicorn/no-array-sort
   const sortedReminders = [...reminders].sort(compareReminderRecency);
+  const familyAccount = enriched.familyAccountId
+    ? await buildFamilyAccountSummary(ctx, enriched.familyAccountId as Id<'financeFamilyAccounts'>)
+    : null;
 
   return {
     ...enriched,
+    familyAccount,
+    relatedProfiles:
+      familyAccount?.members.filter((member) => member.studentId !== enriched.studentId) ?? [],
     charges: charges.map((charge) => ({
       id: charge._id,
       title: charge.title,
@@ -654,7 +835,11 @@ export const createProfile = mutation({
     if (existing) {
       throw new Error('Billing profile already exists for this student.');
     }
-    const billingProfileId = await ctx.db.insert('studentBillingProfiles', normalizeProfile(args));
+    const familyAccountId = await ensureFamilyAccount(ctx, args.studentId, args.familyLabel);
+    const billingProfileId = await ctx.db.insert(
+      'studentBillingProfiles',
+      normalizeProfile({ ...args, familyAccountId })
+    );
     return { billingProfileId };
   }
 });
@@ -685,7 +870,13 @@ export const updateProfile = mutation({
     if (existing.studentId !== args.studentId) {
       throw new Error('Changing the student on an existing billing profile is not allowed.');
     }
-    await ctx.db.patch(args.billingProfileId, normalizeProfile(args));
+    const familyAccountId = await ensureFamilyAccount(
+      ctx,
+      args.studentId,
+      args.familyLabel,
+      existing
+    );
+    await ctx.db.patch(args.billingProfileId, normalizeProfile({ ...args, familyAccountId }));
     return { billingProfileId: args.billingProfileId };
   }
 });
