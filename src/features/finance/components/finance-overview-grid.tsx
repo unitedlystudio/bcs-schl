@@ -94,9 +94,29 @@ export function FinanceOverviewGrid({
     [rows]
   );
 
+  const collectionStageOptions = useMemo(
+    () =>
+      buildOptions(
+        ['No follow-up', 'Reminder queued', 'In contact', 'Promise to pay', 'Escalated'].map(
+          (value) => ({
+            label: value,
+            value,
+            count: rows.filter((row) => row.collectionStage === value).length
+          })
+        )
+      ),
+    [rows]
+  );
+
   const columns = useMemo(
-    () => getFinanceGridColumns({ classOptions, academicYearOptions, billingStatusOptions }),
-    [classOptions, academicYearOptions, billingStatusOptions]
+    () =>
+      getFinanceGridColumns({
+        classOptions,
+        academicYearOptions,
+        billingStatusOptions,
+        collectionStageOptions
+      }),
+    [classOptions, academicYearOptions, billingStatusOptions, collectionStageOptions]
   );
 
   const table = useReactTable({

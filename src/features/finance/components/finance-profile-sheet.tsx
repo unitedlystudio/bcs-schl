@@ -65,6 +65,16 @@ const DEFAULT_FORM = {
   customMonthlyFee: '0',
   arrearsBalance: '0',
   paymentPlan: '',
+  familyLabel: '',
+  collectionStage: 'No follow-up' as
+    | 'No follow-up'
+    | 'Reminder queued'
+    | 'In contact'
+    | 'Promise to pay'
+    | 'Escalated',
+  reminderChannel: 'Not set' as 'Email' | 'WhatsApp' | 'Phone' | 'In person' | 'Not set',
+  lastReminderDate: '',
+  nextActionDate: '',
   billingItems: [] as BillingItemFormValue[],
   notesSummary: ''
 };
@@ -363,6 +373,82 @@ function ProfileFields({
         </div>
       </div>
 
+      <div className='grid gap-4 md:grid-cols-2'>
+        <div className='grid gap-2'>
+          <Label htmlFor='familyLabel'>Family / account label</Label>
+          <Input
+            id='familyLabel'
+            value={values.familyLabel}
+            onChange={(event) => onChange('familyLabel', event.target.value)}
+            placeholder='Holloway family account'
+            disabled={disabled}
+          />
+        </div>
+        <div className='grid gap-2'>
+          <Label>Collections stage</Label>
+          <Select
+            value={values.collectionStage}
+            onValueChange={(value) =>
+              onChange('collectionStage', value as ProfileFormValues['collectionStage'])
+            }
+          >
+            <SelectTrigger disabled={disabled}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='No follow-up'>No follow-up</SelectItem>
+              <SelectItem value='Reminder queued'>Reminder queued</SelectItem>
+              <SelectItem value='In contact'>In contact</SelectItem>
+              <SelectItem value='Promise to pay'>Promise to pay</SelectItem>
+              <SelectItem value='Escalated'>Escalated</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className='grid gap-4 md:grid-cols-3'>
+        <div className='grid gap-2'>
+          <Label>Reminder channel</Label>
+          <Select
+            value={values.reminderChannel}
+            onValueChange={(value) =>
+              onChange('reminderChannel', value as ProfileFormValues['reminderChannel'])
+            }
+          >
+            <SelectTrigger disabled={disabled}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='Not set'>Not set</SelectItem>
+              <SelectItem value='Email'>Email</SelectItem>
+              <SelectItem value='WhatsApp'>WhatsApp</SelectItem>
+              <SelectItem value='Phone'>Phone</SelectItem>
+              <SelectItem value='In person'>In person</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className='grid gap-2'>
+          <Label htmlFor='lastReminderDate'>Last reminder</Label>
+          <Input
+            id='lastReminderDate'
+            type='date'
+            value={values.lastReminderDate}
+            onChange={(event) => onChange('lastReminderDate', event.target.value)}
+            disabled={disabled}
+          />
+        </div>
+        <div className='grid gap-2'>
+          <Label htmlFor='nextActionDate'>Next action date</Label>
+          <Input
+            id='nextActionDate'
+            type='date'
+            value={values.nextActionDate}
+            onChange={(event) => onChange('nextActionDate', event.target.value)}
+            disabled={disabled}
+          />
+        </div>
+      </div>
+
       <BillingItemsEditor
         items={values.billingItems}
         onChange={(items) => onChange('billingItems', items)}
@@ -426,6 +512,11 @@ export function FinanceProfileSheet({
         customMonthlyFee: String(profile.customMonthlyFee),
         arrearsBalance: String(profile.arrearsBalance),
         paymentPlan: profile.paymentPlan,
+        familyLabel: profile.familyLabel,
+        collectionStage: profile.collectionStage,
+        reminderChannel: profile.reminderChannel,
+        lastReminderDate: profile.lastReminderDate,
+        nextActionDate: profile.nextActionDate,
         billingItems: (profile.billingItems ?? []).map((item, index) => ({
           id: item.id,
           label: item.label,
@@ -501,6 +592,11 @@ export function FinanceProfileSheet({
         Number(values.customMonthlyFee || 0) > 0 ? Number(values.customMonthlyFee || 0) : undefined,
       arrearsBalance: Number(values.arrearsBalance || 0),
       paymentPlan: values.paymentPlan,
+      familyLabel: values.familyLabel,
+      collectionStage: values.collectionStage,
+      reminderChannel: values.reminderChannel,
+      lastReminderDate: values.lastReminderDate || undefined,
+      nextActionDate: values.nextActionDate || undefined,
       billingItems: values.billingItems.map((item, index) => ({
         id: item.id,
         label: item.label,

@@ -183,6 +183,27 @@ export default defineSchema({
     customMonthlyFee: v.optional(v.number()),
     arrearsBalance: v.number(),
     paymentPlan: v.optional(v.string()),
+    familyLabel: v.optional(v.string()),
+    collectionStage: v.optional(
+      v.union(
+        v.literal('No follow-up'),
+        v.literal('Reminder queued'),
+        v.literal('In contact'),
+        v.literal('Promise to pay'),
+        v.literal('Escalated')
+      )
+    ),
+    reminderChannel: v.optional(
+      v.union(
+        v.literal('Email'),
+        v.literal('WhatsApp'),
+        v.literal('Phone'),
+        v.literal('In person'),
+        v.literal('Not set')
+      )
+    ),
+    lastReminderDate: v.optional(v.string()),
+    nextActionDate: v.optional(v.string()),
     billingItems: v.optional(
       v.array(
         v.object({

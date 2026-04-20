@@ -228,16 +228,17 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                         </CardDescription>
                       </CardHeader>
                       <CardContent className='grid gap-4'>
-                        <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-4'>
+                        <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-5'>
                           <SummaryPill label='Status' value={financeProfile.billingStatus} />
                           <SummaryPill
                             label='Scholarship'
                             value={financeProfile.scholarshipType || 'None'}
                           />
                           <SummaryPill
-                            label='Plan'
-                            value={financeProfile.paymentPlan || 'No plan set'}
+                            label='Family account'
+                            value={financeProfile.familyLabel || 'Not labelled yet'}
                           />
+                          <SummaryPill label='Collections' value={financeProfile.collectionStage} />
                           <SummaryPill label='Charges' value={`${financeProfile.charges.length}`} />
                         </div>
                         <Separator />
@@ -348,6 +349,24 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                         <SummaryPill
                           label='Charged add-ons'
                           value={currency(financeProfile.billedAddOnMonthlyTotal)}
+                        />
+                      </div>
+                      <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-4'>
+                        <SummaryPill
+                          label='Payment plan'
+                          value={financeProfile.paymentPlan || 'No plan set'}
+                        />
+                        <SummaryPill
+                          label='Reminder channel'
+                          value={financeProfile.reminderChannel}
+                        />
+                        <SummaryPill
+                          label='Last reminder'
+                          value={financeProfile.lastReminderDate || 'Not sent'}
+                        />
+                        <SummaryPill
+                          label='Next action'
+                          value={financeProfile.nextActionDate || 'Not scheduled'}
                         />
                       </div>
                       <div className='overflow-hidden rounded-xl border border-border/60'>
@@ -540,8 +559,28 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                                 <TableCell>{student.guardianPhone || '—'}</TableCell>
                               </TableRow>
                               <TableRow>
+                                <TableCell className='font-medium'>Family / account</TableCell>
+                                <TableCell>
+                                  {financeProfile.familyLabel || 'Not labelled yet'}
+                                </TableCell>
+                              </TableRow>
+                              <TableRow>
                                 <TableCell className='font-medium'>Payment plan</TableCell>
                                 <TableCell>{financeProfile.paymentPlan || 'No plan set'}</TableCell>
+                              </TableRow>
+                              <TableRow>
+                                <TableCell className='font-medium'>Collections stage</TableCell>
+                                <TableCell>{financeProfile.collectionStage}</TableCell>
+                              </TableRow>
+                              <TableRow>
+                                <TableCell className='font-medium'>Reminder channel</TableCell>
+                                <TableCell>{financeProfile.reminderChannel}</TableCell>
+                              </TableRow>
+                              <TableRow>
+                                <TableCell className='font-medium'>Last reminder</TableCell>
+                                <TableCell>
+                                  {financeProfile.lastReminderDate || 'Not sent yet'}
+                                </TableCell>
                               </TableRow>
                               <TableRow>
                                 <TableCell className='font-medium'>Overdue items</TableCell>
@@ -553,6 +592,12 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                                   {upcomingCharges[0]?.dueDate || 'None scheduled'}
                                 </TableCell>
                               </TableRow>
+                              <TableRow>
+                                <TableCell className='font-medium'>Next action date</TableCell>
+                                <TableCell>
+                                  {financeProfile.nextActionDate || 'Not scheduled'}
+                                </TableCell>
+                              </TableRow>
                             </TableBody>
                           </Table>
                         </div>
@@ -561,16 +606,27 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
                         <div className='text-sm font-medium'>Collections posture</div>
                         <div className='mt-3 grid gap-2 text-sm text-muted-foreground'>
                           <div>Status: {financeProfile.billingStatus}</div>
+                          <div>Collections stage: {financeProfile.collectionStage}</div>
                           <div>Outstanding: {currency(financeProfile.totalOutstanding)}</div>
                           <div>Arrears balance: {currency(financeProfile.arrearsBalance)}</div>
-                          <div>Payment plan: {financeProfile.paymentPlan || 'No plan set'}</div>
+                          <div>Reminder channel: {financeProfile.reminderChannel}</div>
+                          <div>
+                            Last reminder: {financeProfile.lastReminderDate || 'Not sent yet'}
+                          </div>
+                          <div>
+                            Next action date: {financeProfile.nextActionDate || 'Not scheduled'}
+                          </div>
                           <div>
                             Recommended next action:{' '}
-                            {overdueCharges.length > 0
-                              ? 'Collections reminder and payment-plan review.'
-                              : upcomingCharges.length > 0
-                                ? 'Prepare the next billed item and monitor due date.'
-                                : 'No immediate collections action required.'}
+                            {financeProfile.collectionStage === 'Escalated'
+                              ? 'Escalate to admin/accounts lead and confirm a recovery decision.'
+                              : financeProfile.collectionStage === 'Promise to pay'
+                                ? 'Monitor promised payment date and follow up if the payment misses.'
+                                : overdueCharges.length > 0
+                                  ? 'Issue or confirm the next family reminder and review the payment-plan path.'
+                                  : upcomingCharges.length > 0
+                                    ? 'Prepare the next billed item and monitor the due date.'
+                                    : 'No immediate collections action required.'}
                           </div>
                         </div>
                       </div>

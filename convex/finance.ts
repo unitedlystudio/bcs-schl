@@ -32,6 +32,14 @@ const CHARGE_CATEGORIES = [
 ] as const;
 const CHARGE_STATUSES = ['Pending', 'Paid', 'Overdue', 'Waived'] as const;
 const PAYMENT_METHODS = ['Bank Transfer', 'Cash', 'Card', 'Wallet', 'Scholarship Credit'] as const;
+const COLLECTION_STAGES = [
+  'No follow-up',
+  'Reminder queued',
+  'In contact',
+  'Promise to pay',
+  'Escalated'
+] as const;
+const REMINDER_CHANNELS = ['Email', 'WhatsApp', 'Phone', 'In person', 'Not set'] as const;
 
 type BillingItemCategory = (typeof BILLING_ITEM_CATEGORIES)[number];
 type BillingItemBehavior = (typeof BILLING_ITEM_BEHAVIORS)[number];
@@ -57,8 +65,11 @@ function matchesSearch(
     billingStatus: string;
     scholarshipType: string;
     paymentPlan: string;
+    collectionStage: string;
+    reminderChannel: string;
     notesSummary: string;
     billingItemsSummary: string;
+    familyLabel: string;
   },
   search?: string
 ) {
@@ -71,8 +82,11 @@ function matchesSearch(
     item.billingStatus,
     item.scholarshipType,
     item.paymentPlan,
+    item.collectionStage,
+    item.reminderChannel,
     item.notesSummary,
-    item.billingItemsSummary
+    item.billingItemsSummary,
+    item.familyLabel
   ].some((value) => value.toLowerCase().includes(needle));
 }
 
@@ -123,6 +137,11 @@ function normalizeProfile(input: {
   customMonthlyFee?: number;
   arrearsBalance: number;
   paymentPlan?: string;
+  familyLabel?: string;
+  collectionStage?: (typeof COLLECTION_STAGES)[number];
+  reminderChannel?: (typeof REMINDER_CHANNELS)[number];
+  lastReminderDate?: string;
+  nextActionDate?: string;
   billingItems?: BillingItemInput[];
   notesSummary?: string;
 }) {
@@ -143,6 +162,11 @@ function normalizeProfile(input: {
     customMonthlyFee: input.customMonthlyFee,
     arrearsBalance: input.arrearsBalance,
     paymentPlan: input.paymentPlan?.trim() ?? '',
+    familyLabel: input.familyLabel?.trim() ?? '',
+    collectionStage: input.collectionStage ?? 'No follow-up',
+    reminderChannel: input.reminderChannel ?? 'Not set',
+    lastReminderDate: input.lastReminderDate?.trim() ?? '',
+    nextActionDate: input.nextActionDate?.trim() ?? '',
     billingItems: normalizeBillingItems(input.billingItems),
     notesSummary: input.notesSummary?.trim() ?? '',
     updatedAt: Date.now()
@@ -216,6 +240,11 @@ type EnrichedProfile = {
   customMonthlyFee: number;
   arrearsBalance: number;
   paymentPlan: string;
+  familyLabel: string;
+  collectionStage: (typeof COLLECTION_STAGES)[number];
+  reminderChannel: (typeof REMINDER_CHANNELS)[number];
+  lastReminderDate: string;
+  nextActionDate: string;
   billingItems: BillingItemView[];
   billingItemsSummary: string;
   billedAddOnCount: number;
@@ -300,6 +329,11 @@ async function enrichProfile(
     customMonthlyFee: profile.customMonthlyFee ?? 0,
     arrearsBalance: profile.arrearsBalance,
     paymentPlan: profile.paymentPlan ?? '',
+    familyLabel: profile.familyLabel ?? '',
+    collectionStage: profile.collectionStage ?? 'No follow-up',
+    reminderChannel: profile.reminderChannel ?? 'Not set',
+    lastReminderDate: profile.lastReminderDate ?? '',
+    nextActionDate: profile.nextActionDate ?? '',
     billingItems,
     billingItemsSummary: summarizeBillingItems(billingItems),
     billedAddOnCount: billedAddOns.length,
@@ -369,6 +403,12 @@ export const summary = query({
       overdueProfiles: profiles.filter((profile) => profile.billingStatus === 'Overdue').length,
       scholarshipProfiles: profiles.filter((profile) => profile.billingStatus === 'Scholarship')
         .length,
+      reminderQueuedProfiles: profiles.filter(
+        (profile) => (profile.collectionStage ?? 'No follow-up') === 'Reminder queued'
+      ).length,
+      escalatedProfiles: profiles.filter(
+        (profile) => (profile.collectionStage ?? 'No follow-up') === 'Escalated'
+      ).length,
       totalOutstanding: outstandingCharges + arrearsBalance,
       collectedThisMonth
     };
@@ -533,6 +573,9 @@ const billingItemValidator = v.object({
   sortOrder: v.number()
 });
 
+const collectionStageValidator = v.union(...COLLECTION_STAGES.map((item) => v.literal(item)));
+const reminderChannelValidator = v.union(...REMINDER_CHANNELS.map((item) => v.literal(item)));
+
 export const createProfile = mutation({
   args: {
     studentId: v.id('students'),
@@ -543,6 +586,11 @@ export const createProfile = mutation({
     customMonthlyFee: v.optional(v.number()),
     arrearsBalance: v.number(),
     paymentPlan: v.optional(v.string()),
+    familyLabel: v.optional(v.string()),
+    collectionStage: v.optional(collectionStageValidator),
+    reminderChannel: v.optional(reminderChannelValidator),
+    lastReminderDate: v.optional(v.string()),
+    nextActionDate: v.optional(v.string()),
     billingItems: v.optional(v.array(billingItemValidator)),
     notesSummary: v.optional(v.string())
   },
@@ -571,6 +619,11 @@ export const updateProfile = mutation({
     customMonthlyFee: v.optional(v.number()),
     arrearsBalance: v.number(),
     paymentPlan: v.optional(v.string()),
+    familyLabel: v.optional(v.string()),
+    collectionStage: v.optional(collectionStageValidator),
+    reminderChannel: v.optional(reminderChannelValidator),
+    lastReminderDate: v.optional(v.string()),
+    nextActionDate: v.optional(v.string()),
     billingItems: v.optional(v.array(billingItemValidator)),
     notesSummary: v.optional(v.string())
   },

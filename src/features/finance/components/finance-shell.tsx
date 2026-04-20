@@ -63,6 +63,10 @@ export default function FinanceShell() {
         className: profile.className,
         academicYear: profile.academicYear,
         billingStatus: profile.billingStatus,
+        familyLabel: profile.familyLabel,
+        collectionStage: profile.collectionStage,
+        reminderChannel: profile.reminderChannel,
+        nextActionDate: profile.nextActionDate,
         tuitionMonthlyFee: profile.effectiveMonthlyFee - profile.billedAddOnMonthlyTotal,
         billedAddOnCount: profile.billedAddOnCount,
         billedAddOnMonthlyTotal: profile.billedAddOnMonthlyTotal,
@@ -80,7 +84,12 @@ export default function FinanceShell() {
     () =>
       [...rows]
         .filter((row) => row.billingStatus === 'Overdue' || row.totalOutstanding > 0)
-        .sort((left, right) => right.totalOutstanding - left.totalOutstanding),
+        .sort((left, right) => {
+          if (right.totalOutstanding !== left.totalOutstanding) {
+            return right.totalOutstanding - left.totalOutstanding;
+          }
+          return left.nextActionDate.localeCompare(right.nextActionDate);
+        }),
     [rows]
   );
 
@@ -90,10 +99,6 @@ export default function FinanceShell() {
   );
   const monthlyRunRate = useMemo(
     () => rows.reduce((sum, row) => sum + row.effectiveMonthlyFee, 0),
-    [rows]
-  );
-  const addOnRevenue = useMemo(
-    () => rows.reduce((sum, row) => sum + row.billedAddOnMonthlyTotal, 0),
     [rows]
   );
 
@@ -171,9 +176,14 @@ export default function FinanceShell() {
                 hint='Families with structured payment terms'
               />
               <MetricCard
-                label='Add-on revenue'
-                value={currency(addOnRevenue)}
-                hint='Lunch, activities, transport, extras'
+                label='Reminder queued'
+                value={`${summary.reminderQueuedProfiles}`}
+                hint='Accounts queued for reminder outreach'
+              />
+              <MetricCard
+                label='Escalated'
+                value={`${summary.escalatedProfiles}`}
+                hint='Accounts needing stronger intervention'
               />
             </div>
             <div className='rounded-2xl border border-border/60 bg-muted/20 p-4'>
@@ -390,7 +400,12 @@ export default function FinanceShell() {
                             {currency(row.effectiveMonthlyFee)}
                           </div>
                           <div className='text-sm text-muted-foreground'>
+                            {row.familyLabel || 'No family/account label'} •{' '}
                             {row.paymentPlan || 'No payment plan set'}
+                          </div>
+                          <div className='text-xs text-muted-foreground'>
+                            {row.collectionStage} via {row.reminderChannel}
+                            {row.nextActionDate ? ` • next action ${row.nextActionDate}` : ''}
                           </div>
                           <div className='text-xs text-muted-foreground'>
                             Last payment {row.recentPaymentDate || 'not recorded'}

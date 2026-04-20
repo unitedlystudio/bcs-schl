@@ -12,6 +12,15 @@ export interface FinanceGridRow {
   className: string;
   academicYear: string;
   billingStatus: 'Current' | 'Overdue' | 'Scholarship' | 'Custom';
+  familyLabel: string;
+  collectionStage:
+    | 'No follow-up'
+    | 'Reminder queued'
+    | 'In contact'
+    | 'Promise to pay'
+    | 'Escalated';
+  reminderChannel: 'Email' | 'WhatsApp' | 'Phone' | 'In person' | 'Not set';
+  nextActionDate: string;
   tuitionMonthlyFee: number;
   billedAddOnCount: number;
   billedAddOnMonthlyTotal: number;
@@ -49,12 +58,14 @@ interface GetFinanceGridColumnsOptions {
   classOptions: Option[];
   academicYearOptions: Option[];
   billingStatusOptions: Option[];
+  collectionStageOptions: Option[];
 }
 
 export function getFinanceGridColumns({
   classOptions,
   academicYearOptions,
-  billingStatusOptions
+  billingStatusOptions,
+  collectionStageOptions
 }: GetFinanceGridColumnsOptions): ColumnDef<FinanceGridRow>[] {
   return [
     {
@@ -141,6 +152,26 @@ export function getFinanceGridColumns({
       )
     },
     {
+      id: 'familyLabel',
+      accessorKey: 'familyLabel',
+      header: ({ column }: { column: Column<FinanceGridRow, unknown> }) => (
+        <DataTableColumnHeader column={column} title='Family account' />
+      ),
+      cell: ({ row }) => (
+        <div className='flex min-w-[180px] flex-col'>
+          <span>{row.original.familyLabel || 'No family label'}</span>
+          <span className='text-muted-foreground text-xs'>{row.original.reminderChannel}</span>
+        </div>
+      ),
+      meta: {
+        label: 'Family account',
+        placeholder: 'Search family labels...',
+        variant: 'text' as const
+      },
+      enableColumnFilter: true,
+      enableSorting: false
+    },
+    {
       id: 'billingItemsSummary',
       accessorKey: 'billingItemsSummary',
       header: ({ column }: { column: Column<FinanceGridRow, unknown> }) => (
@@ -183,6 +214,33 @@ export function getFinanceGridColumns({
       cell: ({ cell }) => (
         <span className='font-medium tabular-nums'>{currency(cell.getValue<number>())}</span>
       )
+    },
+    {
+      id: 'collectionStage',
+      accessorKey: 'collectionStage',
+      header: ({ column }: { column: Column<FinanceGridRow, unknown> }) => (
+        <DataTableColumnHeader column={column} title='Collections' />
+      ),
+      cell: ({ row }) => (
+        <div className='flex min-w-[180px] flex-col gap-1'>
+          <Badge variant={row.original.collectionStage === 'Escalated' ? 'destructive' : 'outline'}>
+            {row.original.collectionStage}
+          </Badge>
+          <span className='text-muted-foreground text-xs'>
+            {row.original.nextActionDate
+              ? `Next action ${row.original.nextActionDate}`
+              : 'No next action date'}
+          </span>
+        </div>
+      ),
+      meta: {
+        label: 'Collections',
+        variant: 'multiSelect' as const,
+        options: collectionStageOptions
+      },
+      enableColumnFilter: true,
+      filterFn: matchesSelectedValues,
+      enableSorting: false
     },
     {
       id: 'recentPayment',

@@ -493,6 +493,11 @@ export const seedDemoData = mutation({
           customMonthlyFee: undefined,
           arrearsBalance: 0,
           paymentPlan: 'Standard monthly tuition',
+          familyLabel: 'Holloway family account',
+          collectionStage: 'No follow-up',
+          reminderChannel: 'Not set',
+          lastReminderDate: '',
+          nextActionDate: '',
           notesSummary: 'Current family account with no arrears.',
           charges: [
             {
@@ -523,6 +528,13 @@ export const seedDemoData = mutation({
           customMonthlyFee: undefined,
           arrearsBalance: 180,
           paymentPlan: 'Monthly with arrears catch-up',
+          familyLabel: 'Patten siblings account',
+          collectionStage: 'Reminder queued',
+          reminderChannel: 'WhatsApp',
+          lastReminderDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2)
+            .toISOString()
+            .slice(0, 10),
+          nextActionDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 3).toISOString().slice(0, 10),
           notesSummary: 'Accounts is monitoring an overdue balance and staggered recovery plan.',
           charges: [
             {
@@ -553,6 +565,15 @@ export const seedDemoData = mutation({
           customMonthlyFee: undefined,
           arrearsBalance: 0,
           paymentPlan: 'Scholarship-adjusted monthly fee',
+          familyLabel: 'Satria family account',
+          collectionStage: 'In contact',
+          reminderChannel: 'Email',
+          lastReminderDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5)
+            .toISOString()
+            .slice(0, 10),
+          nextActionDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14)
+            .toISOString()
+            .slice(0, 10),
           notesSummary: 'Partial scholarship applied during onboarding period.',
           charges: [
             {
@@ -582,6 +603,11 @@ export const seedDemoData = mutation({
           customMonthlyFee: profile.customMonthlyFee,
           arrearsBalance: profile.arrearsBalance,
           paymentPlan: profile.paymentPlan,
+          familyLabel: profile.familyLabel,
+          collectionStage: profile.collectionStage,
+          reminderChannel: profile.reminderChannel,
+          lastReminderDate: profile.lastReminderDate,
+          nextActionDate: profile.nextActionDate,
           notesSummary: profile.notesSummary,
           updatedAt
         });
