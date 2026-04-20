@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import { toast } from 'sonner';
 
@@ -13,6 +13,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { ConcernFormSheet } from './concern-form-sheet';
 
@@ -50,6 +59,18 @@ export default function ConcernsShell() {
     api.concerns.getById,
     selectedCaseId ? { caseId: selectedCaseId as Id<'concernCases'> } : 'skip'
   );
+
+  useEffect(() => {
+    if (!selectedCaseId && cases.length > 0) {
+      setSelectedCaseId(cases[0].id);
+    }
+  }, [cases, selectedCaseId]);
+
+  useEffect(() => {
+    if (selectedCaseId && !cases.some((item) => item.id === selectedCaseId)) {
+      setSelectedCaseId(cases[0]?.id ?? null);
+    }
+  }, [cases, selectedCaseId]);
 
   const hasSearch = search.trim().length > 0;
   const openCases = cases.filter((item) => item.status !== 'Resolved').length;
@@ -90,67 +111,68 @@ export default function ConcernsShell() {
 
   return (
     <div className='flex flex-1 flex-col gap-4'>
-      <Card>
-        <CardHeader>
-          <CardTitle>Concerns & support workflow</CardTitle>
-          <CardDescription>
-            Student-linked intervention cases with severity, ownership, review dates, and note
-            history.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className='grid gap-3'>
-          <div className='flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between'>
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder='Search by student, title, category, teacher, severity, or summary'
-              className='max-w-xl'
-            />
+      <Card className='border-border/60'>
+        <CardHeader className='gap-4 pb-4'>
+          <div className='flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between'>
+            <div className='space-y-1'>
+              <CardTitle>Concerns & support</CardTitle>
+              <CardDescription>
+                Keep intervention cases visible, owned, and reviewable instead of burying support
+                work in loose notes.
+              </CardDescription>
+            </div>
             <Button
+              variant='outline'
               onClick={() => {
                 setActiveCaseId(null);
                 setSheetOpen(true);
               }}
-              variant='outline'
             >
               <Icons.add className='mr-2 h-4 w-4' />
               Add concern case
             </Button>
           </div>
-          <div className='text-sm text-muted-foreground'>
-            {hasSearch
-              ? `${cases.length} concern case${cases.length === 1 ? '' : 's'} match your search.`
-              : `${cases.length} concern case${cases.length === 1 ? '' : 's'} currently in the support workflow.`}
+          <div className='grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]'>
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder='Search student, title, category, owner, severity, or summary'
+            />
+            <div className='rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-sm text-muted-foreground'>
+              {hasSearch
+                ? `${cases.length} concern case${cases.length === 1 ? '' : 's'} match the current search.`
+                : `${cases.length} concern case${cases.length === 1 ? '' : 's'} currently in the support workflow.`}
+            </div>
           </div>
-        </CardContent>
+        </CardHeader>
       </Card>
 
       <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-5'>
-        <Card>
+        <Card className='border-border/60'>
           <CardHeader className='pb-2'>
             <CardDescription>Total cases</CardDescription>
             <CardTitle className='text-2xl'>{summary.total}</CardTitle>
           </CardHeader>
         </Card>
-        <Card>
+        <Card className='border-border/60'>
           <CardHeader className='pb-2'>
             <CardDescription>Open / live</CardDescription>
             <CardTitle className='text-2xl'>{openCases}</CardTitle>
           </CardHeader>
         </Card>
-        <Card>
+        <Card className='border-border/60'>
           <CardHeader className='pb-2'>
             <CardDescription>Escalated</CardDescription>
             <CardTitle className='text-2xl'>{escalatedCases}</CardTitle>
           </CardHeader>
         </Card>
-        <Card>
+        <Card className='border-border/60'>
           <CardHeader className='pb-2'>
             <CardDescription>Restricted</CardDescription>
             <CardTitle className='text-2xl'>{restrictedCases}</CardTitle>
           </CardHeader>
         </Card>
-        <Card>
+        <Card className='border-border/60'>
           <CardHeader className='pb-2'>
             <CardDescription>Resolution rate</CardDescription>
             <CardTitle className='text-2xl'>{resolutionRate}%</CardTitle>
@@ -169,8 +191,8 @@ export default function ConcernsShell() {
               </div>
               <div className='mt-1 text-sm text-muted-foreground'>
                 {hasSearch
-                  ? 'Try a broader search once more intervention work has been logged.'
-                  : 'Create the first concern case so support work stops living in ad-hoc notes.'}
+                  ? 'Try a broader search once more intervention records exist.'
+                  : 'Create the first concern case so support work leaves ad-hoc comments and message threads.'}
               </div>
             </div>
             {!hasSearch ? (
@@ -186,158 +208,243 @@ export default function ConcernsShell() {
           </CardContent>
         </Card>
       ) : (
-        <div className='grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.9fr)]'>
-          <div className='grid gap-4'>
-            {cases.map((item) => (
-              <Card
-                key={item.id}
-                className={selectedCaseId === item.id ? 'border-primary/60 shadow-sm' : undefined}
-              >
-                <CardContent className='p-5'>
-                  <div className='flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
-                    <div className='min-w-0 flex-1'>
-                      <div className='flex flex-wrap items-center gap-2'>
-                        <div className='font-medium'>{item.title}</div>
-                        <Badge variant='outline'>{item.category}</Badge>
-                        <Badge variant={severityVariant(item.severity)}>{item.severity}</Badge>
-                        <Badge variant={statusVariant(item.status)}>{item.status}</Badge>
-                        <Badge variant={item.visibility === 'Restricted' ? 'secondary' : 'outline'}>
-                          {item.visibility}
-                        </Badge>
-                      </div>
-                      <div className='mt-2 text-sm text-muted-foreground'>
-                        {item.studentName} • {item.studentClassName}
-                        {item.studentAcademicYear ? ` • ${item.studentAcademicYear}` : ''}
-                      </div>
-                      <div className='mt-1 text-sm text-muted-foreground'>
-                        Owner: {item.assignedTeacherName} • Next review:{' '}
-                        {formatDate(item.nextReviewDate)}
-                      </div>
-                      <div className='mt-3 text-sm leading-6'>{item.summary}</div>
+        <div className='grid gap-4 xl:grid-cols-[420px_minmax(0,1fr)]'>
+          <Card className='border-border/60 xl:h-[calc(100dvh-20rem)]'>
+            <CardHeader className='pb-3'>
+              <CardTitle className='text-base'>Case queue</CardTitle>
+              <CardDescription>
+                Triage the queue here, then use the detail pane for history, review, and follow-up.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className='grid gap-3 overflow-y-auto pr-2'>
+              {cases.map((item) => {
+                const isActive = selectedCaseId === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type='button'
+                    onClick={() => setSelectedCaseId(item.id)}
+                    className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                      isActive
+                        ? 'border-primary/60 bg-primary/5 shadow-sm'
+                        : 'border-border/60 hover:bg-muted/30'
+                    }`}
+                  >
+                    <div className='flex flex-wrap items-center gap-2'>
+                      <div className='font-medium'>{item.title}</div>
+                      <Badge variant={statusVariant(item.status)}>{item.status}</Badge>
+                      <Badge variant={severityVariant(item.severity)}>{item.severity}</Badge>
                     </div>
-                    <div className='flex flex-wrap gap-2 lg:justify-end'>
-                      <Button
-                        variant='outline'
-                        size='sm'
-                        onClick={() => setSelectedCaseId(item.id)}
-                      >
-                        View timeline
-                      </Button>
-                      <Button
-                        variant='outline'
-                        size='sm'
-                        onClick={() => {
-                          setActiveCaseId(item.id);
-                          setSheetOpen(true);
-                        }}
-                      >
-                        Manage
-                      </Button>
+                    <div className='mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground'>
+                      <span>{item.studentName}</span>
+                      <span>{item.studentClassName}</span>
+                      {item.studentAcademicYear ? <span>{item.studentAcademicYear}</span> : null}
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    <div className='mt-3 flex flex-wrap gap-2'>
+                      <Badge variant='outline'>{item.category}</Badge>
+                      <Badge variant={item.visibility === 'Restricted' ? 'secondary' : 'outline'}>
+                        {item.visibility}
+                      </Badge>
+                    </div>
+                    <div className='mt-3 line-clamp-2 text-sm text-muted-foreground'>
+                      {item.summary}
+                    </div>
+                    <div className='mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2'>
+                      <span>Owner: {item.assignedTeacherName}</span>
+                      <span>Review: {formatDate(item.nextReviewDate)}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </CardContent>
+          </Card>
 
           <div className='grid gap-4'>
-            <Card>
-              <CardHeader>
-                <CardTitle>Operational health</CardTitle>
-                <CardDescription>
-                  Use this to keep intervention work case-based, reviewable, and less dependent on
-                  memory.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className='space-y-4'>
-                <div className='flex items-center justify-between text-sm'>
-                  <span className='text-muted-foreground'>Resolved cases</span>
-                  <span className='font-medium'>{resolutionRate}%</span>
+            <Card className='border-border/60'>
+              <CardContent className='grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_240px]'>
+                <div className='space-y-4'>
+                  {!selectedCaseId ? (
+                    <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
+                      Choose a case to inspect its timeline and follow-up actions.
+                    </div>
+                  ) : selectedCase === undefined ? (
+                    <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
+                      Loading case detail...
+                    </div>
+                  ) : !selectedCase ? (
+                    <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
+                      Concern case could not be loaded.
+                    </div>
+                  ) : (
+                    <>
+                      <div className='flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
+                        <div className='space-y-2'>
+                          <div className='flex flex-wrap items-center gap-2'>
+                            <h3 className='text-lg font-semibold'>{selectedCase.title}</h3>
+                            <Badge variant={statusVariant(selectedCase.status)}>
+                              {selectedCase.status}
+                            </Badge>
+                            <Badge variant={severityVariant(selectedCase.severity)}>
+                              {selectedCase.severity}
+                            </Badge>
+                            <Badge variant='outline'>{selectedCase.category}</Badge>
+                            <Badge
+                              variant={
+                                selectedCase.visibility === 'Restricted' ? 'secondary' : 'outline'
+                              }
+                            >
+                              {selectedCase.visibility}
+                            </Badge>
+                          </div>
+                          <p className='max-w-3xl text-sm text-muted-foreground'>
+                            {selectedCase.studentName} • {selectedCase.studentClassName}
+                            {selectedCase.studentAcademicYear
+                              ? ` • ${selectedCase.studentAcademicYear}`
+                              : ''}
+                          </p>
+                        </div>
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          onClick={() => {
+                            setActiveCaseId(selectedCase.id);
+                            setSheetOpen(true);
+                          }}
+                        >
+                          Manage case
+                        </Button>
+                      </div>
+
+                      <div className='rounded-xl border border-border/60 bg-muted/20 p-4 text-sm leading-6'>
+                        {selectedCase.summary}
+                      </div>
+
+                      <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-4'>
+                        <div className='rounded-xl border border-border/60 p-4'>
+                          <div className='text-[11px] uppercase tracking-[0.12em] text-muted-foreground'>
+                            Owner
+                          </div>
+                          <div className='mt-2 font-medium'>{selectedCase.assignedTeacherName}</div>
+                        </div>
+                        <div className='rounded-xl border border-border/60 p-4'>
+                          <div className='text-[11px] uppercase tracking-[0.12em] text-muted-foreground'>
+                            Next review
+                          </div>
+                          <div className='mt-2 font-medium'>
+                            {formatDate(selectedCase.nextReviewDate)}
+                          </div>
+                        </div>
+                        <div className='rounded-xl border border-border/60 p-4'>
+                          <div className='text-[11px] uppercase tracking-[0.12em] text-muted-foreground'>
+                            Visibility
+                          </div>
+                          <div className='mt-2 font-medium'>{selectedCase.visibility}</div>
+                        </div>
+                        <div className='rounded-xl border border-border/60 p-4'>
+                          <div className='text-[11px] uppercase tracking-[0.12em] text-muted-foreground'>
+                            Timeline notes
+                          </div>
+                          <div className='mt-2 font-medium'>{selectedCase.updates.length}</div>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
-                <Progress value={resolutionRate} />
-                <div className='grid gap-2 text-sm text-muted-foreground'>
-                  <div>• Restricted cases stay visibly distinct</div>
-                  <div>• Ownership is explicit instead of implied</div>
-                  <div>• Review dates make follow-up operational</div>
-                  <div>• Notes/history live on the case, not in loose comments</div>
+
+                <div className='rounded-2xl border border-border/60 bg-muted/20 p-4'>
+                  <div className='text-sm font-medium'>Workflow health</div>
+                  <div className='mt-1 text-sm text-muted-foreground'>
+                    Keep case handling visible enough that escalations and restricted work do not
+                    hide.
+                  </div>
+                  <div className='mt-5 flex items-center justify-between text-sm'>
+                    <span className='text-muted-foreground'>Resolved cases</span>
+                    <span className='font-medium'>{resolutionRate}%</span>
+                  </div>
+                  <Progress value={resolutionRate} className='mt-2' />
+                  <Separator className='my-4' />
+                  <div className='grid gap-2 text-sm text-muted-foreground'>
+                    <div>Ownership stays explicit.</div>
+                    <div>Restricted work remains visibly distinct.</div>
+                    <div>Review dates stop support follow-up from slipping.</div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>{selectedCase ? selectedCase.title : 'Select a concern case'}</CardTitle>
-                <CardDescription>
-                  {selectedCase
-                    ? `${selectedCase.studentName} • ${selectedCase.assignedTeacherName}`
-                    : 'Pick a case from the list to review history and add updates.'}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className='space-y-4'>
-                {!selectedCaseId ? (
-                  <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
-                    Choose a case to open its note history and action context.
-                  </div>
-                ) : selectedCase === undefined ? (
-                  <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
-                    Loading case timeline...
-                  </div>
-                ) : !selectedCase ? (
-                  <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
-                    Concern case could not be loaded.
-                  </div>
-                ) : (
-                  <>
-                    <div className='rounded-xl border border-border/60 bg-muted/20 p-4 text-sm leading-6'>
-                      {selectedCase.summary}
+            {selectedCase ? (
+              <Card className='border-border/60'>
+                <CardContent className='grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_320px]'>
+                  <div className='grid gap-3'>
+                    <div>
+                      <div className='text-base font-semibold'>Case timeline</div>
+                      <div className='text-sm text-muted-foreground'>
+                        A compact timeline keeps intervention history readable during reviews.
+                      </div>
                     </div>
-                    <div className='grid gap-2 text-sm text-muted-foreground'>
-                      <div>Severity: {selectedCase.severity}</div>
-                      <div>Status: {selectedCase.status}</div>
-                      <div>Visibility: {selectedCase.visibility}</div>
-                      <div>Next review: {formatDate(selectedCase.nextReviewDate)}</div>
-                    </div>
-                    <div className='space-y-3'>
-                      <div className='text-sm font-medium'>Case history</div>
-                      {selectedCase.updates.length === 0 ? (
-                        <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
-                          No timeline notes yet. Add the first operational note below.
-                        </div>
-                      ) : (
-                        selectedCase.updates.map((update) => (
-                          <div key={update.id} className='rounded-xl border border-border/60 p-4'>
-                            <div className='text-sm'>{update.note}</div>
-                            <div className='mt-2 text-xs text-muted-foreground'>
-                              {update.authorLabel} • {new Date(update.createdAt).toLocaleString()}
-                            </div>
-                          </div>
-                        ))
-                      )}
+                    {selectedCase.updates.length === 0 ? (
+                      <div className='rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground'>
+                        No timeline notes yet. Add the first operational update on the right.
+                      </div>
+                    ) : (
+                      <div className='overflow-hidden rounded-xl border border-border/60'>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>When</TableHead>
+                              <TableHead>Author</TableHead>
+                              <TableHead>Note</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {selectedCase.updates.map((update) => (
+                              <TableRow key={update.id}>
+                                <TableCell className='whitespace-nowrap text-sm text-muted-foreground'>
+                                  {new Date(update.createdAt).toLocaleString()}
+                                </TableCell>
+                                <TableCell className='whitespace-nowrap'>
+                                  {update.authorLabel}
+                                </TableCell>
+                                <TableCell className='text-sm'>{update.note}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className='grid gap-3 rounded-2xl border border-border/60 bg-muted/20 p-4'>
+                    <div>
+                      <div className='text-base font-semibold'>Add follow-up note</div>
+                      <div className='text-sm text-muted-foreground'>
+                        Log meetings, agreed actions, and restricted context against the case.
+                      </div>
                     </div>
                     <div className='grid gap-2'>
-                      <Label htmlFor='concern-note-draft'>Add follow-up note</Label>
+                      <Label htmlFor='concern-note-draft'>Update note</Label>
                       <Textarea
                         id='concern-note-draft'
                         value={noteDraft}
                         onChange={(event) => setNoteDraft(event.target.value)}
-                        placeholder='Log meeting outcomes, next steps, or restricted context.'
-                        rows={4}
+                        placeholder='Log meeting outcomes, next steps, or sensitive context.'
+                        rows={7}
                         disabled={submittingNote}
                       />
-                      <Button
-                        onClick={handleAddUpdate}
-                        disabled={submittingNote || !noteDraft.trim()}
-                      >
-                        {submittingNote ? (
-                          <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />
-                        ) : null}
-                        Add note
-                      </Button>
                     </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
+                    <Button
+                      onClick={handleAddUpdate}
+                      disabled={submittingNote || !noteDraft.trim()}
+                    >
+                      {submittingNote ? (
+                        <Icons.spinner className='mr-2 h-4 w-4 animate-spin' />
+                      ) : null}
+                      Add note
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : null}
           </div>
         </div>
       )}
