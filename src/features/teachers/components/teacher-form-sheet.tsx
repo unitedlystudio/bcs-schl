@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import { toast } from 'sonner';
@@ -315,6 +316,11 @@ export function TeacherFormSheet({
 
   const footer = (
     <>
+      {isEdit && teacherId ? (
+        <Button variant='outline' asChild>
+          <Link href={`/dashboard/staffing?teacherId=${teacherId}`}>Open staffing</Link>
+        </Button>
+      ) : null}
       <Button variant='outline' onClick={() => onOpenChange(false)} disabled={submitting}>
         Cancel
       </Button>

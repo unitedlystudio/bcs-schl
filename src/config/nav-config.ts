@@ -103,6 +103,14 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
+        title: 'Staffing',
+        url: '/dashboard/staffing',
+        icon: 'userPen',
+        isActive: false,
+        shortcut: ['s', 't'],
+        items: []
+      },
+      {
         title: 'Inbox',
         url: '/dashboard/notifications',
         icon: 'notification',
