@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useQuery } from 'convex/react';
 
@@ -20,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FinanceAccessGate } from './finance-access-gate';
 import { FinanceOverviewGrid } from './finance-overview-grid';
 import { FinanceCollectionsGrid } from './finance-collections-grid';
+import { FinanceFamilyAccountsGrid } from './finance-family-accounts-grid';
 import { FinanceProfileSheet } from './finance-profile-sheet';
 import { FinanceFamilyPaymentSheet } from './finance-record-sheets';
 import { FinanceBillingRunSheet } from './finance-billing-run-sheet';
@@ -31,12 +31,6 @@ function currency(value: number) {
     currency: 'USD',
     maximumFractionDigits: 0
   }).format(value);
-}
-
-function billingVariant(status: 'Current' | 'Overdue' | 'Scholarship' | 'Custom') {
-  if (status === 'Overdue') return 'destructive' as const;
-  if (status === 'Scholarship') return 'secondary' as const;
-  return 'outline' as const;
 }
 
 function chargeVariant(status: 'Pending' | 'Paid' | 'Overdue' | 'Waived') {
@@ -313,7 +307,7 @@ export default function FinanceShell() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <FamilyAccountsList
+                    <FinanceFamilyAccountsGrid
                       familyAccounts={familyAccounts}
                       hasFinanceWriteAccess={hasFinanceWriteAccess}
                       onAllocate={(familyAccountId) => {
@@ -601,118 +595,6 @@ function InlineStat({ label, value, hint }: { label: string; value: string; hint
       </div>
       <div className='mt-2 text-2xl font-semibold tracking-tight tabular-nums'>{value}</div>
       <div className='mt-1 text-sm leading-5 text-muted-foreground'>{hint}</div>
-    </div>
-  );
-}
-
-function FamilyAccountsList({
-  familyAccounts,
-  hasFinanceWriteAccess,
-  onAllocate
-}: {
-  familyAccounts: Array<{
-    id: string;
-    accountLabel: string;
-    studentCount: number;
-    collectionStage:
-      | 'No follow-up'
-      | 'Reminder queued'
-      | 'In contact'
-      | 'Promise to pay'
-      | 'Escalated';
-    primaryGuardianName: string;
-    primaryGuardianPhone: string;
-    monthlyRunRate: number;
-    totalOutstanding: number;
-    nextActionDate: string;
-    members: Array<{
-      profileId: string;
-      studentId: string;
-      studentName: string;
-      className: string;
-      academicYear: string;
-      billingStatus: 'Current' | 'Overdue' | 'Scholarship' | 'Custom';
-      totalOutstanding: number;
-      effectiveMonthlyFee: number;
-    }>;
-  }>;
-  hasFinanceWriteAccess: boolean;
-  onAllocate: (familyAccountId: string) => void;
-}) {
-  if (familyAccounts.length === 0) {
-    return (
-      <LedgerEmpty
-        title='No linked family accounts yet.'
-        description='As soon as billing profiles share a family label, those students will appear here as one household account.'
-      />
-    );
-  }
-
-  return (
-    <div className='grid gap-3'>
-      {familyAccounts.map((account) => (
-        <div key={account.id} className='rounded-xl border border-border/60 p-4'>
-          <div className='flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between'>
-            <div className='space-y-2'>
-              <div className='flex flex-wrap items-center gap-2'>
-                <div className='font-medium'>{account.accountLabel}</div>
-                <Badge variant='outline'>{account.studentCount} students</Badge>
-                <Badge
-                  variant={account.collectionStage === 'Escalated' ? 'destructive' : 'secondary'}
-                >
-                  {account.collectionStage}
-                </Badge>
-              </div>
-              <div className='text-sm text-muted-foreground'>
-                {account.primaryGuardianName || 'No guardian set'}
-                {account.primaryGuardianPhone ? ` • ${account.primaryGuardianPhone}` : ''}
-              </div>
-              <div className='text-sm text-muted-foreground'>
-                Monthly run rate {currency(account.monthlyRunRate)} • Outstanding{' '}
-                {currency(account.totalOutstanding)}
-                {account.nextActionDate ? ` • next action ${account.nextActionDate}` : ''}
-              </div>
-              <div className='grid gap-2 pt-1'>
-                {account.members.map((member) => (
-                  <div
-                    key={member.profileId}
-                    className='rounded-lg border border-border/50 bg-muted/15 px-3 py-2 text-sm'
-                  >
-                    <div className='flex flex-wrap items-center gap-2'>
-                      <span className='font-medium'>{member.studentName}</span>
-                      <span className='text-muted-foreground'>
-                        {member.className}
-                        {member.academicYear ? ` • ${member.academicYear}` : ''}
-                      </span>
-                      <Badge variant={billingVariant(member.billingStatus)}>
-                        {member.billingStatus}
-                      </Badge>
-                    </div>
-                    <div className='mt-1 text-xs text-muted-foreground'>
-                      Outstanding {currency(member.totalOutstanding)} • Monthly total{' '}
-                      {currency(member.effectiveMonthlyFee)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className='flex flex-wrap gap-2'>
-              {hasFinanceWriteAccess ? (
-                <Button variant='outline' size='sm' onClick={() => onAllocate(account.id)}>
-                  Allocate family payment
-                </Button>
-              ) : null}
-              {account.members.slice(0, 2).map((member) => (
-                <Button key={member.profileId} asChild variant='outline' size='sm'>
-                  <Link href={`/dashboard/billing/${member.studentId}`}>
-                    Open {member.studentName.split(' ')[0]}
-                  </Link>
-                </Button>
-              ))}
-            </div>
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
