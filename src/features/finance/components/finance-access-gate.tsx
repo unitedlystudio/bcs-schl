@@ -6,7 +6,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useFinanceAccess } from '../hooks/use-finance-access';
 
 export function FinanceAccessGate({ children }: { children: React.ReactNode }) {
-  const { hasFinanceAccess, hasOrg } = useFinanceAccess();
+  const { hasFinanceAccess, hasOrg, isLoadingFinanceAccess } = useFinanceAccess();
+
+  if (isLoadingFinanceAccess) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Checking finance access</CardTitle>
+          <CardDescription>
+            Schly is resolving your school finance permissions before opening billing data.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   if (hasFinanceAccess) {
     return <>{children}</>;

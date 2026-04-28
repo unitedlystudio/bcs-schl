@@ -77,6 +77,21 @@ function compareReminderRecency(
   return (right.createdAt ?? 0) - (left.createdAt ?? 0);
 }
 
+function isDateOnlyString(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+function assertDateOnlyString(value: string, label: string) {
+  if (!isDateOnlyString(value)) {
+    throw new Error(`${label} must be a valid date in YYYY-MM-DD format.`);
+  }
+}
+
 function matchesSearch(
   item: {
     studentName: string;
@@ -845,9 +860,39 @@ export const ledgerActivity = query({
       .filter((payment): payment is NonNullable<typeof payment> => payment !== null)
       .slice(0, limit);
 
+    const reminderLogs = await ctx.db
+      .query('financeReminderLogs')
+      .withIndex('by_createdAt')
+      .order('desc')
+      .collect();
+    const reminders = [...reminderLogs]
+      // oxlint-disable-next-line unicorn/no-array-sort
+      .sort(compareReminderRecency)
+      .map((reminder) => {
+        const student = studentByProfileId.get(reminder.billingProfileId);
+        if (!student) return null;
+        return {
+          id: reminder._id,
+          billingProfileId: reminder.billingProfileId,
+          studentName: student.studentName,
+          className: student.className,
+          academicYear: student.academicYear,
+          reminderDate: reminder.reminderDate,
+          channel: reminder.channel,
+          collectionStage: reminder.collectionStage,
+          outcome: reminder.outcome,
+          nextActionDate: reminder.nextActionDate ?? '',
+          authorLabel: reminder.authorLabel,
+          createdAt: reminder.createdAt
+        };
+      })
+      .filter((reminder): reminder is NonNullable<typeof reminder> => reminder !== null)
+      .slice(0, limit);
+
     return {
       charges,
-      payments
+      payments,
+      reminders
     };
   }
 });
@@ -1561,6 +1606,8 @@ export const addReminderLog = mutation({
     const existing = await ctx.db.get(args.billingProfileId);
     if (!existing) throw new Error('Billing profile not found.');
 
+    assertDateOnlyString(args.reminderDate, 'Reminder date');
+
     const outcome = args.outcome.trim();
     if (!outcome) {
       throw new Error('Reminder outcome is required.');
@@ -1568,6 +1615,13 @@ export const addReminderLog = mutation({
 
     const timestamp = Date.now();
     const nextActionDate = args.nextActionDate?.trim() ?? '';
+    if (args.collectionStage === 'Promise to pay' && !nextActionDate) {
+      throw new Error('Promise to pay reminders require a next action date.');
+    }
+    if (nextActionDate) {
+      assertDateOnlyString(nextActionDate, 'Next action date');
+    }
+
     const reminderId = await ctx.db.insert('financeReminderLogs', {
       billingProfileId: args.billingProfileId,
       reminderDate: args.reminderDate,
@@ -1593,5 +1647,100 @@ export const addReminderLog = mutation({
     });
 
     return { reminderId };
+  }
+});
+
+export const addReminderLogBatch = mutation({
+  args: {
+    billingProfileIds: v.array(v.id('studentBillingProfiles')),
+    reminderDate: v.string(),
+    channel: reminderChannelValidator,
+    collectionStage: v.optional(collectionStageValidator),
+    outcome: v.string(),
+    nextActionDate: v.optional(v.string()),
+    clearNextActionDate: v.optional(v.boolean()),
+    authorLabel: v.optional(v.string())
+  },
+  handler: async (ctx, args) => {
+    await requireFinanceWriteUser(ctx);
+
+    assertDateOnlyString(args.reminderDate, 'Reminder date');
+
+    const normalizedProfileIds = Array.from(
+      new Set(args.billingProfileIds.map((id) => id.toString()))
+    );
+    if (normalizedProfileIds.length === 0) {
+      throw new Error('Select at least one billing profile.');
+    }
+
+    const outcome = args.outcome.trim();
+    if (!outcome) {
+      throw new Error('Reminder outcome is required.');
+    }
+
+    const trimmedNextActionDate = args.nextActionDate?.trim();
+    if (
+      args.collectionStage === 'Promise to pay' &&
+      (!trimmedNextActionDate || args.clearNextActionDate)
+    ) {
+      throw new Error('Promise to pay reminders require a next action date.');
+    }
+    if (trimmedNextActionDate) {
+      assertDateOnlyString(trimmedNextActionDate, 'Next action date');
+    }
+
+    const timestamp = Date.now();
+    const reminderIds = [] as Array<Id<'financeReminderLogs'>>;
+
+    for (const billingProfileId of normalizedProfileIds) {
+      const profileId = billingProfileId as Id<'studentBillingProfiles'>;
+      const existing = await ctx.db.get(profileId);
+      if (!existing) {
+        throw new Error('One or more billing profiles could not be found.');
+      }
+
+      const resolvedCollectionStage =
+        args.collectionStage ?? existing.collectionStage ?? 'No follow-up';
+      const resolvedNextActionDate = args.clearNextActionDate
+        ? ''
+        : (trimmedNextActionDate ?? existing.nextActionDate ?? '');
+
+      if (resolvedCollectionStage === 'Promise to pay' && !resolvedNextActionDate) {
+        throw new Error('Promise to pay reminders require a next action date.');
+      }
+
+      const reminderId = await ctx.db.insert('financeReminderLogs', {
+        billingProfileId: profileId,
+        reminderDate: args.reminderDate,
+        channel: args.channel,
+        collectionStage: resolvedCollectionStage,
+        outcome,
+        nextActionDate: resolvedNextActionDate,
+        authorLabel: args.authorLabel?.trim() || 'Accounts operator',
+        createdAt: timestamp
+      });
+
+      reminderIds.push(reminderId);
+
+      const shouldPromoteReminder = args.reminderDate >= (existing.lastReminderDate ?? '');
+      await ctx.db.patch(profileId, {
+        ...(shouldPromoteReminder
+          ? {
+              reminderChannel: args.channel,
+              ...(args.collectionStage ? { collectionStage: resolvedCollectionStage } : {}),
+              lastReminderDate: args.reminderDate,
+              ...(args.clearNextActionDate || trimmedNextActionDate !== undefined
+                ? { nextActionDate: resolvedNextActionDate }
+                : {})
+            }
+          : {}),
+        updatedAt: timestamp
+      });
+    }
+
+    return {
+      reminderIds,
+      updatedProfileCount: normalizedProfileIds.length
+    };
   }
 });

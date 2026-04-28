@@ -1,8 +1,20 @@
 import type { MutationCtx, QueryCtx } from '../_generated/server';
+import {
+  type DashboardPermissionKey,
+  hasDashboardPermission,
+  normalizeDashboardPermissions
+} from '../../src/lib/school-permissions';
 
 type AuthIdentity = NonNullable<Awaited<ReturnType<QueryCtx['auth']['getUserIdentity']>>>;
-
+type ContextLike = QueryCtx | MutationCtx;
 type IdentityLike = AuthIdentity & Record<string, unknown>;
+
+type DashboardAccessProfile = {
+  _id: string;
+  permissions: DashboardPermissionKey[];
+  dashboardRole?: string;
+  updatedAt?: number;
+};
 
 function isTruthy(value: string | undefined) {
   return ['1', 'true', 'yes', 'on'].includes(value?.trim().toLowerCase() ?? '');
@@ -33,48 +45,86 @@ function readLowercaseString(value: unknown) {
   return typeof value === 'string' ? value.toLowerCase() : '';
 }
 
-function hasFinanceReadAccess(identity: IdentityLike) {
-  const role =
-    readLowercaseString(identity.orgRole) ||
-    readLowercaseString(identity.org_role) ||
-    readLowercaseString(identity.role);
-  const permissions = [
+function readString(value: unknown) {
+  return typeof value === 'string' ? value : '';
+}
+
+function getClerkPermissions(identity: IdentityLike) {
+  return normalizeDashboardPermissions([
     ...readStringArray(identity.orgPermissions),
     ...readStringArray(identity.org_permissions),
     ...readStringArray(identity.permissions)
-  ];
-
-  return (
-    role === 'admin' ||
-    role === 'accounts' ||
-    role === 'account' ||
-    permissions.includes('org:admin:manage') ||
-    permissions.includes('org:finance:read') ||
-    permissions.includes('org:finance:write')
-  );
+  ]);
 }
 
-function hasFinanceWriteAccess(identity: IdentityLike) {
-  const role =
+function getClerkRole(identity: IdentityLike) {
+  return (
     readLowercaseString(identity.orgRole) ||
     readLowercaseString(identity.org_role) ||
-    readLowercaseString(identity.role);
-  const permissions = [
-    ...readStringArray(identity.orgPermissions),
-    ...readStringArray(identity.org_permissions),
-    ...readStringArray(identity.permissions)
-  ];
-
-  return (
-    role === 'admin' ||
-    role === 'accounts' ||
-    role === 'account' ||
-    permissions.includes('org:admin:manage') ||
-    permissions.includes('org:finance:write')
+    readLowercaseString(identity.role)
   );
 }
 
-export async function requireAuthenticatedUser(ctx: QueryCtx | MutationCtx) {
+export function getOrganizationIdFromIdentity(identity: IdentityLike) {
+  return readString(identity.orgId) || readString(identity.org_id);
+}
+
+async function getStoredDashboardAccess(
+  ctx: ContextLike,
+  identity: IdentityLike
+): Promise<DashboardAccessProfile | null> {
+  const orgId = getOrganizationIdFromIdentity(identity);
+  const userId = readString(identity.subject);
+
+  if (!orgId || !userId || identity.subject === 'local-dev-bypass') {
+    return null;
+  }
+
+  const profiles = await ctx.db
+    .query('schoolStaffAccessProfiles')
+    .withIndex('by_org_and_user', (query) => query.eq('orgId', orgId).eq('userId', userId))
+    .collect();
+
+  if (profiles.length === 0) {
+    return null;
+  }
+
+  // oxlint-disable-next-line unicorn/no-array-sort
+  const [latestProfile] = [...profiles].sort(
+    (left, right) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0)
+  );
+
+  return {
+    _id: latestProfile._id,
+    permissions: normalizeDashboardPermissions(latestProfile.permissions),
+    dashboardRole: latestProfile.dashboardRole,
+    updatedAt: latestProfile.updatedAt
+  };
+}
+
+export async function getEffectiveDashboardAccess(ctx: ContextLike, identity: IdentityLike) {
+  const clerkPermissions = getClerkPermissions(identity);
+  const clerkRole = getClerkRole(identity);
+  const storedProfile = await getStoredDashboardAccess(ctx, identity);
+  const storedPermissions = storedProfile?.permissions ?? [];
+  const isManaged = Boolean(storedProfile);
+  const effectivePermissions = isManaged
+    ? storedPermissions
+    : normalizeDashboardPermissions(clerkPermissions);
+  const effectiveRole = isManaged ? '' : clerkRole;
+
+  return {
+    organizationId: getOrganizationIdFromIdentity(identity),
+    clerkRole,
+    clerkPermissions,
+    storedProfile,
+    isManaged,
+    effectivePermissions,
+    effectiveRole
+  };
+}
+
+export async function requireAuthenticatedUser(ctx: ContextLike) {
   const identity = await ctx.auth.getUserIdentity();
 
   if (identity) {
@@ -88,30 +138,64 @@ export async function requireAuthenticatedUser(ctx: QueryCtx | MutationCtx) {
   throw new Error('Unauthorized');
 }
 
-export async function requireFinanceReadUser(ctx: QueryCtx | MutationCtx) {
+export async function requireOrganizationAccess(ctx: ContextLike, orgId?: string) {
   const identity = (await requireAuthenticatedUser(ctx)) as IdentityLike;
 
   if (identity.subject === 'local-dev-bypass') {
     return identity;
   }
 
-  if (!hasFinanceReadAccess(identity)) {
-    throw new Error('Finance access required');
+  const activeOrgId = getOrganizationIdFromIdentity(identity);
+
+  if (!activeOrgId) {
+    throw new Error('Organization context required');
+  }
+
+  if (orgId && activeOrgId !== orgId) {
+    throw new Error('Active organization mismatch');
   }
 
   return identity;
 }
 
-export async function requireFinanceWriteUser(ctx: QueryCtx | MutationCtx) {
+async function requirePermission(ctx: ContextLike, permission: DashboardPermissionKey) {
   const identity = (await requireAuthenticatedUser(ctx)) as IdentityLike;
 
   if (identity.subject === 'local-dev-bypass') {
     return identity;
   }
 
-  if (!hasFinanceWriteAccess(identity)) {
-    throw new Error('Finance write access required');
+  const access = await getEffectiveDashboardAccess(ctx, identity);
+
+  if (!hasDashboardPermission(access.effectivePermissions, permission, access.effectiveRole)) {
+    const label =
+      permission === 'org:admin:manage' ? 'Admin access required' : 'Dashboard access required';
+    throw new Error(label);
   }
 
   return identity;
+}
+
+export async function requireAdminManageUser(ctx: ContextLike, orgId?: string) {
+  const identity = await requirePermission(ctx, 'org:admin:manage');
+
+  if (identity.subject === 'local-dev-bypass') {
+    return identity;
+  }
+
+  const activeOrgId = getOrganizationIdFromIdentity(identity as IdentityLike);
+
+  if (orgId && activeOrgId !== orgId) {
+    throw new Error('Active organization mismatch');
+  }
+
+  return identity;
+}
+
+export async function requireFinanceReadUser(ctx: ContextLike) {
+  return requirePermission(ctx, 'org:finance:read');
+}
+
+export async function requireFinanceWriteUser(ctx: ContextLike) {
+  return requirePermission(ctx, 'org:finance:write');
 }

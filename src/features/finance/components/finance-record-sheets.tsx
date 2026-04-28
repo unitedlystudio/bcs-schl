@@ -7,7 +7,9 @@ import { toast } from 'sonner';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { Icons } from '@/components/icons';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Drawer,
   DrawerContent,
@@ -64,6 +66,78 @@ function defaultBillingCycleLabel(date: string) {
 
   return monthNames[monthIndex] && year ? `${monthNames[monthIndex]} ${year}` : '';
 }
+
+type CollectionsStage =
+  | 'No follow-up'
+  | 'Reminder queued'
+  | 'In contact'
+  | 'Promise to pay'
+  | 'Escalated';
+type ReminderChannel = 'Email' | 'WhatsApp' | 'Phone' | 'In person' | 'Not set';
+
+type BulkCollectionsStudent = {
+  profileId: string;
+  studentName: string;
+  className: string;
+  familyLabel: string;
+  collectionStage: CollectionsStage;
+  nextActionDate: string;
+};
+
+type BulkReminderMode = 'default' | 'schedule' | 'promise';
+
+const BULK_REMINDER_MODE_CONFIG: Record<
+  BulkReminderMode,
+  {
+    title: string;
+    description: string;
+    submitLabel: string;
+    outcomeLabel: string;
+    outcomePlaceholder: string;
+    applyCollectionStage: boolean;
+    collectionStage?: CollectionsStage;
+    applyNextActionDate: boolean;
+    allowBlankNextActionDate: boolean;
+  }
+> = {
+  default: {
+    title: 'Log batch finance reminder',
+    description:
+      'Apply one reminder note across multiple selected student accounts, with optional queue-state updates.',
+    submitLabel: 'Log reminder',
+    outcomeLabel: 'Shared outcome / note',
+    outcomePlaceholder:
+      'What happened on this outreach batch? Example: WhatsApp reminder sent for missed promises; families asked to confirm payment by Friday.',
+    applyCollectionStage: false,
+    applyNextActionDate: false,
+    allowBlankNextActionDate: true
+  },
+  schedule: {
+    title: 'Schedule next batch touch',
+    description:
+      'Set the next action date across multiple selected accounts and capture what this follow-up plan covers.',
+    submitLabel: 'Save schedule update',
+    outcomeLabel: 'Planning note',
+    outcomePlaceholder:
+      'What are you scheduling next? Example: Queue these accounts for Thursday phone follow-up after fee reminders go out today.',
+    applyCollectionStage: false,
+    applyNextActionDate: true,
+    allowBlankNextActionDate: false
+  },
+  promise: {
+    title: 'Log batch promise to pay',
+    description:
+      'Capture a shared payment promise across selected accounts, set the queue stage, and lock in the agreed follow-up date.',
+    submitLabel: 'Log promise update',
+    outcomeLabel: 'Promise note',
+    outcomePlaceholder:
+      'What did the family promise? Example: Guardians confirmed transfer by Friday; recheck bank confirmations the next school day.',
+    applyCollectionStage: true,
+    collectionStage: 'Promise to pay',
+    applyNextActionDate: true,
+    allowBlankNextActionDate: false
+  }
+};
 
 export function FinanceChargeSheet({
   open,
@@ -307,6 +381,15 @@ export function FinancePaymentSheet({
     setReference('');
     setNote('');
   };
+
+  useEffect(() => {
+    if (!open) return;
+    setAmount('0');
+    setPaidAt(new Date().toISOString().slice(0, 10));
+    setMethod('Bank Transfer');
+    setReference('');
+    setNote('');
+  }, [billingProfileId, open]);
 
   const handleSubmit = async () => {
     if (!billingProfileId) return;
@@ -798,13 +881,20 @@ export function FinanceReminderSheet({
 
   useEffect(() => {
     if (!open) return;
+    setReminderDate(new Date().toISOString().slice(0, 10));
     setChannel(initialReminderChannel);
     setCollectionStage(initialCollectionStage);
     setNextActionDate(initialNextActionDate);
+    setAuthorLabel('Accounts operator');
+    setOutcome('');
   }, [initialCollectionStage, initialNextActionDate, initialReminderChannel, open]);
 
   const handleSubmit = async () => {
     if (!billingProfileId) return;
+    if (collectionStage === 'Promise to pay' && !nextActionDate) {
+      toast.error('Promise to pay needs a next action date for the agreed follow-up.');
+      return;
+    }
     try {
       setSubmitting(true);
       await addReminderLog({
@@ -948,6 +1038,335 @@ export function FinanceReminderSheet({
             Capture the outreach touch, its outcome, and the next collections step for this student
             account.
           </SheetDescription>
+        </SheetHeader>
+        <div className='mt-6 grid min-w-0 gap-4'>{content}</div>
+        <SheetFooter className='mt-6'>{footer}</SheetFooter>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+export function FinanceBulkReminderSheet({
+  open,
+  onOpenChange,
+  billingProfileIds,
+  selectedStudents,
+  mode = 'default',
+  onSaved
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  billingProfileIds: string[];
+  selectedStudents: BulkCollectionsStudent[];
+  mode?: BulkReminderMode;
+  onSaved?: () => void;
+}) {
+  const isMobile = useIsMobile();
+  const addReminderLogBatch = useMutation(api.finance.addReminderLogBatch);
+  const modeConfig = BULK_REMINDER_MODE_CONFIG[mode];
+  const [reminderDate, setReminderDate] = useState(new Date().toISOString().slice(0, 10));
+  const [channel, setChannel] = useState<ReminderChannel>('Not set');
+  const [applyCollectionStage, setApplyCollectionStage] = useState(modeConfig.applyCollectionStage);
+  const [collectionStage, setCollectionStage] = useState<CollectionsStage>(
+    modeConfig.collectionStage ?? 'Reminder queued'
+  );
+  const [applyNextActionDate, setApplyNextActionDate] = useState(modeConfig.applyNextActionDate);
+  const [nextActionDate, setNextActionDate] = useState('');
+  const [authorLabel, setAuthorLabel] = useState('Accounts operator');
+  const [outcome, setOutcome] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const uniqueStages = Array.from(
+    new Set(selectedStudents.map((student) => student.collectionStage))
+  );
+  const uniqueNextActionDates = Array.from(
+    new Set(selectedStudents.map((student) => student.nextActionDate).filter(Boolean))
+  );
+  const uniqueStageKey = uniqueStages.join('|');
+  const uniqueNextActionDateKey = uniqueNextActionDates.join('|');
+  const defaultBulkCollectionStage = uniqueStages[0] ?? 'Reminder queued';
+  const defaultBulkNextActionDate =
+    uniqueNextActionDates.length === 1 ? uniqueNextActionDates[0] : '';
+  const mixedStages = uniqueStages.length > 1;
+  const scheduledCount = selectedStudents.filter((student) => student.nextActionDate).length;
+  const previewStudents = selectedStudents.slice(0, 5);
+  const remainingStudentCount = Math.max(selectedStudents.length - previewStudents.length, 0);
+
+  const reset = () => {
+    setReminderDate(new Date().toISOString().slice(0, 10));
+    setChannel('Not set');
+    setApplyCollectionStage(modeConfig.applyCollectionStage);
+    setCollectionStage(modeConfig.collectionStage ?? defaultBulkCollectionStage);
+    setApplyNextActionDate(modeConfig.applyNextActionDate);
+    setNextActionDate(defaultBulkNextActionDate);
+    setAuthorLabel('Accounts operator');
+    setOutcome('');
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    setReminderDate(new Date().toISOString().slice(0, 10));
+    setChannel('Not set');
+    setApplyCollectionStage(modeConfig.applyCollectionStage);
+    setCollectionStage(modeConfig.collectionStage ?? defaultBulkCollectionStage);
+    setApplyNextActionDate(modeConfig.applyNextActionDate);
+    setNextActionDate(defaultBulkNextActionDate);
+    setAuthorLabel('Accounts operator');
+    setOutcome('');
+  }, [
+    defaultBulkCollectionStage,
+    defaultBulkNextActionDate,
+    modeConfig,
+    open,
+    uniqueNextActionDateKey,
+    uniqueStageKey
+  ]);
+
+  const handleSubmit = async () => {
+    if (billingProfileIds.length === 0) return;
+
+    const preservesPromiseStage = !applyCollectionStage || collectionStage === 'Promise to pay';
+    const selectedPromiseAccounts = selectedStudents.some(
+      (student) => student.collectionStage === 'Promise to pay'
+    );
+
+    if (applyCollectionStage && collectionStage === 'Promise to pay' && !applyNextActionDate) {
+      toast.error('Promise to pay updates need a next action date for the agreed follow-up.');
+      return;
+    }
+
+    if (
+      selectedPromiseAccounts &&
+      preservesPromiseStage &&
+      applyNextActionDate &&
+      !nextActionDate
+    ) {
+      toast.error(
+        'Promise-to-pay accounts cannot clear the next action date without moving to a different stage.'
+      );
+      return;
+    }
+
+    if (applyNextActionDate && !nextActionDate && !modeConfig.allowBlankNextActionDate) {
+      toast.error('Choose a next action date before saving this batch update.');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const result = await addReminderLogBatch({
+        billingProfileIds: billingProfileIds as Array<Id<'studentBillingProfiles'>>,
+        reminderDate,
+        channel,
+        collectionStage: applyCollectionStage ? collectionStage : undefined,
+        nextActionDate: applyNextActionDate ? nextActionDate : undefined,
+        clearNextActionDate: applyNextActionDate && !nextActionDate,
+        authorLabel,
+        outcome
+      });
+      toast.success(
+        `Reminder logged for ${result.updatedProfileCount} account${result.updatedProfileCount === 1 ? '' : 's'}`
+      );
+      onOpenChange(false);
+      reset();
+      onSaved?.();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to log reminders');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const content = (
+    <div className='grid min-w-0 gap-4'>
+      <div className='rounded-xl border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground'>
+        <div className='flex flex-wrap items-center gap-2'>
+          <div className='font-medium text-foreground'>Selected accounts</div>
+          <Badge variant='outline'>
+            {billingProfileIds.length} account{billingProfileIds.length === 1 ? '' : 's'}
+          </Badge>
+          <Badge variant='outline'>{scheduledCount} already scheduled</Badge>
+        </div>
+        <div className='mt-2 text-sm leading-6'>
+          Log one shared queue update across the selected collections accounts. Queue stage and next
+          action date stay unchanged unless you explicitly opt into updating them below.
+        </div>
+        <div className='mt-3 grid gap-2'>
+          {previewStudents.map((student) => (
+            <div
+              key={student.profileId}
+              className='rounded-lg border border-border/60 bg-background/70 px-3 py-2'
+            >
+              <div className='font-medium text-foreground'>{student.studentName}</div>
+              <div className='text-xs text-muted-foreground'>
+                {student.className}
+                {student.familyLabel ? ` • ${student.familyLabel}` : ''}
+                {student.nextActionDate
+                  ? ` • next action ${student.nextActionDate}`
+                  : ' • no next action set'}
+              </div>
+            </div>
+          ))}
+          {remainingStudentCount > 0 ? (
+            <div className='text-xs text-muted-foreground'>
+              + {remainingStudentCount} more selected account
+              {remainingStudentCount === 1 ? '' : 's'}
+            </div>
+          ) : null}
+        </div>
+      </div>
+      <div className='grid min-w-0 gap-4 md:grid-cols-2'>
+        <div className='grid gap-2'>
+          <Label htmlFor='bulkReminderDate'>Reminder date</Label>
+          <Input
+            id='bulkReminderDate'
+            type='date'
+            value={reminderDate}
+            onChange={(event) => setReminderDate(event.target.value)}
+            disabled={submitting}
+          />
+        </div>
+        <div className='grid gap-2'>
+          <Label>Channel</Label>
+          <Select value={channel} onValueChange={(value) => setChannel(value as typeof channel)}>
+            <SelectTrigger disabled={submitting}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='Email'>Email</SelectItem>
+              <SelectItem value='WhatsApp'>WhatsApp</SelectItem>
+              <SelectItem value='Phone'>Phone</SelectItem>
+              <SelectItem value='In person'>In person</SelectItem>
+              <SelectItem value='Not set'>Not set</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className='rounded-xl border border-border/60 p-4'>
+        <div className='flex items-start gap-3'>
+          <Checkbox
+            id='applyBulkCollectionStage'
+            checked={applyCollectionStage}
+            onCheckedChange={(checked) => setApplyCollectionStage(Boolean(checked))}
+            disabled={submitting}
+          />
+          <div className='grid flex-1 gap-3'>
+            <div>
+              <Label htmlFor='applyBulkCollectionStage' className='font-medium text-foreground'>
+                Update collections stage for all selected accounts
+              </Label>
+              <div className='text-xs leading-5 text-muted-foreground'>
+                Leave this off to keep each account in its current stage.
+                {mixedStages ? ' The selected accounts currently span multiple stages.' : ''}
+              </div>
+            </div>
+            <Select
+              value={collectionStage}
+              onValueChange={(value) => setCollectionStage(value as typeof collectionStage)}
+            >
+              <SelectTrigger disabled={submitting || !applyCollectionStage}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='No follow-up'>No follow-up</SelectItem>
+                <SelectItem value='Reminder queued'>Reminder queued</SelectItem>
+                <SelectItem value='In contact'>In contact</SelectItem>
+                <SelectItem value='Promise to pay'>Promise to pay</SelectItem>
+                <SelectItem value='Escalated'>Escalated</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+      <div className='rounded-xl border border-border/60 p-4'>
+        <div className='flex items-start gap-3'>
+          <Checkbox
+            id='applyBulkNextActionDate'
+            checked={applyNextActionDate}
+            onCheckedChange={(checked) => setApplyNextActionDate(Boolean(checked))}
+            disabled={submitting}
+          />
+          <div className='grid flex-1 gap-3'>
+            <div>
+              <Label htmlFor='applyBulkNextActionDate' className='font-medium text-foreground'>
+                Update next action date for all selected accounts
+              </Label>
+              <div className='text-xs leading-5 text-muted-foreground'>
+                {modeConfig.allowBlankNextActionDate
+                  ? 'Leave this off to preserve each account’s existing schedule. Turn it on and leave the date blank only if you intentionally want to clear the selected accounts’ next action date.'
+                  : 'Leave this off to preserve each account’s existing schedule. Turn it on to stamp one shared follow-up date across the selected accounts.'}
+              </div>
+            </div>
+            <Input
+              id='bulkNextActionDate'
+              type='date'
+              value={nextActionDate}
+              onChange={(event) => setNextActionDate(event.target.value)}
+              disabled={submitting || !applyNextActionDate}
+            />
+          </div>
+        </div>
+      </div>
+      <div className='grid gap-2'>
+        <Label htmlFor='bulkAuthorLabel'>Logged by</Label>
+        <Input
+          id='bulkAuthorLabel'
+          value={authorLabel}
+          onChange={(event) => setAuthorLabel(event.target.value)}
+          disabled={submitting}
+        />
+      </div>
+      <div className='grid gap-2'>
+        <Label htmlFor='bulkReminderOutcome'>{modeConfig.outcomeLabel}</Label>
+        <Textarea
+          id='bulkReminderOutcome'
+          value={outcome}
+          onChange={(event) => setOutcome(event.target.value)}
+          rows={4}
+          placeholder={modeConfig.outcomePlaceholder}
+          disabled={submitting}
+        />
+      </div>
+    </div>
+  );
+
+  const footer = (
+    <>
+      <Button variant='outline' disabled={submitting} onClick={() => onOpenChange(false)}>
+        Cancel
+      </Button>
+      <Button
+        disabled={submitting || billingProfileIds.length === 0 || !outcome.trim()}
+        onClick={handleSubmit}
+      >
+        {submitting ? <Icons.spinner className='mr-2 h-4 w-4 animate-spin' /> : null}
+        {modeConfig.submitLabel} for {billingProfileIds.length}
+      </Button>
+    </>
+  );
+
+  if (isMobile)
+    return (
+      <Drawer open={open} onOpenChange={onOpenChange}>
+        <DrawerContent className='w-full max-w-full overflow-x-hidden'>
+          <DrawerHeader>
+            <DrawerTitle>{modeConfig.title}</DrawerTitle>
+            <DrawerDescription>{modeConfig.description}</DrawerDescription>
+          </DrawerHeader>
+          <div className='max-h-[70vh] min-w-0 overflow-x-hidden overflow-y-auto px-4'>
+            {content}
+          </div>
+          <DrawerFooter className='min-w-0'>{footer}</DrawerFooter>
+        </DrawerContent>
+      </Drawer>
+    );
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className='w-full max-w-full overflow-x-hidden sm:max-w-xl'>
+        <SheetHeader>
+          <SheetTitle>{modeConfig.title}</SheetTitle>
+          <SheetDescription>{modeConfig.description}</SheetDescription>
         </SheetHeader>
         <div className='mt-6 grid min-w-0 gap-4'>{content}</div>
         <SheetFooter className='mt-6'>{footer}</SheetFooter>

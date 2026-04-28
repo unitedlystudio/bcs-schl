@@ -1,27 +1,27 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useOrganization } from '@clerk/nextjs';
+import { useDashboardAccess } from '@/hooks/use-dashboard-access';
 
 export function useFinanceAccess() {
-  const { membership, organization } = useOrganization();
+  const dashboardAccess = useDashboardAccess();
 
   return useMemo(() => {
-    const permissions = (membership?.permissions ?? []) as string[];
-    const role = membership?.role?.toLowerCase() ?? '';
-    const hasFinancePermission =
-      permissions.includes('org:finance:read') ||
-      permissions.includes('org:finance:write') ||
-      permissions.includes('org:admin:manage');
-    const hasFinanceWritePermission =
-      permissions.includes('org:finance:write') || permissions.includes('org:admin:manage');
-    const hasFinanceRole = role.includes('admin') || role.includes('account');
+    const isLoadingFinanceAccess = dashboardAccess.isLoadingManagedProfile;
+    const hasFinanceAccess =
+      !isLoadingFinanceAccess && dashboardAccess.hasPermission('org:finance:read');
+    const hasFinanceWriteAccess =
+      !isLoadingFinanceAccess && dashboardAccess.hasPermission('org:finance:write');
 
     return {
-      hasFinanceAccess: Boolean(organization) && (hasFinancePermission || hasFinanceRole),
-      hasFinanceWriteAccess: Boolean(organization) && (hasFinanceWritePermission || hasFinanceRole),
-      hasOrg: Boolean(organization),
-      role
+      hasFinanceAccess,
+      hasFinanceWriteAccess,
+      canQueryFinance: !isLoadingFinanceAccess && hasFinanceAccess,
+      isLoadingFinanceAccess,
+      hasOrg: dashboardAccess.hasOrg,
+      role: dashboardAccess.clerkRole,
+      dashboardRole: dashboardAccess.dashboardRole,
+      hasManagedProfile: dashboardAccess.hasManagedProfile
     };
-  }, [membership?.permissions, membership?.role, organization]);
+  }, [dashboardAccess]);
 }

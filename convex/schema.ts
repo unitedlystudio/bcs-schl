@@ -78,6 +78,25 @@ export default defineSchema({
     .index('by_category', ['category', 'sortOrder'])
     .index('by_status', ['status', 'sortOrder']),
 
+  schoolStaffAccessProfiles: defineTable({
+    orgId: v.string(),
+    userId: v.string(),
+    dashboardRole: v.union(
+      v.literal('Owner'),
+      v.literal('Admin'),
+      v.literal('Accounts'),
+      v.literal('Teacher'),
+      v.literal('Teacher Assistant'),
+      v.literal('Staff'),
+      v.literal('Custom')
+    ),
+    permissions: v.array(v.string()),
+    updatedAt: v.number(),
+    updatedByUserId: v.string()
+  })
+    .index('by_org_and_user', ['orgId', 'userId'])
+    .index('by_org_and_updatedAt', ['orgId', 'updatedAt']),
+
   students: defineTable({
     preferredName: v.string(),
     fullName: v.string(),

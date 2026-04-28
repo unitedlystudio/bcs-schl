@@ -18,6 +18,7 @@ import type * as finance from '../finance.js';
 import type * as inbox from '../inbox.js';
 import type * as lib_auth from '../lib/auth.js';
 import type * as operations from '../operations.js';
+import type * as schoolOrganization from '../schoolOrganization.js';
 import type * as seed from '../seed.js';
 import type * as staffing from '../staffing.js';
 import type * as students from '../students.js';
@@ -36,6 +37,7 @@ declare const fullApi: ApiFromModules<{
   inbox: typeof inbox;
   'lib/auth': typeof lib_auth;
   operations: typeof operations;
+  schoolOrganization: typeof schoolOrganization;
   seed: typeof seed;
   staffing: typeof staffing;
   students: typeof students;

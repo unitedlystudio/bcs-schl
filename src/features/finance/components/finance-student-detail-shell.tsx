@@ -59,12 +59,13 @@ function chargeVariant(status: 'Pending' | 'Paid' | 'Overdue' | 'Waived') {
 }
 
 export default function FinanceStudentDetailShell({ studentId }: { studentId: string }) {
-  const { hasFinanceAccess, hasFinanceWriteAccess } = useFinanceAccess();
+  const { hasFinanceAccess, hasFinanceWriteAccess, canQueryFinance, isLoadingFinanceAccess } =
+    useFinanceAccess();
   const isMobile = useIsMobile();
   const student = useQuery(api.students.getById, { studentId: studentId as Id<'students'> });
   const financeProfile = useQuery(
     api.finance.getByStudentId,
-    hasFinanceAccess ? { studentId: studentId as Id<'students'> } : 'skip'
+    canQueryFinance ? { studentId: studentId as Id<'students'> } : 'skip'
   );
   const [profileSheetOpen, setProfileSheetOpen] = useState(false);
   const [chargeSheetOpen, setChargeSheetOpen] = useState(false);
@@ -142,6 +143,14 @@ export default function FinanceStudentDetailShell({ studentId }: { studentId: st
       right.cycleKey.localeCompare(left.cycleKey)
     );
   }, [financeProfile?.charges]);
+
+  if (isLoadingFinanceAccess) {
+    return (
+      <FinanceAccessGate>
+        <div />
+      </FinanceAccessGate>
+    );
+  }
 
   if (!hasFinanceAccess) {
     return (

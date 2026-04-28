@@ -1,13 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from 'convex/react';
 
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { StudentFormSheetTrigger } from './add-student-sheet';
 import { useFinanceAccess } from '@/features/finance/hooks/use-finance-access';
+import { useDashboardAccess } from '@/hooks/use-dashboard-access';
+import { studentDetailTabs, type StudentDetailTabValue } from '@/config/dashboard-access-map';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -105,7 +107,8 @@ function LoadingProfile() {
 }
 
 export default function StudentDetailShell({ studentId }: { studentId: string }) {
-  const { hasFinanceAccess } = useFinanceAccess();
+  const dashboardAccess = useDashboardAccess();
+  const { hasFinanceAccess, canQueryFinance } = useFinanceAccess();
   const student = useQuery(api.students.getById, { studentId: studentId as Id<'students'> });
   const teachersQuery = useQuery(
     api.teachers.listForDirectory,
@@ -113,12 +116,39 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
   );
   const financeProfile = useQuery(
     api.finance.getByStudentId,
-    hasFinanceAccess && student ? { studentId: student.id as Id<'students'> } : 'skip'
+    canQueryFinance && student ? { studentId: student.id as Id<'students'> } : 'skip'
   );
   const concernCases = useQuery(
     api.concerns.recentForStudent,
-    student ? { studentId: student.id as Id<'students'> } : 'skip'
+    dashboardAccess.hasPermission('org:concerns:read') && student
+      ? { studentId: student.id as Id<'students'> }
+      : 'skip'
   );
+  const hasAttendanceAccess = dashboardAccess.hasPermission('org:attendance:read');
+  const hasConcernsAccess = dashboardAccess.hasPermission('org:concerns:read');
+  const hasAdmissionsAccess = dashboardAccess.hasPermission('org:admissions:read');
+  const visibleTabs = useMemo(
+    () =>
+      studentDetailTabs.filter((tab) => {
+        if (tab.value === 'finance') {
+          return hasFinanceAccess;
+        }
+
+        return !tab.permission || dashboardAccess.hasPermission(tab.permission);
+      }),
+    [dashboardAccess, hasFinanceAccess]
+  );
+  const [activeTab, setActiveTab] = useState<StudentDetailTabValue>(
+    visibleTabs[0]?.value ?? 'profile'
+  );
+
+  useEffect(() => {
+    const firstVisibleTab = visibleTabs[0]?.value ?? 'profile';
+
+    if (!visibleTabs.some((tab) => tab.value === activeTab)) {
+      setActiveTab(firstVisibleTab);
+    }
+  }, [activeTab, visibleTabs]);
 
   const homeroomTeacher = useMemo(() => {
     if (!student || !teachersQuery) {
@@ -163,11 +193,9 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
     student.guardianName,
     student.guardianPhone,
     student.nisn,
-    student.notesSummary,
-    student.medicalFlag,
     homeroomTeacher?.fullName ?? ''
   ].filter((value) => value && value.trim()).length;
-  const profileCoverage = Math.round((filledFields / 8) * 100);
+  const profileCoverage = Math.round((filledFields / 6) * 100);
 
   return (
     <div className='grid gap-4 xl:grid-cols-[minmax(0,2fr)_360px]'>
@@ -242,10 +270,12 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
                     </div>
                     <div>
                       <div className='text-xs uppercase tracking-wide text-muted-foreground'>
-                        Medical / support
+                        {hasConcernsAccess ? 'Medical / support' : 'Student status'}
                       </div>
                       <div className='mt-1 font-medium'>
-                        {student.medicalFlag ? 'Flagged' : 'No urgent flag recorded'}
+                        {hasConcernsAccess
+                          ? student.medicalFlag || 'No urgent medical or support flag recorded'
+                          : student.status}
                       </div>
                     </div>
                   </div>
@@ -254,30 +284,36 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
             </div>
 
             <div className='grid gap-3 px-6 py-5 md:grid-cols-2 xl:grid-cols-4'>
-              <ProfileMetric
-                label='Attendance health'
-                value={`${attendanceHealth}%`}
-                hint={
-                  markedSessions
-                    ? 'Present + late against marked sessions'
-                    : 'No sessions marked yet'
-                }
-              />
+              {hasAttendanceAccess ? (
+                <ProfileMetric
+                  label='Attendance health'
+                  value={`${attendanceHealth}%`}
+                  hint={
+                    markedSessions
+                      ? 'Present + late against marked sessions'
+                      : 'No sessions marked yet'
+                  }
+                />
+              ) : null}
               <ProfileMetric
                 label='Profile coverage'
                 value={`${profileCoverage}%`}
                 hint='Tracks how complete the student record is today'
               />
-              <ProfileMetric
-                label='Admissions links'
-                value={`${student.relatedAdmissions.length}`}
-                hint='Matched enquiries tied into this profile'
-              />
-              <ProfileMetric
-                label='Concern cases'
-                value={`${concernCases?.length ?? 0}`}
-                hint='Structured support / intervention cases on this student'
-              />
+              {hasAdmissionsAccess ? (
+                <ProfileMetric
+                  label='Admissions links'
+                  value={`${student.relatedAdmissions.length}`}
+                  hint='Matched enquiries tied into this profile'
+                />
+              ) : null}
+              {hasConcernsAccess ? (
+                <ProfileMetric
+                  label='Concern cases'
+                  value={`${concernCases?.length ?? 0}`}
+                  hint='Structured support / intervention cases on this student'
+                />
+              ) : null}
               {hasFinanceAccess ? (
                 <ProfileMetric
                   label='Finance profile'
@@ -302,15 +338,20 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
           </CardContent>
         </Card>
 
-        <Tabs defaultValue='overview' className='space-y-4'>
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => setActiveTab(value as StudentDetailTabValue)}
+          className='space-y-4'
+        >
           <TabsList>
-            <TabsTrigger value='overview'>Overview</TabsTrigger>
-            <TabsTrigger value='attendance'>Attendance</TabsTrigger>
-            <TabsTrigger value='concerns'>Concerns</TabsTrigger>
-            <TabsTrigger value='admissions'>Admissions</TabsTrigger>
+            {visibleTabs.map((tab) => (
+              <TabsTrigger key={tab.value} value={tab.value}>
+                {tab.label}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
-          <TabsContent value='overview' className='space-y-4'>
+          <TabsContent value='profile' className='space-y-4'>
             <div className='grid gap-4 lg:grid-cols-2'>
               <Card>
                 <CardHeader>
@@ -362,23 +403,43 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Operational notes</CardTitle>
+                  <CardTitle>Core school context</CardTitle>
                   <CardDescription>
-                    Quick day-to-day context until concerns, family, and timeline modules are built
-                    out properly.
+                    Safe-by-default context for any staff member who can open the student profile.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className='space-y-4'>
+                <CardContent className='grid gap-4 sm:grid-cols-2'>
                   <div className='rounded-xl border border-border/60 bg-muted/20 p-4'>
                     <div className='text-xs uppercase tracking-wide text-muted-foreground'>
-                      Medical / support flag
+                      Student status
+                    </div>
+                    <div className='mt-2 font-medium'>{student.status}</div>
+                  </div>
+                  <div className='rounded-xl border border-border/60 bg-muted/20 p-4'>
+                    <div className='text-xs uppercase tracking-wide text-muted-foreground'>
+                      Guardian contact
+                    </div>
+                    <div className='mt-2 font-medium'>{formatField(student.guardianPhone)}</div>
+                  </div>
+                  <div className='rounded-xl border border-border/60 bg-muted/20 p-4'>
+                    <div className='text-xs uppercase tracking-wide text-muted-foreground'>
+                      Homeroom owner
                     </div>
                     <div className='mt-2 font-medium'>
-                      {student.medicalFlag || 'No urgent medical or support flag recorded.'}
+                      {homeroomTeacher
+                        ? homeroomTeacher.preferredName || homeroomTeacher.fullName
+                        : 'Not linked yet'}
                     </div>
                   </div>
-                  <div className='rounded-xl border border-border/60 bg-muted/20 p-4 text-sm leading-6'>
-                    {student.notesSummary || 'No notes snapshot recorded yet.'}
+                  <div className='rounded-xl border border-border/60 bg-muted/20 p-4'>
+                    <div className='text-xs uppercase tracking-wide text-muted-foreground'>
+                      Admissions history
+                    </div>
+                    <div className='mt-2 font-medium'>
+                      {hasAdmissionsAccess
+                        ? `${student.relatedAdmissions.length} linked record${student.relatedAdmissions.length === 1 ? '' : 's'}`
+                        : 'Visible in the Admissions tab for authorised staff'}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -468,54 +529,80 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
           </TabsContent>
 
           <TabsContent value='concerns' className='space-y-4'>
-            <Card>
-              <CardHeader>
-                <CardTitle>Concern cases</CardTitle>
-                <CardDescription>
-                  Structured support and intervention work linked directly to this student record.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {!concernCases ? (
-                  <SectionEmpty
-                    title='Loading concern cases...'
-                    description='Fetching the latest support and intervention work for this student.'
-                  />
-                ) : concernCases.length === 0 ? (
-                  <SectionEmpty
-                    title='No concern cases for this student yet.'
-                    description='Create a structured case once support, behaviour, safeguarding, or intervention work needs follow-up.'
-                    ctaLabel='Open Concerns'
-                    href='/dashboard/concerns'
-                  />
-                ) : (
-                  <div className='space-y-3'>
-                    {concernCases.map((concern) => (
-                      <div key={concern.id} className='rounded-xl border border-border/60 p-4'>
-                        <div className='flex flex-wrap items-center gap-2'>
-                          <div className='font-medium'>{concern.title}</div>
-                          <Badge variant='outline'>{concern.category}</Badge>
-                          <Badge variant={concern.status === 'Resolved' ? 'default' : 'secondary'}>
-                            {concern.status}
-                          </Badge>
-                          <Badge variant='outline'>{concern.severity}</Badge>
-                        </div>
-                        <div className='mt-2 text-sm text-muted-foreground'>
-                          Owner: {concern.assignedTeacherName} • Visibility: {concern.visibility} •
-                          Next review: {formatField(concern.nextReviewDate)}
-                        </div>
-                        <div className='mt-3 text-sm'>{concern.summary}</div>
-                      </div>
-                    ))}
-                    <div>
-                      <Button asChild variant='outline' size='sm'>
-                        <Link href='/dashboard/concerns'>Open concerns workflow</Link>
-                      </Button>
+            <div className='grid gap-4 lg:grid-cols-2'>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Support snapshot</CardTitle>
+                  <CardDescription>
+                    Restricted student support context that stays out of the default profile tab.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className='space-y-4'>
+                  <div className='rounded-xl border border-border/60 bg-muted/20 p-4'>
+                    <div className='text-xs uppercase tracking-wide text-muted-foreground'>
+                      Medical / support flag
+                    </div>
+                    <div className='mt-2 font-medium'>
+                      {student.medicalFlag || 'No urgent medical or support flag recorded.'}
                     </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                  <div className='rounded-xl border border-border/60 bg-muted/20 p-4 text-sm leading-6'>
+                    {student.notesSummary || 'No support note snapshot recorded yet.'}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Concern cases</CardTitle>
+                  <CardDescription>
+                    Structured support and intervention work linked directly to this student record.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {!concernCases ? (
+                    <SectionEmpty
+                      title='Loading concern cases...'
+                      description='Fetching the latest support and intervention work for this student.'
+                    />
+                  ) : concernCases.length === 0 ? (
+                    <SectionEmpty
+                      title='No concern cases for this student yet.'
+                      description='Create a structured case once support, behaviour, safeguarding, or intervention work needs follow-up.'
+                      ctaLabel='Open Concerns'
+                      href='/dashboard/concerns'
+                    />
+                  ) : (
+                    <div className='space-y-3'>
+                      {concernCases.map((concern) => (
+                        <div key={concern.id} className='rounded-xl border border-border/60 p-4'>
+                          <div className='flex flex-wrap items-center gap-2'>
+                            <div className='font-medium'>{concern.title}</div>
+                            <Badge variant='outline'>{concern.category}</Badge>
+                            <Badge
+                              variant={concern.status === 'Resolved' ? 'default' : 'secondary'}
+                            >
+                              {concern.status}
+                            </Badge>
+                            <Badge variant='outline'>{concern.severity}</Badge>
+                          </div>
+                          <div className='mt-2 text-sm text-muted-foreground'>
+                            Owner: {concern.assignedTeacherName} • Visibility: {concern.visibility}{' '}
+                            • Next review: {formatField(concern.nextReviewDate)}
+                          </div>
+                          <div className='mt-3 text-sm'>{concern.summary}</div>
+                        </div>
+                      ))}
+                      <div>
+                        <Button asChild variant='outline' size='sm'>
+                          <Link href='/dashboard/concerns'>Open concerns workflow</Link>
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value='admissions' className='space-y-4'>
@@ -557,6 +644,64 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
                       </div>
                     ))}
                   </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value='finance' className='space-y-4'>
+            <Card>
+              <CardHeader>
+                <CardTitle>Finance access lane</CardTitle>
+                <CardDescription>
+                  Keep the student record safe for general staff while giving finance-capable
+                  operators a quick billing read before they jump into the dedicated finance
+                  workspace.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className='space-y-4'>
+                {financeProfile ? (
+                  <>
+                    <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-4'>
+                      <ProfileMetric
+                        label='Monthly total'
+                        value={`$${financeProfile.effectiveMonthlyFee}`}
+                        hint='Current effective monthly billing amount'
+                      />
+                      <ProfileMetric
+                        label='Outstanding'
+                        value={`$${financeProfile.totalOutstanding}`}
+                        hint='Remaining balance still due'
+                      />
+                      <ProfileMetric
+                        label='Collections stage'
+                        value={financeProfile.collectionStage}
+                        hint='Latest follow-up posture on this account'
+                      />
+                      <ProfileMetric
+                        label='Next action'
+                        value={formatField(financeProfile.nextActionDate)}
+                        hint='Scheduled date for the next finance touch'
+                      />
+                    </div>
+                    <div className='flex flex-wrap gap-2'>
+                      <Button asChild size='sm'>
+                        <Link href={`/dashboard/billing/${student.id}`}>
+                          Open student finance workspace
+                        </Link>
+                      </Button>
+                      <Button asChild variant='outline' size='sm'>
+                        <Link href='/dashboard/billing'>Open finance overview</Link>
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <SectionEmpty
+                    title='No finance profile linked yet.'
+                    description='Accounts can create a billing profile when this student needs tuition, add-ons, payments, or collections tracking.'
+                    ctaLabel='Open Finance & Fees'
+                    href='/dashboard/billing'
+                  />
                 )}
               </CardContent>
             </Card>
