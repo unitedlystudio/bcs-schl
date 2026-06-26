@@ -55,7 +55,7 @@ export default function PageContainer({
   return (
     <div className='flex min-w-0 flex-1 flex-col p-4 md:px-6'>
       {hasHeader && (
-        <div className='bg-background sticky top-0 z-10 mb-4 flex min-w-0 flex-col gap-4 pb-4 sm:flex-row sm:items-start sm:justify-between'>
+        <div className='mb-4 flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between'>
           <Heading
             title={pageTitle ?? ''}
             description={pageDescription ?? ''}
