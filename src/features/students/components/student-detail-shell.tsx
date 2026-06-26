@@ -93,12 +93,12 @@ function SectionEmpty({
 function LoadingProfile() {
   return (
     <div className='grid gap-4 xl:grid-cols-[minmax(0,2fr)_360px]'>
-      <div className='grid gap-4'>
+      <div className='grid min-w-0 gap-4'>
         <div className='bg-muted h-52 animate-pulse rounded-2xl' />
         <div className='bg-muted h-14 animate-pulse rounded-xl' />
         <div className='bg-muted h-96 animate-pulse rounded-2xl' />
       </div>
-      <div className='grid gap-4'>
+      <div className='grid min-w-0 gap-4'>
         <div className='bg-muted h-56 animate-pulse rounded-2xl' />
         <div className='bg-muted h-56 animate-pulse rounded-2xl' />
       </div>
@@ -199,18 +199,18 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
 
   return (
     <div className='grid gap-4 xl:grid-cols-[minmax(0,2fr)_360px]'>
-      <div className='grid gap-4'>
+      <div className='grid min-w-0 gap-4'>
         <Card className='overflow-hidden border-border/60'>
           <CardContent className='p-0'>
             <div className='border-b border-border/60 bg-muted/20 px-6 py-5'>
-              <div className='flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between'>
-                <div className='flex items-start gap-4'>
+              <div className='flex min-w-0 flex-col gap-6 xl:flex-row xl:items-start xl:justify-between'>
+                <div className='flex min-w-0 items-start gap-4'>
                   <Avatar className='size-16 border border-border/60'>
                     <AvatarFallback className='text-lg font-semibold'>
                       {getInitials(student.preferredName || student.fullName)}
                     </AvatarFallback>
                   </Avatar>
-                  <div className='space-y-3'>
+                  <div className='min-w-0 space-y-3'>
                     <div>
                       <div className='flex flex-wrap items-center gap-2'>
                         <h2 className='text-2xl font-semibold tracking-tight'>
@@ -341,7 +341,7 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
         <Tabs
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as StudentDetailTabValue)}
-          className='space-y-4'
+          className='min-w-0 space-y-4'
         >
           <TabsList>
             {visibleTabs.map((tab) => (
@@ -709,7 +709,7 @@ export default function StudentDetailShell({ studentId }: { studentId: string })
         </Tabs>
       </div>
 
-      <div className='grid gap-4'>
+      <div className='grid min-w-0 gap-4'>
         <Card>
           <CardHeader>
             <CardTitle>Guardian & ownership</CardTitle>

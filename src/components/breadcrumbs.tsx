@@ -16,13 +16,15 @@ export function Breadcrumbs() {
   if (items.length === 0) return null;
 
   return (
-    <Breadcrumb>
-      <BreadcrumbList>
+    <Breadcrumb className='min-w-0'>
+      <BreadcrumbList className='min-w-0 flex-nowrap'>
         {items.map((item, index) => (
           <Fragment key={item.title}>
             {index !== items.length - 1 && (
-              <BreadcrumbItem className='hidden md:block'>
-                <BreadcrumbLink href={item.link}>{item.title}</BreadcrumbLink>
+              <BreadcrumbItem className='hidden md:inline-flex'>
+                <BreadcrumbLink href={item.link} className='truncate'>
+                  {item.title}
+                </BreadcrumbLink>
               </BreadcrumbItem>
             )}
             {index < items.length - 1 && (
@@ -30,7 +32,11 @@ export function Breadcrumbs() {
                 <Icons.slash />
               </BreadcrumbSeparator>
             )}
-            {index === items.length - 1 && <BreadcrumbPage>{item.title}</BreadcrumbPage>}
+            {index === items.length - 1 && (
+              <BreadcrumbPage className='block max-w-[min(52vw,18rem)] truncate sm:max-w-[20rem]'>
+                {item.title}
+              </BreadcrumbPage>
+            )}
           </Fragment>
         ))}
       </BreadcrumbList>
