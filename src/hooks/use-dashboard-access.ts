@@ -7,10 +7,8 @@ import { useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import {
   hasDashboardPermission,
-  isDashboardRole,
   normalizeDashboardPermissions,
-  type DashboardPermissionKey,
-  type DashboardRole
+  type DashboardPermissionKey
 } from '@/lib/school-permissions';
 
 export function useDashboardAccess() {
@@ -32,8 +30,8 @@ export function useDashboardAccess() {
     );
     const hasManagedProfile = Boolean(storedAccess?.hasManagedProfile);
     const permissions = hasManagedProfile ? managedPermissions : clerkPermissions;
-    const storedRole = storedAccess?.dashboardRole ?? '';
-    const dashboardRole: DashboardRole = isDashboardRole(storedRole) ? storedRole : 'Inherited';
+    const storedRole = storedAccess?.dashboardRole?.trim() || 'Inherited';
+    const dashboardRole = storedRole;
     const effectiveRole = hasManagedProfile ? '' : clerkRole;
 
     return {

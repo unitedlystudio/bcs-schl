@@ -11,8 +11,9 @@ type IdentityLike = AuthIdentity & Record<string, unknown>;
 
 type DashboardAccessProfile = {
   _id: string;
+  roleTemplateId?: string;
   permissions: DashboardPermissionKey[];
-  dashboardRole?: string;
+  dashboardRoleLabel?: string;
   updatedAt?: number;
 };
 
@@ -94,10 +95,25 @@ async function getStoredDashboardAccess(
     (left, right) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0)
   );
 
+  if (latestProfile.roleTemplateId) {
+    const roleTemplate = await ctx.db.get(latestProfile.roleTemplateId);
+
+    if (roleTemplate && roleTemplate.orgId === orgId) {
+      return {
+        _id: latestProfile._id,
+        roleTemplateId: latestProfile.roleTemplateId,
+        permissions: normalizeDashboardPermissions(roleTemplate.permissions),
+        dashboardRoleLabel: roleTemplate.name,
+        updatedAt: latestProfile.updatedAt
+      };
+    }
+  }
+
   return {
     _id: latestProfile._id,
+    roleTemplateId: latestProfile.roleTemplateId,
     permissions: normalizeDashboardPermissions(latestProfile.permissions),
-    dashboardRole: latestProfile.dashboardRole,
+    dashboardRoleLabel: latestProfile.dashboardRoleLabel,
     updatedAt: latestProfile.updatedAt
   };
 }
