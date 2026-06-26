@@ -214,15 +214,17 @@ export function OperationsTimeSlotSheet({
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent>
-          <DrawerHeader>
+        <DrawerContent className='max-h-[85dvh] min-h-0'>
+          <DrawerHeader className='shrink-0'>
             <DrawerTitle>{isEdit ? 'Edit time slot' : 'Add time slot'}</DrawerTitle>
             <DrawerDescription>
               Define the stable school-day slots that weekly timetable blocks sit inside.
             </DrawerDescription>
           </DrawerHeader>
-          <div className='max-h-[70vh] overflow-y-auto px-4'>{content}</div>
-          <DrawerFooter>{footer}</DrawerFooter>
+          <div className='min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-4'>
+            {content}
+          </div>
+          <DrawerFooter className='shrink-0'>{footer}</DrawerFooter>
         </DrawerContent>
       </Drawer>
     );

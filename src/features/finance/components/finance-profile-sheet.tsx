@@ -676,15 +676,17 @@ export function FinanceProfileSheet({
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className='overflow-x-hidden'>
-          <DrawerHeader>
+        <DrawerContent className='max-h-[85dvh] min-h-0 overflow-x-hidden'>
+          <DrawerHeader className='shrink-0'>
             <DrawerTitle>{isEdit ? 'Manage billing profile' : 'Add billing profile'}</DrawerTitle>
             <DrawerDescription>
               Keep tuition, add-ons, and collection terms attached to the student finance profile.
             </DrawerDescription>
           </DrawerHeader>
-          <div className='max-h-[70vh] overflow-x-hidden overflow-y-auto px-4'>{content}</div>
-          <DrawerFooter>{footer}</DrawerFooter>
+          <div className='min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-4'>
+            {content}
+          </div>
+          <DrawerFooter className='shrink-0'>{footer}</DrawerFooter>
         </DrawerContent>
       </Drawer>
     );

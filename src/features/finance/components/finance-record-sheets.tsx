@@ -319,18 +319,18 @@ export function FinanceChargeSheet({
   if (isMobile)
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className='w-full max-w-full overflow-x-hidden'>
-          <DrawerHeader>
+        <DrawerContent className='max-h-[85dvh] min-h-0 w-full max-w-full overflow-x-hidden'>
+          <DrawerHeader className='shrink-0'>
             <DrawerTitle>Add finance charge</DrawerTitle>
             <DrawerDescription>
               Log tuition, registration, meal, transport, or custom charges against this student
               billing profile.
             </DrawerDescription>
           </DrawerHeader>
-          <div className='max-h-[70vh] min-w-0 overflow-x-hidden overflow-y-auto px-4'>
+          <div className='min-h-0 flex-1 min-w-0 overflow-x-hidden overflow-y-auto px-4 pb-4'>
             {content}
           </div>
-          <DrawerFooter className='min-w-0'>{footer}</DrawerFooter>
+          <DrawerFooter className='min-w-0 shrink-0'>{footer}</DrawerFooter>
         </DrawerContent>
       </Drawer>
     );
@@ -491,17 +491,17 @@ export function FinancePaymentSheet({
   if (isMobile)
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className='w-full max-w-full overflow-x-hidden'>
-          <DrawerHeader>
+        <DrawerContent className='max-h-[85dvh] min-h-0 w-full max-w-full overflow-x-hidden'>
+          <DrawerHeader className='shrink-0'>
             <DrawerTitle>Record payment</DrawerTitle>
             <DrawerDescription>
               Log actual payments separately from pricing rules and outstanding charges.
             </DrawerDescription>
           </DrawerHeader>
-          <div className='max-h-[70vh] min-w-0 overflow-x-hidden overflow-y-auto px-4'>
+          <div className='min-h-0 flex-1 min-w-0 overflow-x-hidden overflow-y-auto px-4 pb-4'>
             {content}
           </div>
-          <DrawerFooter className='min-w-0'>{footer}</DrawerFooter>
+          <DrawerFooter className='min-w-0 shrink-0'>{footer}</DrawerFooter>
         </DrawerContent>
       </Drawer>
     );
@@ -807,17 +807,17 @@ export function FinancePaymentSettlementSheet({
   if (isMobile)
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className='w-full max-w-full overflow-x-hidden'>
-          <DrawerHeader>
+        <DrawerContent className='max-h-[85dvh] min-h-0 w-full max-w-full overflow-x-hidden'>
+          <DrawerHeader className='shrink-0'>
             <DrawerTitle>Manage payment settlement</DrawerTitle>
             <DrawerDescription>
               Explicitly match this payment to the charges it should settle.
             </DrawerDescription>
           </DrawerHeader>
-          <div className='max-h-[70vh] min-w-0 overflow-x-hidden overflow-y-auto px-4'>
+          <div className='min-h-0 flex-1 min-w-0 overflow-x-hidden overflow-y-auto px-4 pb-4'>
             {content}
           </div>
-          <DrawerFooter className='min-w-0'>{footer}</DrawerFooter>
+          <DrawerFooter className='min-w-0 shrink-0'>{footer}</DrawerFooter>
         </DrawerContent>
       </Drawer>
     );
@@ -1013,18 +1013,18 @@ export function FinanceReminderSheet({
   if (isMobile)
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className='w-full max-w-full overflow-x-hidden'>
-          <DrawerHeader>
+        <DrawerContent className='max-h-[85dvh] min-h-0 w-full max-w-full overflow-x-hidden'>
+          <DrawerHeader className='shrink-0'>
             <DrawerTitle>Log finance reminder</DrawerTitle>
             <DrawerDescription>
               Capture the outreach touch, its outcome, and the next collections step for this
               student account.
             </DrawerDescription>
           </DrawerHeader>
-          <div className='max-h-[70vh] min-w-0 overflow-x-hidden overflow-y-auto px-4'>
+          <div className='min-h-0 flex-1 min-w-0 overflow-x-hidden overflow-y-auto px-4 pb-4'>
             {content}
           </div>
-          <DrawerFooter className='min-w-0'>{footer}</DrawerFooter>
+          <DrawerFooter className='min-w-0 shrink-0'>{footer}</DrawerFooter>
         </DrawerContent>
       </Drawer>
     );
@@ -1348,15 +1348,15 @@ export function FinanceBulkReminderSheet({
   if (isMobile)
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className='w-full max-w-full overflow-x-hidden'>
-          <DrawerHeader>
+        <DrawerContent className='max-h-[85dvh] min-h-0 w-full max-w-full overflow-x-hidden'>
+          <DrawerHeader className='shrink-0'>
             <DrawerTitle>{modeConfig.title}</DrawerTitle>
             <DrawerDescription>{modeConfig.description}</DrawerDescription>
           </DrawerHeader>
-          <div className='max-h-[70vh] min-w-0 overflow-x-hidden overflow-y-auto px-4'>
+          <div className='min-h-0 flex-1 min-w-0 overflow-x-hidden overflow-y-auto px-4 pb-4'>
             {content}
           </div>
-          <DrawerFooter className='min-w-0'>{footer}</DrawerFooter>
+          <DrawerFooter className='min-w-0 shrink-0'>{footer}</DrawerFooter>
         </DrawerContent>
       </Drawer>
     );
@@ -1575,17 +1575,17 @@ export function FinanceFamilyPaymentSheet({
   if (isMobile)
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className='w-full max-w-full overflow-x-hidden'>
-          <DrawerHeader>
+        <DrawerContent className='max-h-[85dvh] min-h-0 w-full max-w-full overflow-x-hidden'>
+          <DrawerHeader className='shrink-0'>
             <DrawerTitle>Allocate family payment</DrawerTitle>
             <DrawerDescription>
               Record one household payment and split it across linked student billing profiles.
             </DrawerDescription>
           </DrawerHeader>
-          <div className='max-h-[70vh] min-w-0 overflow-x-hidden overflow-y-auto px-4'>
+          <div className='min-h-0 flex-1 min-w-0 overflow-x-hidden overflow-y-auto px-4 pb-4'>
             {content}
           </div>
-          <DrawerFooter className='min-w-0'>{footer}</DrawerFooter>
+          <DrawerFooter className='min-w-0 shrink-0'>{footer}</DrawerFooter>
         </DrawerContent>
       </Drawer>
     );

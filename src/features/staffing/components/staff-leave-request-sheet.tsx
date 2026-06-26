@@ -294,15 +294,15 @@ export function StaffLeaveRequestSheet({
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent>
-          <DrawerHeader className='text-left'>
+        <DrawerContent className='max-h-[85dvh] min-h-0'>
+          <DrawerHeader className='shrink-0 text-left'>
             <DrawerTitle>{isEdit ? 'Edit leave request' : 'New leave request'}</DrawerTitle>
             <DrawerDescription>
               Keep teacher leave as a dated workflow so cover planning stays operational.
             </DrawerDescription>
           </DrawerHeader>
-          {body}
-          <DrawerFooter>
+          <div className='min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-4'>{body}</div>
+          <DrawerFooter className='shrink-0'>
             <Button onClick={handleSubmit} disabled={submitting || !filters}>
               {submitting ? 'Saving...' : isEdit ? 'Save changes' : 'Create leave request'}
             </Button>

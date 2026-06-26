@@ -334,16 +334,18 @@ export function TeacherFormSheet({
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent>
-          <DrawerHeader>
+        <DrawerContent className='max-h-[85dvh] min-h-0'>
+          <DrawerHeader className='shrink-0'>
             <DrawerTitle>{isEdit ? 'Manage teacher assignment' : 'Add teacher'}</DrawerTitle>
             <DrawerDescription>
               Keep teacher ownership editable so class/year assignment stays operational, not
               hard-coded.
             </DrawerDescription>
           </DrawerHeader>
-          <div className='max-h-[70vh] overflow-y-auto px-4'>{content}</div>
-          <DrawerFooter>{footer}</DrawerFooter>
+          <div className='min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-4'>
+            {content}
+          </div>
+          <DrawerFooter className='shrink-0'>{footer}</DrawerFooter>
         </DrawerContent>
       </Drawer>
     );

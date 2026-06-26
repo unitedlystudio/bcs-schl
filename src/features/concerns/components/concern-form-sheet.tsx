@@ -425,16 +425,18 @@ export function ConcernFormSheet({
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent>
-          <DrawerHeader>
+        <DrawerContent className='max-h-[85dvh] min-h-0'>
+          <DrawerHeader className='shrink-0'>
             <DrawerTitle>{isEdit ? 'Manage concern case' : 'Add concern case'}</DrawerTitle>
             <DrawerDescription>
               Keep student support and intervention work in structured cases, not loose spreadsheet
               notes.
             </DrawerDescription>
           </DrawerHeader>
-          <div className='max-h-[70vh] overflow-y-auto px-4'>{content}</div>
-          <DrawerFooter>{footer}</DrawerFooter>
+          <div className='min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-4'>
+            {content}
+          </div>
+          <DrawerFooter className='shrink-0'>{footer}</DrawerFooter>
         </DrawerContent>
       </Drawer>
     );

@@ -455,14 +455,14 @@ export function FinanceFamilyAccountsGrid({
             if (!open) setSelectedRow(null);
           }}
         >
-          <DrawerContent className='w-full max-w-full overflow-x-hidden'>
-            <DrawerHeader>
+          <DrawerContent className='max-h-[85dvh] min-h-0 w-full max-w-full overflow-x-hidden'>
+            <DrawerHeader className='shrink-0'>
               <DrawerTitle>Family account detail</DrawerTitle>
               <DrawerDescription>
                 Review the household account and jump into each linked student ledger.
               </DrawerDescription>
             </DrawerHeader>
-            <div className='max-h-[70vh] min-w-0 overflow-x-hidden overflow-y-auto px-4 pb-4'>
+            <div className='min-h-0 flex-1 min-w-0 overflow-x-hidden overflow-y-auto px-4 pb-4'>
               {detail}
             </div>
           </DrawerContent>

@@ -174,18 +174,18 @@ export function FinanceBillingRunSheet({
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className='w-full max-w-full overflow-x-hidden'>
-          <DrawerHeader>
+        <DrawerContent className='max-h-[85dvh] min-h-0 w-full max-w-full overflow-x-hidden'>
+          <DrawerHeader className='shrink-0'>
             <DrawerTitle>Generate billing run</DrawerTitle>
             <DrawerDescription>
               Create the next cycle’s recurring tuition and charged add-on ledger entries in one
               action.
             </DrawerDescription>
           </DrawerHeader>
-          <div className='max-h-[70vh] min-w-0 overflow-x-hidden overflow-y-auto px-4'>
+          <div className='min-h-0 flex-1 min-w-0 overflow-x-hidden overflow-y-auto px-4 pb-4'>
             {content}
           </div>
-          <DrawerFooter className='min-w-0'>{footer}</DrawerFooter>
+          <DrawerFooter className='min-w-0 shrink-0'>{footer}</DrawerFooter>
         </DrawerContent>
       </Drawer>
     );

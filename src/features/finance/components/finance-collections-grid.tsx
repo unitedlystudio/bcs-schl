@@ -821,14 +821,14 @@ export function FinanceCollectionsGrid({
             if (!open) setSelectedRow(null);
           }}
         >
-          <DrawerContent className='w-full max-w-full overflow-x-hidden'>
-            <DrawerHeader>
+          <DrawerContent className='max-h-[85dvh] min-h-0 w-full max-w-full overflow-x-hidden'>
+            <DrawerHeader className='shrink-0'>
               <DrawerTitle>Collections detail</DrawerTitle>
               <DrawerDescription>
                 Open the selected collections record without leaving the grid.
               </DrawerDescription>
             </DrawerHeader>
-            <div className='max-h-[78vh] min-w-0 overflow-x-hidden overflow-y-auto px-4 pb-4'>
+            <div className='min-h-0 flex-1 min-w-0 overflow-x-hidden overflow-y-auto px-4 pb-4'>
               {detail}
             </div>
           </DrawerContent>

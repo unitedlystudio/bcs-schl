@@ -363,8 +363,8 @@ export function AdmissionsFormTrigger({
       <>
         {trigger}
         <Drawer open={open} onOpenChange={setOpen}>
-          <DrawerContent>
-            <DrawerHeader>
+          <DrawerContent className='max-h-[85dvh] min-h-0'>
+            <DrawerHeader className='shrink-0'>
               <DrawerTitle>
                 {isEdit ? 'Update admissions enquiry' : 'Add admissions enquiry'}
               </DrawerTitle>
@@ -372,7 +372,9 @@ export function AdmissionsFormTrigger({
                 Keep the admissions pipeline current with the latest family context and stage.
               </DrawerDescription>
             </DrawerHeader>
-            <div className='overflow-y-auto px-4 pb-4'>{content}</div>
+            <div className='min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-4'>
+              {content}
+            </div>
           </DrawerContent>
         </Drawer>
       </>

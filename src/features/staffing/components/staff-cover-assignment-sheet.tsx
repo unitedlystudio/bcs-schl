@@ -164,15 +164,15 @@ export function StaffCoverAssignmentSheet({
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent>
-          <DrawerHeader className='text-left'>
+        <DrawerContent className='max-h-[85dvh] min-h-0'>
+          <DrawerHeader className='shrink-0 text-left'>
             <DrawerTitle>Update cover assignment</DrawerTitle>
             <DrawerDescription>
               Assign cover ownership and move the block through confirmation.
             </DrawerDescription>
           </DrawerHeader>
-          {body}
-          <DrawerFooter>
+          <div className='min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-4'>{body}</div>
+          <DrawerFooter className='shrink-0'>
             <Button onClick={handleSubmit} disabled={submitting || !assignment}>
               {submitting ? 'Saving...' : 'Save cover assignment'}
             </Button>
