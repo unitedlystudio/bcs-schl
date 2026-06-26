@@ -131,7 +131,7 @@ function StudentFormFields({
             value={values.status}
             onValueChange={(value) => onChange('status', value as StudentFormValues['status'])}
           >
-            <SelectTrigger disabled={isSubmitting}>
+            <SelectTrigger className='w-full' disabled={isSubmitting}>
               <SelectValue placeholder='Select status' />
             </SelectTrigger>
             <SelectContent>
@@ -150,7 +150,7 @@ function StudentFormFields({
             value={values.sex}
             onValueChange={(value) => onChange('sex', value as StudentFormValues['sex'])}
           >
-            <SelectTrigger disabled={isSubmitting}>
+            <SelectTrigger className='w-full' disabled={isSubmitting}>
               <SelectValue placeholder='Select sex' />
             </SelectTrigger>
             <SelectContent>
@@ -413,8 +413,8 @@ export function StudentFormSheetTrigger({
       <>
         {trigger}
         <Drawer open={open} onOpenChange={setOpen}>
-          <DrawerContent>
-            <DrawerHeader>
+          <DrawerContent className='max-h-[85dvh] min-h-0'>
+            <DrawerHeader className='shrink-0'>
               <DrawerTitle>{isEdit ? 'Edit student profile' : 'Add student'}</DrawerTitle>
               <DrawerDescription>
                 {isEdit
@@ -422,8 +422,10 @@ export function StudentFormSheetTrigger({
                   : 'Capture the core student record so the profile shell and attendance flows can use it.'}
               </DrawerDescription>
             </DrawerHeader>
-            <div className='overflow-y-auto px-4 pb-4'>{content}</div>
-            <DrawerFooter>
+            <div className='min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-4'>
+              {content}
+            </div>
+            <DrawerFooter className='shrink-0'>
               <Button variant='outline' onClick={() => setOpen(false)}>
                 Cancel
               </Button>
