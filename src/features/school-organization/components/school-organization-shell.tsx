@@ -888,18 +888,13 @@ export default function SchoolOrganizationShell() {
     api.schoolOrganization.listAccessProfiles,
     orgId && dashboardAccess.hasPermission('org:admin:manage') ? { orgId } : 'skip'
   ) as AccessProfileRecord[] | undefined;
-  const roleTemplates = useQuery(
-    api.schoolOrganization.listRoleTemplates,
-    orgId && dashboardAccess.hasPermission('org:admin:manage') ? { orgId } : 'skip'
-  ) as RoleTemplateRecord[] | undefined;
+  const roleTemplates = [] as RoleTemplateRecord[];
   const [sorting, setSorting] = useState<SortingState>([{ id: 'employee', desc: false }]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingRows, setEditingRows] = useState<StaffAccessRow[]>([]);
-  const [roleEditorOpen, setRoleEditorOpen] = useState(false);
-  const [editingRoleTemplate, setEditingRoleTemplate] = useState<RoleTemplateRecord | null>(null);
   const clearAccessProfiles = useMutation(api.schoolOrganization.clearAccessProfiles);
 
   const profileMap = useMemo(
@@ -1138,24 +1133,12 @@ export default function SchoolOrganizationShell() {
         <TabsContent value='permissions' className='space-y-4'>
           <Card>
             <CardHeader>
-              <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
-                <div>
-                  <CardTitle>School staff dashboard access</CardTitle>
-                  <CardDescription>
-                    Use a calmer staff grid to decide who can see each dashboard lane, then drill
-                    into edit or bulk changes when the school team shifts.
-                  </CardDescription>
-                </div>
-                <Button
-                  type='button'
-                  variant='outline'
-                  onClick={() => {
-                    setEditingRoleTemplate(null);
-                    setRoleEditorOpen(true);
-                  }}
-                >
-                  Create organisation role
-                </Button>
+              <div>
+                <CardTitle>School staff dashboard access</CardTitle>
+                <CardDescription>
+                  Use a calmer staff grid to decide who can see each dashboard lane, then drill into
+                  edit or bulk changes when the school team shifts.
+                </CardDescription>
               </div>
             </CardHeader>
             <CardContent className='grid gap-3'>
@@ -1221,72 +1204,17 @@ export default function SchoolOrganizationShell() {
         <TabsContent value='roles' className='space-y-4'>
           <Card>
             <CardHeader>
-              <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
-                <div>
-                  <CardTitle>Organisation roles</CardTitle>
-                  <CardDescription>
-                    Create reusable school roles like Accounts Staff, Teacher, or Teacher Assistant,
-                    then assign them from the staff permissions table.
-                  </CardDescription>
-                </div>
-                <Button
-                  type='button'
-                  onClick={() => {
-                    setEditingRoleTemplate(null);
-                    setRoleEditorOpen(true);
-                  }}
-                >
-                  New role
-                </Button>
-              </div>
+              <CardTitle>Organisation roles</CardTitle>
+              <CardDescription>
+                Saved organisation roles stay hidden until the Convex backend deployment is updated
+                with the new role-template functions.
+              </CardDescription>
             </CardHeader>
-            <CardContent className='grid gap-3'>
-              {availableRoleTemplates.length === 0 ? (
-                <div className='rounded-xl border border-dashed p-4 text-sm text-muted-foreground'>
-                  No custom organisation roles yet. Create one here, then assign it to staff from
-                  the Staff permissions tab.
-                </div>
-              ) : (
-                <div className='grid gap-3 lg:grid-cols-2'>
-                  {availableRoleTemplates.map((roleTemplate) => (
-                    <div
-                      key={roleTemplate.id}
-                      className='rounded-2xl border border-border/60 bg-background p-4'
-                    >
-                      <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
-                        <div className='space-y-2'>
-                          <div className='text-sm font-semibold'>{roleTemplate.name}</div>
-                          <div className='flex flex-wrap gap-2 text-xs text-muted-foreground'>
-                            <Badge variant='secondary'>
-                              {roleTemplate.assignmentCount} assigned
-                            </Badge>
-                            <Badge variant='outline'>
-                              {roleTemplate.permissionCount} permissions
-                            </Badge>
-                            <Badge variant='outline'>
-                              Updated {formatTimestamp(roleTemplate.updatedAt)}
-                            </Badge>
-                          </div>
-                        </div>
-                        <Button
-                          type='button'
-                          variant='outline'
-                          size='sm'
-                          onClick={() => {
-                            setEditingRoleTemplate(roleTemplate);
-                            setRoleEditorOpen(true);
-                          }}
-                        >
-                          Edit role
-                        </Button>
-                      </div>
-                      <div className='text-muted-foreground mt-3 text-sm'>
-                        {getPermissionSummary(roleTemplate.permissions)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+            <CardContent>
+              <div className='rounded-xl border border-dashed p-4 text-sm text-muted-foreground'>
+                Staff permissions still work normally. Once the matching Convex backend deploy is in
+                place, reusable organisation roles can be turned back on here.
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1317,10 +1245,10 @@ export default function SchoolOrganizationShell() {
             roleTemplates={availableRoleTemplates}
           />
           <RoleTemplateEditorSheet
-            open={roleEditorOpen}
-            onOpenChange={setRoleEditorOpen}
+            open={false}
+            onOpenChange={() => {}}
             orgId={orgId}
-            roleTemplate={editingRoleTemplate}
+            roleTemplate={null}
           />
         </>
       ) : null}
