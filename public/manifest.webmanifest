@@ -1,0 +1,16 @@
+{
+  "name": "Schly",
+  "short_name": "Schly",
+  "description": "School operations dashboard.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "/shadcn-dashboard.png",
+      "sizes": "any",
+      "type": "image/png"
+    }
+  ]
+}
