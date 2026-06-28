@@ -82,8 +82,10 @@ export function OrgSwitcher() {
                   : 'visible max-w-full opacity-100'
               }`}
             >
-              <span className='truncate font-medium'>Create school workspace</span>
-              <span className='text-muted-foreground truncate text-xs'>Get started</span>
+              <span className='truncate font-medium'>Invite-only workspace</span>
+              <span className='text-muted-foreground truncate text-xs'>
+                Ask an admin for access
+              </span>
             </div>
           </SidebarMenuButton>
         </SidebarMenuItem>

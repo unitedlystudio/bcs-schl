@@ -46,6 +46,8 @@ import { DataTable } from '@/components/ui/table/data-table';
 import { DataTableColumnHeader } from '@/components/ui/table/data-table-column-header';
 import { DataTableToolbar } from '@/components/ui/table/data-table-toolbar';
 import { useDashboardAccess } from '@/hooks/use-dashboard-access';
+import CurrentUserInviteClaimSync from '@/features/school-organization/components/current-user-invite-claim-sync';
+import StaffInvitationManager from '@/features/school-organization/components/staff-invitation-manager';
 import {
   DASHBOARD_PERMISSION_CATALOG,
   DASHBOARD_ROLE_OPTIONS,
@@ -1102,7 +1104,7 @@ export default function SchoolOrganizationShell() {
         <CardHeader>
           <CardTitle>No school workspace selected</CardTitle>
           <CardDescription>
-            Join or create a school workspace first so Schly knows which staff directory to manage.
+            Join a school workspace first so Schly knows which invited staff directory to manage.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -1128,10 +1130,12 @@ export default function SchoolOrganizationShell() {
 
   return (
     <>
+      <CurrentUserInviteClaimSync />
       <Tabs defaultValue='permissions' className='space-y-4'>
         <TabsList>
           <TabsTrigger value='permissions'>Staff permissions</TabsTrigger>
           <TabsTrigger value='roles'>Organisation roles</TabsTrigger>
+          <TabsTrigger value='invites'>Staff invitations</TabsTrigger>
           <TabsTrigger value='workspace'>Workspace settings</TabsTrigger>
         </TabsList>
 
@@ -1277,6 +1281,10 @@ export default function SchoolOrganizationShell() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value='invites' className='space-y-4'>
+          <StaffInvitationManager orgId={organization.id} roleTemplates={availableRoleTemplates} />
         </TabsContent>
 
         <TabsContent value='workspace'>

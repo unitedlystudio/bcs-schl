@@ -16,6 +16,8 @@ import {
 const RESERVED_ROLE_LABELS = new Set(DASHBOARD_ROLE_OPTIONS.map((role) => role.toLowerCase()));
 
 type DashboardRoleTemplateId = Id<'schoolDashboardRoles'>;
+type StaffInviteId = Id<'schoolStaffInvites'>;
+type StaffInviteStatus = 'pending' | 'accepted' | 'revoked' | 'expired';
 
 type AccessProfilePayload = {
   orgId: string;
@@ -27,8 +29,33 @@ type AccessProfilePayload = {
   updatedByUserId: string;
 };
 
+type StaffInvitePayload = {
+  orgId: string;
+  email: string;
+  normalizedEmail: string;
+  clerkInvitationId: string;
+  clerkRole: string;
+  batchLabel?: string;
+  dashboardRoleLabel: string;
+  roleTemplateId?: DashboardRoleTemplateId;
+  permissions: string[];
+  status: StaffInviteStatus;
+  invitedByUserId: string;
+  invitedAt: number;
+  lastSentAt: number;
+  sendCount: number;
+  updatedAt: number;
+  claimedByUserId?: string;
+  acceptedAt?: number;
+  revokedAt?: number;
+};
+
 function normalizeRoleLabel(value: string) {
   return value.trim().replace(/\s+/g, ' ');
+}
+
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
 }
 
 function slugifyRoleLabel(value: string) {
@@ -76,6 +103,50 @@ function mapProfile(profile: {
   };
 }
 
+function mapInvite(invite: {
+  _id: StaffInviteId;
+  email: string;
+  clerkInvitationId: string;
+  clerkRole: string;
+  batchLabel?: string;
+  dashboardRoleLabel: string;
+  roleTemplateId?: DashboardRoleTemplateId;
+  permissions: string[];
+  status: StaffInviteStatus;
+  invitedByUserId: string;
+  invitedAt: number;
+  lastSentAt: number;
+  sendCount: number;
+  updatedAt: number;
+  claimedByUserId?: string;
+  acceptedAt?: number;
+  revokedAt?: number;
+}) {
+  const permissions = normalizeDashboardPermissions(invite.permissions);
+  const summary = summarizeDashboardPermissions(permissions);
+
+  return {
+    id: invite._id,
+    email: invite.email,
+    clerkInvitationId: invite.clerkInvitationId,
+    clerkRole: invite.clerkRole,
+    batchLabel: invite.batchLabel ?? null,
+    dashboardRole: invite.dashboardRoleLabel,
+    roleTemplateId: invite.roleTemplateId ?? null,
+    permissions,
+    permissionCount: summary.count,
+    status: invite.status,
+    invitedByUserId: invite.invitedByUserId,
+    invitedAt: invite.invitedAt,
+    lastSentAt: invite.lastSentAt,
+    sendCount: invite.sendCount,
+    updatedAt: invite.updatedAt,
+    claimedByUserId: invite.claimedByUserId ?? null,
+    acceptedAt: invite.acceptedAt ?? null,
+    revokedAt: invite.revokedAt ?? null
+  };
+}
+
 async function getProfilesForUser(ctx: QueryCtx | MutationCtx, orgId: string, userId: string) {
   return ctx.db
     .query('schoolStaffAccessProfiles')
@@ -96,6 +167,19 @@ async function getProfilesForRoleTemplate(
     .collect();
 }
 
+async function getInvitesForEmail(
+  ctx: QueryCtx | MutationCtx,
+  orgId: string,
+  normalizedEmail: string
+) {
+  return ctx.db
+    .query('schoolStaffInvites')
+    .withIndex('by_org_and_email', (query) =>
+      query.eq('orgId', orgId).eq('normalizedEmail', normalizedEmail)
+    )
+    .collect();
+}
+
 async function upsertProfile(ctx: MutationCtx, payload: AccessProfilePayload) {
   const existingProfiles = await getProfilesForUser(ctx, payload.orgId, payload.userId);
   // oxlint-disable-next-line unicorn/no-array-sort
@@ -112,6 +196,31 @@ async function upsertProfile(ctx: MutationCtx, payload: AccessProfilePayload) {
   }
 
   return ctx.db.insert('schoolStaffAccessProfiles', payload);
+}
+
+async function upsertInvite(ctx: MutationCtx, payload: StaffInvitePayload) {
+  const existingInvites = await getInvitesForEmail(ctx, payload.orgId, payload.normalizedEmail);
+  // oxlint-disable-next-line unicorn/no-array-sort
+  const [primaryInvite, ...duplicateInvites] = [...existingInvites].sort(
+    (left, right) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0)
+  );
+
+  if (primaryInvite) {
+    const nextSendCount = Math.max(primaryInvite.sendCount ?? 0, payload.sendCount ?? 0);
+
+    await ctx.db.patch(primaryInvite._id, {
+      ...payload,
+      sendCount: nextSendCount
+    });
+
+    for (const duplicateInvite of duplicateInvites) {
+      await ctx.db.delete(duplicateInvite._id);
+    }
+
+    return primaryInvite._id;
+  }
+
+  return ctx.db.insert('schoolStaffInvites', payload);
 }
 
 async function clearProfilesForUsers(ctx: MutationCtx, orgId: string, userIds: string[]) {
@@ -208,6 +317,36 @@ async function syncProfilesForRoleTemplate(
   }
 }
 
+async function applyInviteAccessProfile(
+  ctx: MutationCtx,
+  invite: {
+    orgId: string;
+    dashboardRoleLabel: string;
+    roleTemplateId?: DashboardRoleTemplateId;
+    permissions: string[];
+  },
+  userId: string,
+  updatedByUserId: string,
+  now: number
+) {
+  const resolved = await resolveProfileInput(ctx, {
+    orgId: invite.orgId,
+    dashboardRoleLabel: invite.dashboardRoleLabel,
+    roleTemplateId: invite.roleTemplateId,
+    permissions: invite.permissions
+  });
+
+  await upsertProfile(ctx, {
+    orgId: invite.orgId,
+    userId,
+    dashboardRoleLabel: resolved.dashboardRoleLabel,
+    roleTemplateId: resolved.roleTemplateId,
+    permissions: resolved.permissions,
+    updatedAt: now,
+    updatedByUserId
+  });
+}
+
 export const listAccessProfiles = query({
   args: {
     orgId: v.string()
@@ -264,6 +403,23 @@ export const listRoleTemplates = query({
       updatedAt: role.updatedAt,
       updatedByUserId: role.updatedByUserId
     }));
+  }
+});
+
+export const listStaffInvites = query({
+  args: {
+    orgId: v.string()
+  },
+  handler: async (ctx, args) => {
+    await requireAdminManageUser(ctx, args.orgId);
+
+    const invites = await ctx.db
+      .query('schoolStaffInvites')
+      .withIndex('by_org_and_updatedAt', (query) => query.eq('orgId', args.orgId))
+      .order('desc')
+      .collect();
+
+    return invites.map(mapInvite);
   }
 });
 
@@ -363,6 +519,190 @@ export const bulkSaveAccessProfiles = mutation({
     }
 
     return { updated: uniqueUserIds.length };
+  }
+});
+
+export const upsertStaffInvites = mutation({
+  args: {
+    orgId: v.string(),
+    batchLabel: v.optional(v.string()),
+    dashboardRoleLabel: v.string(),
+    roleTemplateId: v.optional(v.id('schoolDashboardRoles')),
+    permissions: v.array(v.string()),
+    clerkRole: v.string(),
+    invitations: v.array(
+      v.object({
+        email: v.string(),
+        clerkInvitationId: v.string(),
+        status: v.union(
+          v.literal('pending'),
+          v.literal('accepted'),
+          v.literal('revoked'),
+          v.literal('expired')
+        )
+      })
+    )
+  },
+  handler: async (ctx, args) => {
+    const identity = await requireAdminManageUser(ctx, args.orgId);
+    const resolved = await resolveProfileInput(ctx, args);
+    const batchLabel = args.batchLabel ? normalizeRoleLabel(args.batchLabel) : undefined;
+    const uniqueInvitations = new Map<
+      string,
+      { email: string; clerkInvitationId: string; status: StaffInviteStatus }
+    >();
+
+    for (const invitation of args.invitations) {
+      const normalizedEmail = normalizeEmail(invitation.email);
+      if (!normalizedEmail) {
+        continue;
+      }
+
+      uniqueInvitations.set(normalizedEmail, {
+        email: invitation.email.trim(),
+        clerkInvitationId: invitation.clerkInvitationId,
+        status: invitation.status
+      });
+    }
+
+    const now = Date.now();
+    let recorded = 0;
+
+    for (const [normalizedEmail, invitation] of uniqueInvitations) {
+      const existingInvites = await getInvitesForEmail(ctx, args.orgId, normalizedEmail);
+      const sendCount =
+        existingInvites.reduce(
+          (maxCount, existingInvite) => Math.max(maxCount, existingInvite.sendCount),
+          0
+        ) + 1;
+
+      await upsertInvite(ctx, {
+        orgId: args.orgId,
+        email: invitation.email,
+        normalizedEmail,
+        clerkInvitationId: invitation.clerkInvitationId,
+        clerkRole: args.clerkRole,
+        batchLabel,
+        dashboardRoleLabel: resolved.dashboardRoleLabel,
+        roleTemplateId: resolved.roleTemplateId,
+        permissions: resolved.permissions,
+        status: invitation.status,
+        invitedByUserId: identity.subject,
+        invitedAt: now,
+        lastSentAt: now,
+        sendCount,
+        updatedAt: now,
+        acceptedAt: invitation.status === 'accepted' ? now : undefined,
+        revokedAt: invitation.status === 'revoked' ? now : undefined
+      });
+      recorded += 1;
+    }
+
+    return { recorded };
+  }
+});
+
+export const syncStaffInviteStatuses = mutation({
+  args: {
+    orgId: v.string(),
+    statuses: v.array(
+      v.object({
+        clerkInvitationId: v.string(),
+        status: v.union(
+          v.literal('pending'),
+          v.literal('accepted'),
+          v.literal('revoked'),
+          v.literal('expired')
+        )
+      })
+    )
+  },
+  handler: async (ctx, args) => {
+    await requireAdminManageUser(ctx, args.orgId);
+
+    const now = Date.now();
+    let synced = 0;
+
+    for (const entry of args.statuses) {
+      const matchingInvites = await ctx.db
+        .query('schoolStaffInvites')
+        .withIndex('by_org_and_clerkInvitationId', (query) =>
+          query.eq('orgId', args.orgId).eq('clerkInvitationId', entry.clerkInvitationId)
+        )
+        .collect();
+
+      for (const invite of matchingInvites) {
+        await ctx.db.patch(invite._id, {
+          status: entry.status,
+          updatedAt: now,
+          acceptedAt:
+            entry.status === 'accepted'
+              ? (invite.acceptedAt ?? now)
+              : entry.status === 'pending'
+                ? undefined
+                : invite.acceptedAt,
+          revokedAt:
+            entry.status === 'revoked'
+              ? (invite.revokedAt ?? now)
+              : entry.status === 'pending'
+                ? undefined
+                : invite.revokedAt
+        });
+        synced += 1;
+      }
+    }
+
+    return { synced };
+  }
+});
+
+export const claimCurrentUserInvite = mutation({
+  args: {
+    orgId: v.string()
+  },
+  handler: async (ctx, args) => {
+    const identity = await requireOrganizationAccess(ctx, args.orgId);
+    const identityEmail = normalizeEmail(String(identity.email ?? ''));
+
+    if (!identityEmail) {
+      return { claimed: false, reason: 'missing-email' as const };
+    }
+
+    const matchingInvites = await getInvitesForEmail(ctx, args.orgId, identityEmail);
+    const activeInvites = matchingInvites.filter(
+      (invite) => invite.status === 'pending' || invite.status === 'accepted'
+    );
+
+    if (activeInvites.length === 0) {
+      return { claimed: false, reason: 'not-found' as const };
+    }
+
+    // oxlint-disable-next-line unicorn/no-array-sort
+    const [primaryInvite, ...duplicateInvites] = [...activeInvites].sort(
+      (left, right) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0)
+    );
+    const now = Date.now();
+
+    for (const invite of [primaryInvite, ...duplicateInvites]) {
+      await ctx.db.patch(invite._id, {
+        status: 'accepted',
+        claimedByUserId: identity.subject,
+        acceptedAt: invite.acceptedAt ?? now,
+        updatedAt: now
+      });
+    }
+
+    for (const duplicateInvite of duplicateInvites) {
+      await ctx.db.delete(duplicateInvite._id);
+    }
+
+    await applyInviteAccessProfile(ctx, primaryInvite, identity.subject, identity.subject, now);
+
+    return {
+      claimed: true,
+      inviteId: primaryInvite._id,
+      dashboardRole: primaryInvite.dashboardRoleLabel
+    };
   }
 });
 

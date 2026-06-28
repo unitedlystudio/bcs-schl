@@ -103,6 +103,36 @@ export default defineSchema({
     .index('by_org_and_roleTemplate', ['orgId', 'roleTemplateId'])
     .index('by_org_and_updatedAt', ['orgId', 'updatedAt']),
 
+  schoolStaffInvites: defineTable({
+    orgId: v.string(),
+    email: v.string(),
+    normalizedEmail: v.string(),
+    clerkInvitationId: v.string(),
+    clerkRole: v.string(),
+    batchLabel: v.optional(v.string()),
+    dashboardRoleLabel: v.string(),
+    roleTemplateId: v.optional(v.id('schoolDashboardRoles')),
+    permissions: v.array(v.string()),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('accepted'),
+      v.literal('revoked'),
+      v.literal('expired')
+    ),
+    invitedByUserId: v.string(),
+    invitedAt: v.number(),
+    lastSentAt: v.number(),
+    sendCount: v.number(),
+    updatedAt: v.number(),
+    claimedByUserId: v.optional(v.string()),
+    acceptedAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number())
+  })
+    .index('by_org_and_email', ['orgId', 'normalizedEmail'])
+    .index('by_org_and_status', ['orgId', 'status'])
+    .index('by_org_and_updatedAt', ['orgId', 'updatedAt'])
+    .index('by_org_and_clerkInvitationId', ['orgId', 'clerkInvitationId']),
+
   students: defineTable({
     preferredName: v.string(),
     fullName: v.string(),
