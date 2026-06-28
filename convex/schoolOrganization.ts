@@ -79,16 +79,44 @@ function ensureCustomRoleName(name: string) {
   return normalizedName;
 }
 
+function toStringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === 'string')
+    : [];
+}
+
+function toNumberOrNull(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function toNumberOrFallback(value: unknown, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function toInviteStatus(value: unknown): StaffInviteStatus {
+  switch (value) {
+    case 'accepted':
+    case 'revoked':
+    case 'expired':
+    case 'pending': {
+      return value;
+    }
+    default: {
+      return 'pending';
+    }
+  }
+}
+
 function mapProfile(profile: {
   _id: string;
   userId: string;
   dashboardRoleLabel: string;
   roleTemplateId?: DashboardRoleTemplateId;
-  permissions: string[];
-  updatedAt: number;
+  permissions?: unknown;
+  updatedAt?: unknown;
   updatedByUserId: string;
 }) {
-  const permissions = normalizeDashboardPermissions(profile.permissions);
+  const permissions = normalizeDashboardPermissions(toStringArray(profile.permissions));
   const summary = summarizeDashboardPermissions(permissions);
 
   return {
@@ -98,7 +126,7 @@ function mapProfile(profile: {
     roleTemplateId: profile.roleTemplateId ?? null,
     permissions,
     permissionCount: summary.count,
-    updatedAt: profile.updatedAt,
+    updatedAt: toNumberOrFallback(profile.updatedAt, Date.now()),
     updatedByUserId: profile.updatedByUserId
   };
 }
@@ -111,19 +139,21 @@ function mapInvite(invite: {
   batchLabel?: string;
   dashboardRoleLabel: string;
   roleTemplateId?: DashboardRoleTemplateId;
-  permissions: string[];
-  status: StaffInviteStatus;
+  permissions?: unknown;
+  status?: unknown;
   invitedByUserId: string;
-  invitedAt: number;
-  lastSentAt: number;
-  sendCount: number;
-  updatedAt: number;
+  invitedAt?: unknown;
+  lastSentAt?: unknown;
+  sendCount?: unknown;
+  updatedAt?: unknown;
   claimedByUserId?: string;
-  acceptedAt?: number;
-  revokedAt?: number;
+  acceptedAt?: unknown;
+  revokedAt?: unknown;
 }) {
-  const permissions = normalizeDashboardPermissions(invite.permissions);
+  const permissions = normalizeDashboardPermissions(toStringArray(invite.permissions));
   const summary = summarizeDashboardPermissions(permissions);
+  const invitedAt = toNumberOrFallback(invite.invitedAt, Date.now());
+  const updatedAt = toNumberOrFallback(invite.updatedAt, invitedAt);
 
   return {
     id: invite._id,
@@ -135,15 +165,15 @@ function mapInvite(invite: {
     roleTemplateId: invite.roleTemplateId ?? null,
     permissions,
     permissionCount: summary.count,
-    status: invite.status,
+    status: toInviteStatus(invite.status),
     invitedByUserId: invite.invitedByUserId,
-    invitedAt: invite.invitedAt,
-    lastSentAt: invite.lastSentAt,
-    sendCount: invite.sendCount,
-    updatedAt: invite.updatedAt,
+    invitedAt,
+    lastSentAt: toNumberOrFallback(invite.lastSentAt, invitedAt),
+    sendCount: toNumberOrFallback(invite.sendCount, 1),
+    updatedAt,
     claimedByUserId: invite.claimedByUserId ?? null,
-    acceptedAt: invite.acceptedAt ?? null,
-    revokedAt: invite.revokedAt ?? null
+    acceptedAt: toNumberOrNull(invite.acceptedAt),
+    revokedAt: toNumberOrNull(invite.revokedAt)
   };
 }
 
@@ -393,16 +423,20 @@ export const listRoleTemplates = query({
       assignmentCounts.set(key, (assignmentCounts.get(key) ?? 0) + 1);
     }
 
-    return roles.map((role) => ({
-      id: role._id,
-      name: role.name,
-      slug: role.slug,
-      permissions: normalizeDashboardPermissions(role.permissions),
-      permissionCount: normalizeDashboardPermissions(role.permissions).length,
-      assignmentCount: assignmentCounts.get(String(role._id)) ?? 0,
-      updatedAt: role.updatedAt,
-      updatedByUserId: role.updatedByUserId
-    }));
+    return roles.map((role) => {
+      const permissions = normalizeDashboardPermissions(toStringArray(role.permissions));
+
+      return {
+        id: role._id,
+        name: role.name,
+        slug: role.slug,
+        permissions,
+        permissionCount: permissions.length,
+        assignmentCount: assignmentCounts.get(String(role._id)) ?? 0,
+        updatedAt: role.updatedAt,
+        updatedByUserId: role.updatedByUserId
+      };
+    });
   }
 });
 
