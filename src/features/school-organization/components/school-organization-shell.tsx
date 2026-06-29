@@ -493,8 +493,8 @@ function RoleTemplateEditorSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className='flex flex-col sm:max-w-2xl'>
-        <SheetHeader>
+      <SheetContent className='flex h-full !w-[90vw] min-w-0 flex-col overflow-hidden px-4 sm:!max-w-2xl'>
+        <SheetHeader className='shrink-0'>
           <SheetTitle>
             {roleTemplate ? `Edit ${roleTemplate.name}` : 'Create organisation role'}
           </SheetTitle>
@@ -504,7 +504,7 @@ function RoleTemplateEditorSheet({
           </SheetDescription>
         </SheetHeader>
 
-        <div className='flex-1 space-y-6 overflow-auto pr-1'>
+        <div className='min-h-0 flex-1 space-y-6 overflow-y-auto overflow-x-hidden pr-1 pb-2'>
           <div className='space-y-2'>
             <div className='text-sm font-medium'>Role name</div>
             <Input
@@ -546,7 +546,7 @@ function RoleTemplateEditorSheet({
                       return (
                         <div
                           key={permission.key}
-                          className='flex items-start gap-3 rounded-xl border border-border/60 p-3'
+                          className='flex min-w-0 items-start gap-3 rounded-xl border border-border/60 p-3'
                         >
                           <Checkbox
                             id={checkboxId}
@@ -555,9 +555,9 @@ function RoleTemplateEditorSheet({
                               togglePermission(permission.key, Boolean(checked))
                             }
                           />
-                          <label htmlFor={checkboxId} className='space-y-1'>
+                          <label htmlFor={checkboxId} className='min-w-0 flex-1 space-y-1'>
                             <div className='text-sm font-medium'>{permission.label}</div>
-                            <div className='text-muted-foreground text-xs'>
+                            <div className='text-muted-foreground text-xs break-words'>
                               {permission.description}
                             </div>
                           </label>
@@ -753,8 +753,8 @@ function AccessEditorSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className='flex flex-col sm:max-w-2xl'>
-        <SheetHeader>
+      <SheetContent className='flex h-full !w-[90vw] min-w-0 flex-col overflow-hidden px-4 sm:!max-w-2xl'>
+        <SheetHeader className='shrink-0'>
           <SheetTitle>
             {isBulk ? 'Bulk dashboard permissions' : 'Edit dashboard permissions'}
           </SheetTitle>
@@ -765,7 +765,7 @@ function AccessEditorSheet({
           </SheetDescription>
         </SheetHeader>
 
-        <div className='flex-1 space-y-6 overflow-auto pr-1'>
+        <div className='min-h-0 flex-1 space-y-6 overflow-y-auto overflow-x-hidden pr-1 pb-2'>
           <div className='rounded-2xl border border-border/60 bg-muted/20 p-4'>
             <div className='text-sm font-medium'>
               {isBulk ? 'Selected staff members' : (rows[0]?.fullName ?? 'Staff member')}
