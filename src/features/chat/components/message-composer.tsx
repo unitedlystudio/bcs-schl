@@ -12,7 +12,6 @@ interface MessageComposerProps {
   onDraftChange: (text: string) => void;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
   contactName: string;
-  quickReplies: string[];
   attachments: Attachment[];
   onAddAttachments: (files: FileList) => void;
   onRemoveAttachment: (id: string) => void;
@@ -23,7 +22,6 @@ export function MessageComposer({
   onDraftChange,
   onSubmit,
   contactName,
-  quickReplies,
   attachments,
   onAddAttachments,
   onRemoveAttachment
@@ -66,18 +64,6 @@ export function MessageComposer({
             className='text-foreground placeholder:text-muted-foreground/70 min-h-[3rem] w-full resize-none border-none bg-transparent text-xs focus-visible:ring-0 focus-visible:outline-none sm:min-h-[4rem] sm:text-sm'
             aria-label={'Message ' + contactName}
           />
-          <div className='mt-2 flex flex-wrap gap-1.5 sm:mt-3 sm:gap-2'>
-            {quickReplies.map((reply) => (
-              <button
-                key={reply}
-                type='button'
-                onClick={() => onDraftChange(reply)}
-                className='border-border/50 bg-background/70 text-muted-foreground hover:border-primary/40 hover:text-foreground focus-visible:ring-primary/40 focus-visible:ring-offset-background rounded-full border px-2.5 py-0.5 text-[0.65rem] transition focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none sm:px-3 sm:py-1 sm:text-xs'
-              >
-                {reply}
-              </button>
-            ))}
-          </div>
         </div>
         <div className='flex shrink-0 flex-col items-end gap-1.5 sm:w-24 sm:gap-2'>
           <input

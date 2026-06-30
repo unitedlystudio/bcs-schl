@@ -85,7 +85,6 @@ export function ChatArea({
             onDraftChange={onDraftChange}
             onSubmit={onSubmit}
             contactName={conversation.name}
-            quickReplies={conversation.quickReplies}
             attachments={attachments}
             onAddAttachments={onAddAttachments}
             onRemoveAttachment={onRemoveAttachment}
