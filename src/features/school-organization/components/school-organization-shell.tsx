@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useOrganization, OrganizationProfile } from '@clerk/nextjs';
+import { OrganizationProfile, useOrganization, useUser } from '@clerk/nextjs';
 import { useMutation, useQuery } from 'convex/react';
 import {
   type ColumnFiltersState,
@@ -20,6 +20,17 @@ import {
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -46,7 +57,6 @@ import { DataTable } from '@/components/ui/table/data-table';
 import { DataTableColumnHeader } from '@/components/ui/table/data-table-column-header';
 import { DataTableToolbar } from '@/components/ui/table/data-table-toolbar';
 import { useDashboardAccess } from '@/hooks/use-dashboard-access';
-import CurrentUserInviteClaimSync from '@/features/school-organization/components/current-user-invite-claim-sync';
 import StaffInvitationManager from '@/features/school-organization/components/staff-invitation-manager';
 import {
   DASHBOARD_PERMISSION_CATALOG,
@@ -586,23 +596,34 @@ function AccessEditorSheet({
   onOpenChange,
   rows,
   orgId,
-  roleTemplates
+  roleTemplates,
+  membershipsData,
+  revalidateMemberships,
+  currentUserId
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   rows: StaffAccessRow[];
   orgId: string;
   roleTemplates: RoleTemplateRecord[];
+  membershipsData: Array<{ id: string; destroy: () => Promise<unknown> }>;
+  revalidateMemberships?: () => Promise<unknown>;
+  currentUserId?: string;
 }) {
   const saveAccessProfile = useMutation(api.schoolOrganization.saveAccessProfile);
   const bulkSaveAccessProfiles = useMutation(api.schoolOrganization.bulkSaveAccessProfiles);
   const clearAccessProfiles = useMutation(api.schoolOrganization.clearAccessProfiles);
+  const removeStaffMemberRecords = useMutation(api.schoolOrganization.removeStaffMemberRecords);
   const [selectedRoleValue, setSelectedRoleValue] = useState<string>('Inherited');
   const [permissions, setPermissions] = useState<DashboardPermissionKey[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDisabling, setIsDisabling] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const isBulk = rows.length > 1;
-  const isPending = isSaving;
+  const selectedRow = rows[0] ?? null;
+  const isEditingSelf = Boolean(currentUserId && selectedRow?.userId === currentUserId);
+  const isPending = isSaving || isDisabling || isDeleting;
   const roleOptions = useMemo(() => buildAssignmentRoleOptions(roleTemplates), [roleTemplates]);
 
   useEffect(() => {
@@ -648,6 +669,9 @@ function AccessEditorSheet({
 
   const selectedRoleOption =
     roleOptions.find((roleOption) => roleOption.value === selectedRoleValue) ?? roleOptions[0];
+  const selectedMembership = selectedRow
+    ? (membershipsData.find((membership) => membership.id === selectedRow.membershipId) ?? null)
+    : null;
 
   async function handleSave() {
     setIsSaving(true);
@@ -745,6 +769,59 @@ function AccessEditorSheet({
         ))
     ) {
       setSelectedRoleValue('Custom');
+    }
+  }
+
+  async function handleDisableAccess() {
+    if (!selectedRow) {
+      return;
+    }
+
+    setIsDisabling(true);
+
+    try {
+      await saveAccessProfile({
+        orgId,
+        userId: selectedRow.userId,
+        dashboardRoleLabel: 'Access disabled',
+        permissions: []
+      });
+      toast.success(
+        `${selectedRow.fullName} can no longer open dashboard areas in this workspace.`
+      );
+      onOpenChange(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to disable staff access.';
+      toast.error(message);
+    } finally {
+      setIsDisabling(false);
+    }
+  }
+
+  async function handleDeleteMember() {
+    if (!selectedRow || !selectedMembership) {
+      toast.error('That workspace member could not be loaded. Refresh and try again.');
+      return;
+    }
+
+    setIsDeleting(true);
+
+    try {
+      await selectedMembership.destroy();
+      await removeStaffMemberRecords({
+        orgId,
+        userId: selectedRow.userId,
+        ...(selectedRow.email ? { email: selectedRow.email } : {})
+      });
+      await revalidateMemberships?.();
+      toast.success(`${selectedRow.fullName} was removed from this workspace.`);
+      onOpenChange(false);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to remove this staff member.';
+      toast.error(message);
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -856,6 +933,91 @@ function AccessEditorSheet({
                 ))}
               </div>
             </div>
+
+            {!isBulk ? (
+              <div className='rounded-2xl border border-destructive/25 bg-destructive/5 p-4'>
+                <div className='text-sm font-semibold'>Member access controls</div>
+                <div className='text-muted-foreground mt-1 text-sm'>
+                  Disable this member to keep them in the workspace with no Schly dashboard access,
+                  or delete them to remove them from the workspace entirely.
+                </div>
+                {isEditingSelf ? (
+                  <div className='text-muted-foreground mt-3 text-xs'>
+                    You cannot disable or delete your own workspace membership from this screen.
+                  </div>
+                ) : null}
+                <div className='mt-4 flex flex-wrap gap-2'>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        disabled={isPending || isEditingSelf || !selectedRow}
+                      >
+                        Disable access
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Disable dashboard access?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {selectedRow?.fullName ?? 'This staff member'} will stay in the workspace,
+                          but Schly will save an empty managed access profile so they cannot open
+                          dashboard areas until you grant permissions again.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDisabling}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          disabled={isDisabling}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            void handleDisableAccess();
+                          }}
+                        >
+                          {isDisabling ? 'Disabling…' : 'Disable access'}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        type='button'
+                        variant='destructive'
+                        disabled={isPending || isEditingSelf || !selectedRow || !selectedMembership}
+                      >
+                        Delete member
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this workspace member?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {selectedRow?.fullName ?? 'This staff member'} will be removed from the
+                          workspace, and their saved Schly access profile and invite records for
+                          this workspace will be deleted.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                          disabled={isDeleting}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            void handleDeleteMember();
+                          }}
+                        >
+                          {isDeleting ? 'Deleting…' : 'Delete member'}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -874,6 +1036,7 @@ function AccessEditorSheet({
 
 export default function SchoolOrganizationShell() {
   const dashboardAccess = useDashboardAccess();
+  const { user } = useUser();
   const { organization, memberships, isLoaded } = useOrganization({
     memberships: {
       infinite: true,
@@ -1126,7 +1289,6 @@ export default function SchoolOrganizationShell() {
 
   return (
     <>
-      <CurrentUserInviteClaimSync />
       <Tabs defaultValue='permissions' className='space-y-4'>
         <TabsList>
           <TabsTrigger value='permissions'>Staff permissions</TabsTrigger>
@@ -1307,6 +1469,9 @@ export default function SchoolOrganizationShell() {
             rows={editingRows}
             orgId={orgId}
             roleTemplates={availableRoleTemplates}
+            membershipsData={memberships?.data ?? []}
+            revalidateMemberships={memberships?.revalidate}
+            currentUserId={user?.id}
           />
           <RoleTemplateEditorSheet
             open={roleEditorOpen}

@@ -17,6 +17,10 @@ type DashboardAccessProfile = {
   updatedAt?: number;
 };
 
+function normalizeEmail(value: unknown) {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
 function isTruthy(value: string | undefined) {
   return ['1', 'true', 'yes', 'on'].includes(value?.trim().toLowerCase() ?? '');
 }
@@ -118,12 +122,68 @@ async function getStoredDashboardAccess(
   };
 }
 
+async function getInvitedDashboardAccess(
+  ctx: ContextLike,
+  identity: IdentityLike
+): Promise<DashboardAccessProfile | null> {
+  const orgId = getOrganizationIdFromIdentity(identity);
+  const normalizedEmail = normalizeEmail(identity.email);
+
+  if (!orgId || !normalizedEmail || identity.subject === 'local-dev-bypass') {
+    return null;
+  }
+
+  const invites = await ctx.db
+    .query('schoolStaffInvites')
+    .withIndex('by_org_and_email', (query) =>
+      query.eq('orgId', orgId).eq('normalizedEmail', normalizedEmail)
+    )
+    .collect();
+
+  const activeInvites = invites.filter(
+    (invite) => invite.status === 'pending' || invite.status === 'accepted'
+  );
+
+  if (activeInvites.length === 0) {
+    return null;
+  }
+
+  // oxlint-disable-next-line unicorn/no-array-sort
+  const [latestInvite] = [...activeInvites].sort(
+    (left, right) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0)
+  );
+
+  if (latestInvite.roleTemplateId) {
+    const roleTemplate = await ctx.db.get(latestInvite.roleTemplateId);
+
+    if (roleTemplate && roleTemplate.orgId === orgId) {
+      return {
+        _id: latestInvite._id,
+        roleTemplateId: latestInvite.roleTemplateId,
+        permissions: normalizeDashboardPermissions(roleTemplate.permissions),
+        dashboardRoleLabel: roleTemplate.name,
+        updatedAt: latestInvite.updatedAt
+      };
+    }
+  }
+
+  return {
+    _id: latestInvite._id,
+    roleTemplateId: latestInvite.roleTemplateId,
+    permissions: normalizeDashboardPermissions(latestInvite.permissions),
+    dashboardRoleLabel: latestInvite.dashboardRoleLabel,
+    updatedAt: latestInvite.updatedAt
+  };
+}
+
 export async function getEffectiveDashboardAccess(ctx: ContextLike, identity: IdentityLike) {
   const clerkPermissions = getClerkPermissions(identity);
   const clerkRole = getClerkRole(identity);
   const storedProfile = await getStoredDashboardAccess(ctx, identity);
-  const storedPermissions = storedProfile?.permissions ?? [];
-  const isManaged = Boolean(storedProfile);
+  const inviteProfile = storedProfile ? null : await getInvitedDashboardAccess(ctx, identity);
+  const managedProfile = storedProfile ?? inviteProfile;
+  const storedPermissions = managedProfile?.permissions ?? [];
+  const isManaged = Boolean(managedProfile);
   const effectivePermissions = isManaged
     ? storedPermissions
     : normalizeDashboardPermissions(clerkPermissions);
@@ -134,6 +194,7 @@ export async function getEffectiveDashboardAccess(ctx: ContextLike, identity: Id
     clerkRole,
     clerkPermissions,
     storedProfile,
+    inviteProfile,
     isManaged,
     effectivePermissions,
     effectiveRole

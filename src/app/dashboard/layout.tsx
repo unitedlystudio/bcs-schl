@@ -6,6 +6,7 @@ import { InfobarProvider } from '@/components/ui/infobar';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
+import CurrentUserInviteClaimSync from '@/features/school-organization/components/current-user-invite-claim-sync';
 
 export const metadata: Metadata = {
   title: 'Schly Dashboard',
@@ -26,6 +27,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <InfobarProvider defaultOpen={false}>
           <AppSidebar />
           <SidebarInset>
+            <CurrentUserInviteClaimSync />
             <Header />
             {/* page main content */}
             {children}

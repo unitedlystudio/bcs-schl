@@ -266,6 +266,21 @@ async function clearProfilesForUsers(ctx: MutationCtx, orgId: string, userIds: s
   }
 }
 
+async function clearInvitesForEmails(ctx: MutationCtx, orgId: string, emails: string[]) {
+  for (const email of emails) {
+    const normalizedEmail = normalizeEmail(email);
+
+    if (!normalizedEmail) {
+      continue;
+    }
+
+    const existingInvites = await getInvitesForEmail(ctx, orgId, normalizedEmail);
+    for (const invite of existingInvites) {
+      await ctx.db.delete(invite._id);
+    }
+  }
+}
+
 async function resolveProfileInput(
   ctx: MutationCtx,
   args: {
@@ -474,11 +489,16 @@ export const getCurrentAccess = query({
 
     return {
       orgId: args.orgId,
-      hasManagedProfile: Boolean(access.storedProfile),
-      dashboardRole: access.storedProfile?.dashboardRoleLabel ?? 'Inherited',
-      roleTemplateId: access.storedProfile?.roleTemplateId ?? null,
+      hasManagedProfile: Boolean(access.storedProfile || access.inviteProfile),
+      dashboardRole:
+        access.storedProfile?.dashboardRoleLabel ??
+        access.inviteProfile?.dashboardRoleLabel ??
+        'Inherited',
+      roleTemplateId:
+        access.storedProfile?.roleTemplateId ?? access.inviteProfile?.roleTemplateId ?? null,
       permissions: access.effectivePermissions,
-      managedPermissions: access.storedProfile?.permissions ?? [],
+      managedPermissions:
+        access.storedProfile?.permissions ?? access.inviteProfile?.permissions ?? [],
       clerkRole: access.clerkRole
     };
   }
@@ -525,6 +545,46 @@ export const clearAccessProfiles = mutation({
     await clearProfilesForUsers(ctx, args.orgId, uniqueUserIds);
 
     return { cleared: uniqueUserIds.length };
+  }
+});
+
+export const removeStaffMemberRecords = mutation({
+  args: {
+    orgId: v.string(),
+    userId: v.string(),
+    email: v.optional(v.string())
+  },
+  handler: async (ctx, args) => {
+    await requireAdminManageUser(ctx, args.orgId);
+
+    const normalizedUserId = args.userId.trim();
+    const normalizedEmail = args.email ? normalizeEmail(args.email) : '';
+
+    if (!normalizedUserId && !normalizedEmail) {
+      throw new Error('A staff member user id or email is required to remove records.');
+    }
+
+    let removedProfiles = 0;
+    let removedInvites = 0;
+
+    if (normalizedUserId) {
+      const existingProfiles = await getProfilesForUser(ctx, args.orgId, normalizedUserId);
+      removedProfiles = existingProfiles.length;
+      for (const profile of existingProfiles) {
+        await ctx.db.delete(profile._id);
+      }
+    }
+
+    if (normalizedEmail) {
+      const existingInvites = await getInvitesForEmail(ctx, args.orgId, normalizedEmail);
+      removedInvites = existingInvites.length;
+      await clearInvitesForEmails(ctx, args.orgId, [normalizedEmail]);
+    }
+
+    return {
+      removedProfiles,
+      removedInvites
+    };
   }
 });
 

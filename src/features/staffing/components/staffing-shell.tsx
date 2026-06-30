@@ -147,7 +147,8 @@ export default function StaffingShell() {
           <CardTitle>Staff leave & cover</CardTitle>
           <CardDescription>
             Keep teacher leave requests, approvals, and cover ownership as one dated operational
-            workflow.
+            workflow. Invited workspace staff do not appear here until they are added to the teacher
+            directory.
           </CardDescription>
         </CardHeader>
         <CardContent className='grid gap-3'>

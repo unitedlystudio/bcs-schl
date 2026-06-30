@@ -174,7 +174,8 @@ export default function TeacherDirectory() {
           <CardTitle>Teacher directory</CardTitle>
           <CardDescription>
             Manage academic year and homeroom ownership as editable school structure, not
-            seeded-only metadata.
+            seeded-only metadata. Inviting a workspace member does not create a teacher directory
+            record automatically.
           </CardDescription>
         </CardHeader>
         <CardContent className='grid gap-3'>

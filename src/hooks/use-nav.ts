@@ -36,7 +36,7 @@ function shouldAllowPermission(
   }
 
   if (MANAGED_NAV_PERMISSION_KEYS.has(permission as never)) {
-    return dashboardAccess.hasManagedProfile ? dashboardAccess.hasPermission(permission) : true;
+    return dashboardAccess.hasPermission(permission);
   }
 
   return dashboardAccess.hasPermission(permission);
