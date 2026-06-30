@@ -1,3 +1,4 @@
+import { DashboardPermissionGate } from '@/components/layout/dashboard-permission-gate';
 import SchlyDashboard from '@/features/overview/components/schly-dashboard';
 
 export const metadata = {
@@ -5,5 +6,9 @@ export const metadata = {
 };
 
 export default function OverviewPage() {
-  return <SchlyDashboard />;
+  return (
+    <DashboardPermissionGate permission='org:overview:read' areaLabel='Dashboard overview'>
+      <SchlyDashboard />
+    </DashboardPermissionGate>
+  );
 }

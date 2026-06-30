@@ -1,4 +1,5 @@
 import PageContainer from '@/components/layout/page-container';
+import { DashboardPermissionGate } from '@/components/layout/dashboard-permission-gate';
 import AccessListingPage from '@/features/access/components/access-listing';
 import { accessInfoContent } from '@/features/access/info-content';
 import { searchParamsCache } from '@/lib/searchparams';
@@ -17,12 +18,14 @@ export default async function AccessPage(props: PageProps) {
   searchParamsCache.parse(searchParams);
 
   return (
-    <PageContainer
-      pageTitle='Platform Access'
-      pageDescription='Structured inventory for the spreadsheet of online profiles, logins, and admin access.'
-      infoContent={accessInfoContent}
-    >
-      <AccessListingPage />
-    </PageContainer>
+    <DashboardPermissionGate permission='org:access:read' areaLabel='Platform access'>
+      <PageContainer
+        pageTitle='Platform Access'
+        pageDescription='Structured inventory for the spreadsheet of online profiles, logins, and admin access.'
+        infoContent={accessInfoContent}
+      >
+        <AccessListingPage />
+      </PageContainer>
+    </DashboardPermissionGate>
   );
 }

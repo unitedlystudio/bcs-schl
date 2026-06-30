@@ -1,3 +1,4 @@
+import { DashboardPermissionGate } from '@/components/layout/dashboard-permission-gate';
 import NotificationsPage from '@/features/notifications/components/notifications-page';
 
 export const metadata = {
@@ -5,5 +6,9 @@ export const metadata = {
 };
 
 export default function Page() {
-  return <NotificationsPage />;
+  return (
+    <DashboardPermissionGate permission='org:notifications:read' areaLabel='Inbox'>
+      <NotificationsPage />
+    </DashboardPermissionGate>
+  );
 }
