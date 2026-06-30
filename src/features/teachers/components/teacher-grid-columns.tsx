@@ -9,8 +9,8 @@ export interface TeacherGridRow {
   id: string;
   fullName: string;
   preferredName: string;
-  role: 'Teacher' | 'Homeroom Teacher' | 'Teaching Assistant';
-  status: 'Active' | 'On Leave';
+  role: string;
+  status: string;
   academicYear: string;
   homeroomClass: string;
   email: string;
