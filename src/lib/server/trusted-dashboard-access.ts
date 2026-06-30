@@ -21,7 +21,7 @@ function readEmailFromSessionClaims(sessionClaims: Record<string, unknown> | nul
 }
 
 type TrustedAccessIdentity = {
-  email: string;
+  email?: string;
   orgId: string;
   orgPermissions: string[];
   orgRole: string;
@@ -59,12 +59,12 @@ async function getTrustedIdentity(): Promise<TrustedAccessIdentity | null> {
     }
   }
 
-  if (!session.userId || !session.orgId || !email) {
+  if (!session.userId || !session.orgId) {
     return null;
   }
 
   return {
-    email,
+    email: email || undefined,
     orgId: session.orgId,
     orgPermissions: session.orgPermissions ?? [],
     orgRole: session.orgRole ?? '',
@@ -80,7 +80,7 @@ function createTrustedConvexClient(identity: TrustedAccessIdentity) {
   };
 
   client.setAdminAuth(getRequiredEnv('CONVEX_DEPLOY_KEY'), {
-    email: identity.email,
+    ...(identity.email ? { email: identity.email } : {}),
     orgId: identity.orgId,
     orgPermissions: identity.orgPermissions,
     orgRole: identity.orgRole,
@@ -105,7 +105,7 @@ export async function getTrustedDashboardAccess() {
 export async function claimTrustedDashboardInvite() {
   const identity = await getTrustedIdentity();
 
-  if (!identity) {
+  if (!identity?.email) {
     return null;
   }
 
