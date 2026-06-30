@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { useOrganization } from '@clerk/nextjs';
+import { useOrganization, useUser } from '@clerk/nextjs';
 import { useMutation, useQuery } from 'convex/react';
 import { toast } from 'sonner';
 import { Id } from '../../../../convex/_generated/dataModel';
@@ -13,6 +13,7 @@ import { ConversationSelect } from './conversation-select';
 
 export function Messenger() {
   const { isLoaded, organization } = useOrganization();
+  const { user } = useUser();
   const conversationsQuery = useQuery(api.conversations.list, {});
   const conversations = useMemo(() => conversationsQuery ?? [], [conversationsQuery]);
   const [selectedConversationId, setSelectedConversationId] = useState<string>('');
@@ -111,11 +112,29 @@ export function Messenger() {
   const activeConversation: Conversation | undefined = useMemo(() => {
     if (!selectedConversation) return undefined;
 
+    const viewerLabels = [
+      user?.primaryEmailAddress?.emailAddress,
+      user?.emailAddresses?.[0]?.emailAddress,
+      user?.fullName,
+      user?.username
+    ]
+      .map((value) => value?.trim().toLowerCase())
+      .filter(Boolean);
+    const conversationName = selectedConversation.name.trim().toLowerCase();
+    const isLegacySelfNamedConversation = viewerLabels.includes(conversationName);
+    const normalizedMessages = (messages ?? selectedConversation.messages).map((message) => {
+      if (isLegacySelfNamedConversation && message.author === 'You') {
+        return { ...message, sender: 'contact' as const };
+      }
+
+      return message;
+    });
+
     return {
       ...selectedConversation,
-      messages: messages ?? selectedConversation.messages
+      messages: normalizedMessages
     };
-  }, [messages, selectedConversation]);
+  }, [messages, selectedConversation, user]);
 
   const selectConversation = useCallback(
     (id: string) => {
