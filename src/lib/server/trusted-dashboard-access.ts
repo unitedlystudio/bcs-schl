@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { auth, currentUser } from '@clerk/nextjs/server';
+import { auth, clerkClient, currentUser } from '@clerk/nextjs/server';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '../../../convex/_generated/api';
 
@@ -64,37 +64,45 @@ async function getTrustedIdentity(requestedOrgId?: string): Promise<TrustedAcces
   let membershipFallback: ReturnType<typeof normalizeMembership> | null = null;
   let fallbackMembershipCount = 0;
 
+  if (!session.userId) {
+    return null;
+  }
+
   if (
     !email ||
     !session.orgId ||
     (normalizedRequestedOrgId && session.orgId !== normalizedRequestedOrgId)
   ) {
     try {
-      const user = await currentUser();
-      const memberships =
-        (user as unknown as { organizationMemberships?: ClerkOrganizationMembershipLike[] } | null)
-          ?.organizationMemberships ?? [];
+      const client = await clerkClient();
+      const [user, membershipsResponse] = await Promise.all([
+        currentUser().catch(() => null),
+        client.users.getOrganizationMembershipList({ limit: 100, userId: session.userId })
+      ]);
+      const memberships = membershipsResponse.data.map((membership) =>
+        normalizeMembership({
+          organization: { id: membership.organization?.id ?? null },
+          permissions: membership.permissions ?? [],
+          role: membership.role ?? ''
+        })
+      );
+
       email =
-        user?.primaryEmailAddress?.emailAddress?.trim().toLowerCase() ??
-        user?.emailAddresses?.[0]?.emailAddress?.trim().toLowerCase() ??
+        email ||
+        user?.primaryEmailAddress?.emailAddress?.trim().toLowerCase() ||
+        user?.emailAddresses?.[0]?.emailAddress?.trim().toLowerCase() ||
         '';
       fallbackMembershipCount = memberships.length;
 
       if (normalizedRequestedOrgId) {
-        membershipFallback = normalizeMembership(
-          memberships.find((membership) => membership.organization?.id === normalizedRequestedOrgId)
-        );
+        membershipFallback =
+          memberships.find((membership) => membership.orgId === normalizedRequestedOrgId) ?? null;
+      } else if (!session.orgId && memberships.length === 1) {
+        membershipFallback = memberships[0] ?? null;
       }
     } catch (error) {
-      console.warn(
-        'Falling back to Clerk session claims for trusted dashboard access email lookup.',
-        error
-      );
+      console.warn('[dashboard-access] failed Clerk membership fallback lookup', error);
     }
-  }
-
-  if (!session.userId) {
-    return null;
   }
 
   const resolvedOrgId = session.orgId ?? membershipFallback?.orgId ?? '';
