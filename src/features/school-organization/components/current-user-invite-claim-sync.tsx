@@ -2,14 +2,13 @@
 
 import { useEffect, useRef } from 'react';
 import { useOrganization, useUser } from '@clerk/nextjs';
-import { useMutation } from 'convex/react';
-import { api } from '../../../../convex/_generated/api';
 import { toast } from 'sonner';
+
+const DASHBOARD_ACCESS_UPDATED_EVENT = 'schly-dashboard-access-updated';
 
 export default function CurrentUserInviteClaimSync() {
   const { organization } = useOrganization();
   const { user, isLoaded } = useUser();
-  const claimCurrentUserInvite = useMutation(api.schoolOrganization.claimCurrentUserInvite);
   const attemptedKeys = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -26,15 +25,29 @@ export default function CurrentUserInviteClaimSync() {
 
     void (async () => {
       try {
-        const result = await claimCurrentUserInvite({ orgId: organization.id });
+        const response = await fetch('/api/dashboard-access/claim', {
+          method: 'POST',
+          credentials: 'same-origin'
+        });
+
+        if (!response.ok) {
+          throw new Error(`dashboard invite claim failed with ${response.status}`);
+        }
+
+        const result = (await response.json()) as {
+          claimed: boolean;
+          dashboardRole?: string;
+        };
+
         if (result.claimed) {
           toast.success(`Your ${result.dashboardRole} dashboard access is now active.`);
+          window.dispatchEvent(new Event(DASHBOARD_ACCESS_UPDATED_EVENT));
         }
       } catch (error) {
         console.error(error);
       }
     })();
-  }, [claimCurrentUserInvite, isLoaded, organization, user?.primaryEmailAddress?.emailAddress]);
+  }, [isLoaded, organization, user?.primaryEmailAddress?.emailAddress]);
 
   return null;
 }

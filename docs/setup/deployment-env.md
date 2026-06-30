@@ -22,7 +22,8 @@ Production notes:
 - Use production Clerk keys on Vercel. If the browser console says Clerk was loaded with development keys, production auth + Convex token exchange is not correctly configured.
 - The Clerk JWT template named `convex` must exist on the same Clerk instance used by the deployed publishable key.
 - Set `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/auth/sign-in` and `NEXT_PUBLIC_CLERK_SIGN_UP_URL=/auth/sign-up`.
-- Set `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/dashboard/workspaces/team`.
-- Set `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=/dashboard/workspaces/team` and `NEXT_PUBLIC_CLERK_SIGN_UP_FORCE_REDIRECT_URL=/dashboard/workspaces/team` to avoid Clerk-hosted fallback redirects landing on `accounts.dev/default-redirect` after invite acceptance.
+- Set `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/dashboard/workspaces`.
+- Set `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=/dashboard/workspaces` and `NEXT_PUBLIC_CLERK_SIGN_UP_FORCE_REDIRECT_URL=/dashboard/workspaces` to avoid Clerk-hosted fallback redirects landing on `accounts.dev/default-redirect` after invite acceptance.
 - `NEXT_PUBLIC_CONVEX_URL` should be the Convex cloud URL with no trailing slash. Example: `https://clear-wren-571.convex.cloud`
+- `CONVEX_DEPLOY_KEY` must also be present on Vercel so the trusted server-side dashboard-access bootstrap can act on behalf of the authenticated Clerk user when the Convex JWT does not carry their email claim.
 - A trailing slash can produce malformed websocket URLs like `wss://...cloud//api/...`.

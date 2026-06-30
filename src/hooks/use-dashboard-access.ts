@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useOrganization } from '@clerk/nextjs';
 import { useQuery } from 'convex/react';
 
@@ -10,6 +10,18 @@ import {
   normalizeDashboardPermissions,
   type DashboardPermissionKey
 } from '@/lib/school-permissions';
+
+type TrustedDashboardAccessResponse = {
+  orgId: string;
+  hasManagedProfile: boolean;
+  dashboardRole: string;
+  roleTemplateId: string | null;
+  permissions: string[];
+  managedPermissions: string[];
+  clerkRole: string;
+};
+
+const DASHBOARD_ACCESS_UPDATED_EVENT = 'schly-dashboard-access-updated';
 
 export function useDashboardAccess() {
   const { organization, membership } = useOrganization();
@@ -23,16 +35,74 @@ export function useDashboardAccess() {
     api.schoolOrganization.getCurrentAccess,
     organizationId ? { orgId: organizationId } : 'skip'
   );
+  const [trustedAccess, setTrustedAccess] = useState<TrustedDashboardAccessResponse | null>(null);
+  const [trustedAccessLoaded, setTrustedAccessLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!organizationId) {
+      setTrustedAccess(null);
+      setTrustedAccessLoaded(true);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadTrustedAccess = async () => {
+      setTrustedAccessLoaded(false);
+
+      try {
+        const response = await fetch('/api/dashboard-access', {
+          cache: 'no-store',
+          credentials: 'same-origin'
+        });
+
+        if (!response.ok) {
+          throw new Error(`dashboard access bootstrap failed with ${response.status}`);
+        }
+
+        const payload = (await response.json()) as TrustedDashboardAccessResponse;
+
+        if (!cancelled) {
+          setTrustedAccess(payload);
+        }
+      } catch (error) {
+        console.error(error);
+        if (!cancelled) {
+          setTrustedAccess(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setTrustedAccessLoaded(true);
+        }
+      }
+    };
+
+    void loadTrustedAccess();
+
+    const refreshTrustedAccess = () => {
+      void loadTrustedAccess();
+    };
+
+    window.addEventListener(DASHBOARD_ACCESS_UPDATED_EVENT, refreshTrustedAccess);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(DASHBOARD_ACCESS_UPDATED_EVENT, refreshTrustedAccess);
+    };
+  }, [organizationId]);
 
   return useMemo(() => {
+    const resolvedAccess = trustedAccess ?? storedAccess;
     const managedPermissions = normalizeDashboardPermissions(
-      storedAccess?.managedPermissions ?? []
+      resolvedAccess?.managedPermissions ?? []
     );
-    const hasManagedProfile = Boolean(storedAccess?.hasManagedProfile);
+    const hasManagedProfile = Boolean(resolvedAccess?.hasManagedProfile);
     const permissions = hasManagedProfile ? managedPermissions : clerkPermissions;
-    const storedRole = storedAccess?.dashboardRole?.trim() || 'Inherited';
+    const storedRole = resolvedAccess?.dashboardRole?.trim() || 'Inherited';
     const dashboardRole = storedRole;
     const effectiveRole = hasManagedProfile ? '' : clerkRole;
+    const isTrustedAccessPending = Boolean(organizationId) && !trustedAccessLoaded;
+    const isDirectAccessPending = Boolean(organizationId) && storedAccess === undefined;
 
     return {
       hasOrg: Boolean(organization),
@@ -42,9 +112,17 @@ export function useDashboardAccess() {
       dashboardRole,
       hasManagedProfile,
       permissions,
-      isLoadingManagedProfile: organizationId ? storedAccess === undefined : false,
+      isLoadingManagedProfile: isTrustedAccessPending || isDirectAccessPending,
       hasPermission: (permission: DashboardPermissionKey | string) =>
         Boolean(organization) && hasDashboardPermission(permissions, permission, effectiveRole)
     };
-  }, [clerkPermissions, clerkRole, organization, organizationId, storedAccess]);
+  }, [
+    clerkPermissions,
+    clerkRole,
+    organization,
+    organizationId,
+    storedAccess,
+    trustedAccess,
+    trustedAccessLoaded
+  ]);
 }
