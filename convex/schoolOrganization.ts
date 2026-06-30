@@ -13,7 +13,11 @@ import {
   summarizeDashboardPermissions
 } from '../src/lib/school-permissions';
 
-const RESERVED_ROLE_LABELS = new Set(DASHBOARD_ROLE_OPTIONS.map((role) => role.toLowerCase()));
+const RESERVED_ROLE_LABELS = new Set(
+  DASHBOARD_ROLE_OPTIONS.filter((role): role is 'Admin' => role === 'Admin').map((role) =>
+    role.toLowerCase()
+  )
+);
 
 type DashboardRoleTemplateId = Id<'schoolDashboardRoles'>;
 type StaffInviteId = Id<'schoolStaffInvites'>;
