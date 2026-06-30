@@ -20,30 +20,22 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 0 }}
       transition={{ duration: 0.28, ease: 'easeOut' }}
-      className='flex flex-col gap-1'
+      className={cn('flex flex-col gap-1', isUser ? 'items-end' : 'items-start')}
       role='group'
-      aria-label={message.author + ' at ' + message.timestamp}
+      aria-label={(isUser ? 'Outgoing' : 'Incoming') + ' message at ' + message.timestamp}
     >
       <div
         className={cn(
           'relative max-w-[85%] rounded-xl border px-3 py-2 text-xs leading-relaxed sm:max-w-[82%] sm:rounded-2xl sm:px-4 sm:py-3 sm:text-sm',
           isUser
-            ? 'border-primary/40 bg-primary text-primary-foreground ml-auto'
+            ? 'border-primary/40 bg-primary text-primary-foreground'
             : 'bg-muted border-transparent'
         )}
       >
-        <p
-          className={cn(
-            'font-medium sm:text-sm',
-            isUser ? 'text-primary-foreground/80' : 'text-foreground/80'
-          )}
-        >
-          {message.author}
-        </p>
         {message.text && (
           <p
             className={cn(
-              'mt-1 text-[0.875rem] sm:text-[0.95rem]',
+              'text-[0.875rem] sm:text-[0.95rem]',
               isUser ? 'text-primary-foreground/90' : 'text-foreground/90'
             )}
           >
