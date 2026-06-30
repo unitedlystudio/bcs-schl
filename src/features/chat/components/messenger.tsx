@@ -112,19 +112,32 @@ export function Messenger() {
   const activeConversation: Conversation | undefined = useMemo(() => {
     if (!selectedConversation) return undefined;
 
-    const viewerLabels = [
+    const viewerUserId = user?.id;
+    const viewerEmails = [
       user?.primaryEmailAddress?.emailAddress,
-      user?.emailAddresses?.[0]?.emailAddress,
-      user?.fullName,
-      user?.username
+      user?.emailAddresses?.[0]?.emailAddress
     ]
       .map((value) => value?.trim().toLowerCase())
       .filter(Boolean);
-    const conversationName = selectedConversation.name.trim().toLowerCase();
-    const isLegacySelfNamedConversation = viewerLabels.includes(conversationName);
     const normalizedMessages = (messages ?? selectedConversation.messages).map((message) => {
-      if (isLegacySelfNamedConversation && message.author === 'You') {
-        return { ...message, sender: 'contact' as const };
+      if (message.authorUserId) {
+        return {
+          ...message,
+          sender: message.authorUserId === viewerUserId ? ('user' as const) : ('contact' as const)
+        };
+      }
+
+      if (message.authorEmail) {
+        return {
+          ...message,
+          sender: viewerEmails.includes(message.authorEmail.trim().toLowerCase())
+            ? ('user' as const)
+            : ('contact' as const)
+        };
+      }
+
+      if (message.author === 'You') {
+        return { ...message, sender: 'user' as const };
       }
 
       return message;
@@ -194,13 +207,17 @@ export function Messenger() {
       await sendMessage({
         conversationId: selectedConversationId as Id<'conversations'>,
         text: draft,
+        authorUserId: user?.id,
+        authorEmail:
+          user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses?.[0]?.emailAddress,
+        authorName: user?.fullName ?? user?.username ?? undefined,
         attachments: attachments.length > 0 ? attachments : undefined
       });
 
       setDraft('');
       setAttachments([]);
     },
-    [attachments, draft, selectedConversationId, sendMessage]
+    [attachments, draft, selectedConversationId, sendMessage, user]
   );
 
   if (conversationsQuery === undefined || membersLoading) {

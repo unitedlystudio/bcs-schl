@@ -130,6 +130,8 @@ function displayConversation(
       id: message._id,
       sender: messageSenderForViewer(message, conversation, identity),
       author: message.author,
+      authorUserId: message.authorUserId,
+      authorEmail: message.authorEmail,
       text: message.text,
       timestamp: message.timestampLabel,
       attachments: message.attachments
@@ -195,6 +197,8 @@ export const getMessages = query({
       id: message._id,
       sender: messageSenderForViewer(message, conversation, identity),
       author: message.author,
+      authorUserId: message.authorUserId,
+      authorEmail: message.authorEmail,
       text: message.text,
       timestamp: message.timestampLabel,
       attachments: message.attachments
@@ -286,6 +290,9 @@ export const sendMessage = mutation({
   args: {
     conversationId: v.id('conversations'),
     text: v.string(),
+    authorUserId: v.optional(v.string()),
+    authorEmail: v.optional(v.string()),
+    authorName: v.optional(v.string()),
     attachments: v.optional(
       v.array(
         v.object({
@@ -313,9 +320,9 @@ export const sendMessage = mutation({
     const messageId = await ctx.db.insert('messages', {
       conversationId: args.conversationId,
       sender: 'user',
-      authorUserId: readString(identity.subject),
-      authorEmail: readEmail(identity),
-      author: readDisplayName(identity),
+      authorUserId: args.authorUserId?.trim() || readString(identity.subject),
+      authorEmail: args.authorEmail?.trim().toLowerCase() || readEmail(identity),
+      author: args.authorName?.trim() || readDisplayName(identity),
       text: trimmed,
       timestampLabel: timeLabel(),
       attachments: args.attachments,

@@ -9,6 +9,8 @@ export type Message = {
   id: string;
   sender: 'user' | 'contact';
   author: string;
+  authorUserId?: string;
+  authorEmail?: string;
   text: string;
   timestamp: string;
   attachments?: Attachment[];
