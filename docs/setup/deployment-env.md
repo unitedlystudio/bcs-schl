@@ -9,6 +9,7 @@ Vercel frontend envs needed for Schly dashboard:
 - NEXT_PUBLIC_CLERK_SIGN_UP_URL
 - NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL
 - NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL
+- NEXT_PUBLIC_CLERK_SIGN_UP_FORCE_REDIRECT_URL
 - NEXT_PUBLIC_CONVEX_URL
 
 Convex deployment envs needed:
@@ -20,5 +21,8 @@ Expected Clerk JWT template name:
 Production notes:
 - Use production Clerk keys on Vercel. If the browser console says Clerk was loaded with development keys, production auth + Convex token exchange is not correctly configured.
 - The Clerk JWT template named `convex` must exist on the same Clerk instance used by the deployed publishable key.
+- Set `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/auth/sign-in` and `NEXT_PUBLIC_CLERK_SIGN_UP_URL=/auth/sign-up`.
+- Set `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/dashboard/workspaces/team`.
+- Set `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=/dashboard/workspaces/team` and `NEXT_PUBLIC_CLERK_SIGN_UP_FORCE_REDIRECT_URL=/dashboard/workspaces/team` to avoid Clerk-hosted fallback redirects landing on `accounts.dev/default-redirect` after invite acceptance.
 - `NEXT_PUBLIC_CONVEX_URL` should be the Convex cloud URL with no trailing slash. Example: `https://clear-wren-571.convex.cloud`
 - A trailing slash can produce malformed websocket URLs like `wss://...cloud//api/...`.

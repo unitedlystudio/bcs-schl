@@ -2,12 +2,17 @@ import Link from 'next/link';
 import { SignUp as ClerkSignUpForm } from '@clerk/nextjs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { clerkRouteConfig } from '@/lib/clerk-routes';
 
 export default function SignUpViewPage({ hasInvitationTicket }: { hasInvitationTicket: boolean }) {
   return (
     <div className='flex min-h-screen items-center justify-center bg-muted/20 px-4 py-10'>
       {hasInvitationTicket ? (
-        <ClerkSignUpForm forceRedirectUrl='/dashboard/workspaces/team' signInUrl='/auth/sign-in' />
+        <ClerkSignUpForm
+          signInUrl={clerkRouteConfig.signInUrl}
+          fallbackRedirectUrl={clerkRouteConfig.signUpFallbackRedirectUrl}
+          forceRedirectUrl={clerkRouteConfig.signUpForceRedirectUrl}
+        />
       ) : (
         <Card className='w-full max-w-lg'>
           <CardHeader className='space-y-4'>

@@ -7,6 +7,7 @@ import { useTheme } from 'next-themes';
 import React, { useMemo } from 'react';
 import { Icons } from '@/components/icons';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { clerkRouteConfig } from '@/lib/clerk-routes';
 import { getConvexClient } from '@/lib/convex';
 import { ActiveThemeProvider } from '../themes/active-theme';
 import QueryProvider from './query-provider';
@@ -47,6 +48,11 @@ export default function Providers({
     <>
       <ActiveThemeProvider initialTheme={activeThemeValue}>
         <ClerkProvider
+          signInUrl={clerkRouteConfig.signInUrl}
+          signUpUrl={clerkRouteConfig.signUpUrl}
+          signInFallbackRedirectUrl={clerkRouteConfig.signInFallbackRedirectUrl}
+          signUpFallbackRedirectUrl={clerkRouteConfig.signUpFallbackRedirectUrl}
+          signUpForceRedirectUrl={clerkRouteConfig.signUpForceRedirectUrl}
           appearance={{
             baseTheme: resolvedTheme === 'dark' ? dark : undefined,
             variables: {
