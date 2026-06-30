@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOrganization } from '@clerk/nextjs';
-import { useMutation, useQuery } from 'convex/react';
+import { useMutation } from 'convex/react';
 import { toast } from 'sonner';
 import {
   type ColumnFiltersState,
@@ -52,23 +52,6 @@ function buildOptions(entries: Array<{ label: string; value: string; count: numb
     }));
 }
 
-function fullNameFromParts(
-  firstName?: string | null,
-  lastName?: string | null,
-  fallback?: string | null
-) {
-  const name = [firstName, lastName]
-    .map((part) => part?.trim())
-    .filter(Boolean)
-    .join(' ');
-
-  return name || fallback?.trim() || 'Unnamed teacher';
-}
-
-function isTeacherRole(role: string) {
-  return role.toLowerCase().includes('teacher');
-}
-
 function countByValue(rows: TeacherGridRow[], key: keyof TeacherGridRow) {
   const counts = new Map<string, number>();
   for (const row of rows) {
@@ -83,14 +66,7 @@ function countByValue(rows: TeacherGridRow[], key: keyof TeacherGridRow) {
 }
 
 export default function TeacherDirectory() {
-  const { isLoaded, memberships } = useOrganization({
-    memberships: {
-      infinite: true,
-      keepPreviousData: true,
-      pageSize: 100
-    }
-  });
-  const teachersQuery = useQuery(api.teachers.list, {});
+  const { isLoaded, organization } = useOrganization();
   const ensureTeacher = useMutation(api.teachers.ensureFromDirectory);
   const [sorting, setSorting] = useState<SortingState>([{ id: 'teacher', desc: false }]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -98,48 +74,61 @@ export default function TeacherDirectory() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingTeacherId, setEditingTeacherId] = useState<string | null>(null);
   const [creatingTeacherId, setCreatingTeacherId] = useState<string | null>(null);
+  const [rows, setRows] = useState<TeacherGridRow[]>([]);
+  const [loadingRows, setLoadingRows] = useState(true);
 
-  const rows = useMemo<TeacherGridRow[]>(() => {
-    const localByEmail = new Map(
-      (teachersQuery ?? [])
-        .filter((teacher) => teacher.email.trim())
-        .map((teacher) => [teacher.email.trim().toLowerCase(), teacher])
-    );
+  useEffect(() => {
+    if (!isLoaded) return;
 
-    const teacherRows: TeacherGridRow[] = [];
+    const orgId = organization?.id;
 
-    for (const membership of memberships?.data ?? []) {
-      const user = membership.publicUserData;
-      const email = user?.identifier?.trim() ?? '';
-      const role = membership.roleName || membership.role || 'Teacher';
-
-      if (!isTeacherRole(role)) {
-        continue;
-      }
-
-      const localTeacher = email ? localByEmail.get(email.toLowerCase()) : undefined;
-      const fullName = fullNameFromParts(user?.firstName, user?.lastName, email);
-
-      teacherRows.push({
-        id: localTeacher?.id ?? user?.userId ?? membership.id,
-        localTeacherId: localTeacher?.id,
-        fullName: localTeacher?.fullName || fullName,
-        preferredName:
-          localTeacher?.preferredName ||
-          user?.firstName?.trim() ||
-          fullName.split(' ')[0] ||
-          fullName,
-        role: localTeacher?.role || role,
-        status: localTeacher?.status || 'Active',
-        academicYear: localTeacher?.academicYear ?? '',
-        homeroomClass: localTeacher?.homeroomClass ?? '',
-        email,
-        phone: localTeacher?.phone ?? ''
-      });
+    if (!orgId) {
+      setRows([]);
+      setLoadingRows(false);
+      return;
     }
 
-    return teacherRows.toSorted((left, right) => compareLabels(left.fullName, right.fullName));
-  }, [memberships?.data, teachersQuery]);
+    const requestedOrgId = orgId as string;
+    let cancelled = false;
+
+    async function loadRows() {
+      try {
+        setLoadingRows(true);
+        const response = await fetch(
+          `/api/teacher-directory?orgId=${encodeURIComponent(requestedOrgId)}`,
+          {
+            cache: 'no-store',
+            credentials: 'same-origin'
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error('Unable to load teacher records for this workspace.');
+        }
+
+        const result = (await response.json()) as { rows?: TeacherGridRow[] };
+
+        if (!cancelled) {
+          setRows(result.rows ?? []);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setRows([]);
+          toast.error(error instanceof Error ? error.message : 'Unable to load teacher records');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingRows(false);
+        }
+      }
+    }
+
+    void loadRows();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoaded, organization?.id]);
 
   const roleOptions = useMemo(() => countByValue(rows, 'role'), [rows]);
   const academicYearOptions = useMemo(() => countByValue(rows, 'academicYear'), [rows]);
@@ -159,7 +148,7 @@ export default function TeacherDirectory() {
       }
 
       if (!row.email) {
-        toast.error('This Clerk teacher membership does not have an email address to sync.');
+        toast.error('This teacher profile does not have an email address to sync.');
         return;
       }
 
@@ -219,7 +208,7 @@ export default function TeacherDirectory() {
   const onLeaveTeachers = rows.filter((row) => row.status === 'On Leave').length;
   const coveredAcademicYears = new Set(rows.map((row) => row.academicYear).filter(Boolean)).size;
   const hasFilters = columnFilters.length > 0;
-  const isLoading = !isLoaded || memberships === null || teachersQuery === undefined;
+  const isLoading = !isLoaded || loadingRows;
 
   if (isLoading) {
     return (
@@ -235,20 +224,20 @@ export default function TeacherDirectory() {
         <CardHeader>
           <CardTitle>Teacher directory</CardTitle>
           <CardDescription>
-            Showing Clerk workspace members whose role is Teacher, with editable Schly assignment
-            details layered on top for academic-year coverage and homerooms.
+            Manage teacher assignments, academic-year coverage, and homeroom ownership for the
+            active school workspace.
           </CardDescription>
         </CardHeader>
         <CardContent className='grid gap-3'>
           <div className='flex flex-wrap gap-2 text-sm text-muted-foreground'>
-            <Badge variant='secondary'>{rows.length} Clerk teacher members</Badge>
+            <Badge variant='secondary'>{rows.length} teachers</Badge>
             <Badge variant='outline'>{activeTeachers} active</Badge>
             <Badge variant='outline'>{onLeaveTeachers} on leave</Badge>
             <Badge variant='outline'>{coveredAcademicYears} academic years in coverage</Badge>
           </div>
           <div className='text-sm text-muted-foreground'>
-            Demo teacher rows are filtered out unless they match a live Clerk Teacher member by
-            email.
+            Teachers appear here when their school workspace role is set to Teacher. Use the editor
+            to add Schly-specific assignment details.
           </div>
           <div>
             <AddTeacherButton onClick={() => openEditor(null)} />
@@ -259,10 +248,10 @@ export default function TeacherDirectory() {
       {rows.length === 0 ? (
         <Card>
           <CardContent className='flex flex-col items-start gap-2 p-6'>
-            <div className='font-medium'>No Clerk Teacher members found yet.</div>
+            <div className='font-medium'>No teachers found yet.</div>
             <div className='text-sm text-muted-foreground'>
-              Set a workspace member to a Clerk role whose name includes “Teacher” to show them
-              here.
+              Add a teacher to this school workspace or assign an existing team member the Teacher
+              role.
             </div>
             <AddTeacherButton onClick={() => openEditor(null)} />
           </CardContent>
@@ -276,8 +265,8 @@ export default function TeacherDirectory() {
                   {creatingTeacherId
                     ? 'Preparing editable teacher assignment record...'
                     : hasFilters
-                      ? 'Filters applied. Reset any filter to widen the live teacher directory.'
-                      : 'This table is sourced from Clerk workspace members with Teacher roles. Select a row to edit assignment details.'}
+                      ? 'Filters applied. Reset any filter to widen the teacher directory.'
+                      : 'Select any teacher row to edit assignment details.'}
                 </div>
                 <AddTeacherButton onClick={() => openEditor(null)} />
               </DataTableToolbar>
