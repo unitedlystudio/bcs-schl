@@ -3,6 +3,7 @@ import { ConvexHttpClient } from 'convex/browser';
 import { api } from '../../../../../convex/_generated/api';
 
 const ORG_ID = 'org_33Slcbw2nxEhbVSbb5JslO1sNTV';
+const USER_ID = 'user_3FpxeDHFv1nu3FpMFVpaLz73OBd';
 
 export async function GET() {
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL?.trim() ?? '';
@@ -25,7 +26,13 @@ export async function GET() {
     queryErrorKeys: null as string[] | null,
     queryErrorJson: null as Record<string, string> | null,
     roleTemplateCount: null as number | null,
-    accessProfileCount: null as number | null
+    accessProfileCount: null as number | null,
+    getCurrentAccessOk: false as boolean,
+    getCurrentAccessNoEmailOk: false as boolean,
+    getCurrentAccessResult: null as unknown,
+    getCurrentAccessNoEmailResult: null as unknown,
+    getCurrentAccessError: null as string | null,
+    getCurrentAccessNoEmailError: null as string | null
   };
 
   if (!convexUrl || !deployKey) {
@@ -69,6 +76,50 @@ export async function GET() {
     if (error instanceof Error) {
       summary.queryErrorStack = error.stack?.split('\n').slice(0, 6) ?? null;
     }
+  }
+
+  try {
+    const client = new ConvexHttpClient(convexUrl) as ConvexHttpClient & {
+      setAdminAuth: (token: string, actingAsIdentity?: Record<string, unknown>) => void;
+    };
+    client.setAdminAuth(deployKey, {
+      subject: USER_ID,
+      email: 'don@donhphoto.com',
+      orgId: ORG_ID,
+      orgRole: 'org:member',
+      orgPermissions: [],
+      tokenIdentifier: USER_ID
+    });
+    summary.getCurrentAccessResult = await client.query(api.schoolOrganization.getCurrentAccess, {
+      orgId: ORG_ID
+    });
+    summary.getCurrentAccessOk = true;
+  } catch (error) {
+    summary.getCurrentAccessError =
+      error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  }
+
+  try {
+    const client = new ConvexHttpClient(convexUrl) as ConvexHttpClient & {
+      setAdminAuth: (token: string, actingAsIdentity?: Record<string, unknown>) => void;
+    };
+    client.setAdminAuth(deployKey, {
+      subject: USER_ID,
+      orgId: ORG_ID,
+      orgRole: 'org:member',
+      orgPermissions: [],
+      tokenIdentifier: USER_ID
+    });
+    summary.getCurrentAccessNoEmailResult = await client.query(
+      api.schoolOrganization.getCurrentAccess,
+      {
+        orgId: ORG_ID
+      }
+    );
+    summary.getCurrentAccessNoEmailOk = true;
+  } catch (error) {
+    summary.getCurrentAccessNoEmailError =
+      error instanceof Error ? `${error.name}: ${error.message}` : String(error);
   }
 
   return NextResponse.json(summary);
