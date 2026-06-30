@@ -51,10 +51,13 @@ export function useDashboardAccess() {
       setTrustedAccessLoaded(false);
 
       try {
-        const response = await fetch('/api/dashboard-access', {
-          cache: 'no-store',
-          credentials: 'same-origin'
-        });
+        const response = await fetch(
+          `/api/dashboard-access?orgId=${encodeURIComponent(organizationId)}`,
+          {
+            cache: 'no-store',
+            credentials: 'same-origin'
+          }
+        );
 
         if (!response.ok) {
           throw new Error(`dashboard access bootstrap failed with ${response.status}`);

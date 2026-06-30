@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { claimTrustedDashboardInvite } from '@/lib/server/trusted-dashboard-access';
 
-export async function POST() {
+export async function POST(request: Request) {
+  const requestedOrgId = new URL(request.url).searchParams.get('orgId')?.trim() ?? undefined;
+
   try {
-    const result = await claimTrustedDashboardInvite();
+    const result = await claimTrustedDashboardInvite(requestedOrgId);
 
     if (!result) {
       console.warn('[dashboard-access-claim] trusted invite claim returned null');

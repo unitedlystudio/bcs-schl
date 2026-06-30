@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getTrustedDashboardAccess } from '@/lib/server/trusted-dashboard-access';
 
-export async function GET() {
+export async function GET(request: Request) {
+  const requestedOrgId = new URL(request.url).searchParams.get('orgId')?.trim() ?? undefined;
+
   try {
-    const result = await getTrustedDashboardAccess();
+    const result = await getTrustedDashboardAccess(requestedOrgId);
 
     if (!result) {
       console.warn('[dashboard-access] trusted access returned null');

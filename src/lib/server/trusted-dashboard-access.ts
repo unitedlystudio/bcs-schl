@@ -28,6 +28,14 @@ type TrustedAccessIdentity = {
   subject: string;
 };
 
+type ClerkOrganizationMembershipLike = {
+  organization?: {
+    id?: string | null;
+  } | null;
+  permissions?: string[] | null;
+  role?: string | null;
+};
+
 function getRequiredEnv(name: 'CONVEX_DEPLOY_KEY' | 'NEXT_PUBLIC_CONVEX_URL') {
   const value = process.env[name]?.trim();
 
@@ -38,19 +46,45 @@ function getRequiredEnv(name: 'CONVEX_DEPLOY_KEY' | 'NEXT_PUBLIC_CONVEX_URL') {
   return value;
 }
 
-async function getTrustedIdentity(): Promise<TrustedAccessIdentity | null> {
+function normalizeMembership(membership: ClerkOrganizationMembershipLike | null | undefined) {
+  return {
+    orgId: membership?.organization?.id?.trim() ?? '',
+    orgPermissions:
+      membership?.permissions?.filter((value): value is string => typeof value === 'string') ?? [],
+    orgRole: typeof membership?.role === 'string' ? membership.role : ''
+  };
+}
+
+async function getTrustedIdentity(requestedOrgId?: string): Promise<TrustedAccessIdentity | null> {
   const session = await auth();
+  const normalizedRequestedOrgId = requestedOrgId?.trim() ?? '';
   let email = readEmailFromSessionClaims(
     (session.sessionClaims ?? null) as Record<string, unknown> | null
   );
+  let membershipFallback: ReturnType<typeof normalizeMembership> | null = null;
+  let fallbackMembershipCount = 0;
 
-  if (!email) {
+  if (
+    !email ||
+    !session.orgId ||
+    (normalizedRequestedOrgId && session.orgId !== normalizedRequestedOrgId)
+  ) {
     try {
       const user = await currentUser();
+      const memberships =
+        (user as unknown as { organizationMemberships?: ClerkOrganizationMembershipLike[] } | null)
+          ?.organizationMemberships ?? [];
       email =
         user?.primaryEmailAddress?.emailAddress?.trim().toLowerCase() ??
         user?.emailAddresses?.[0]?.emailAddress?.trim().toLowerCase() ??
         '';
+      fallbackMembershipCount = memberships.length;
+
+      if (normalizedRequestedOrgId) {
+        membershipFallback = normalizeMembership(
+          memberships.find((membership) => membership.organization?.id === normalizedRequestedOrgId)
+        );
+      }
     } catch (error) {
       console.warn(
         'Falling back to Clerk session claims for trusted dashboard access email lookup.',
@@ -59,15 +93,36 @@ async function getTrustedIdentity(): Promise<TrustedAccessIdentity | null> {
     }
   }
 
-  if (!session.userId || !session.orgId) {
+  if (!session.userId) {
+    return null;
+  }
+
+  const resolvedOrgId = session.orgId ?? membershipFallback?.orgId ?? '';
+  const resolvedOrgRole = session.orgRole ?? membershipFallback?.orgRole ?? '';
+  const resolvedOrgPermissions = session.orgPermissions?.length
+    ? session.orgPermissions
+    : (membershipFallback?.orgPermissions ?? []);
+
+  if (!resolvedOrgId) {
+    return null;
+  }
+
+  if (normalizedRequestedOrgId && resolvedOrgId !== normalizedRequestedOrgId) {
+    console.warn('[dashboard-access] requested org mismatch', {
+      requestedOrgId: normalizedRequestedOrgId,
+      resolvedOrgId,
+      sessionOrgId: session.orgId ?? null,
+      hasMembershipFallback: Boolean(membershipFallback?.orgId),
+      fallbackMembershipCount
+    });
     return null;
   }
 
   return {
     email: email || undefined,
-    orgId: session.orgId,
-    orgPermissions: session.orgPermissions ?? [],
-    orgRole: session.orgRole ?? '',
+    orgId: resolvedOrgId,
+    orgPermissions: resolvedOrgPermissions,
+    orgRole: resolvedOrgRole,
     subject: session.userId
   };
 }
@@ -91,8 +146,8 @@ function createTrustedConvexClient(identity: TrustedAccessIdentity) {
   return client;
 }
 
-export async function getTrustedDashboardAccess() {
-  const identity = await getTrustedIdentity();
+export async function getTrustedDashboardAccess(requestedOrgId?: string) {
+  const identity = await getTrustedIdentity(requestedOrgId);
 
   if (!identity) {
     return null;
@@ -102,8 +157,8 @@ export async function getTrustedDashboardAccess() {
   return client.query(api.schoolOrganization.getCurrentAccess, { orgId: identity.orgId });
 }
 
-export async function claimTrustedDashboardInvite() {
-  const identity = await getTrustedIdentity();
+export async function claimTrustedDashboardInvite(requestedOrgId?: string) {
+  const identity = await getTrustedIdentity(requestedOrgId);
 
   if (!identity?.email) {
     return null;

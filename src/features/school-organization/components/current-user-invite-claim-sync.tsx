@@ -25,10 +25,13 @@ export default function CurrentUserInviteClaimSync() {
 
     void (async () => {
       try {
-        const response = await fetch('/api/dashboard-access/claim', {
-          method: 'POST',
-          credentials: 'same-origin'
-        });
+        const response = await fetch(
+          `/api/dashboard-access/claim?orgId=${encodeURIComponent(organization.id)}`,
+          {
+            method: 'POST',
+            credentials: 'same-origin'
+          }
+        );
 
         if (!response.ok) {
           throw new Error(`dashboard invite claim failed with ${response.status}`);
