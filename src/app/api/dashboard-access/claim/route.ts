@@ -6,8 +6,11 @@ export async function POST() {
     const result = await claimTrustedDashboardInvite();
 
     if (!result) {
+      console.warn('[dashboard-access-claim] trusted invite claim returned null');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    console.warn('[dashboard-access-claim] result', result);
 
     return NextResponse.json(result);
   } catch (error) {
