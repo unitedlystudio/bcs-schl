@@ -21,8 +21,10 @@ export default function WorkspaceMembershipList() {
   const openWorkspace = async (organizationId: string) => {
     setActivatingOrgId(organizationId);
     try {
-      await setActive?.({ organization: organizationId });
-      window.location.assign('/dashboard');
+      await setActive?.({
+        organization: organizationId,
+        redirectUrl: '/dashboard'
+      });
     } finally {
       setActivatingOrgId(null);
     }
