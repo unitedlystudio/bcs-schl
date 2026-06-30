@@ -49,7 +49,7 @@ const msg = [
   '',
   top,
   row(),
-  row(`${c.b}${c.mag}  ✦  Shadcn Dashboard Starter${c.r}`),
+  row(`${c.b}${c.mag}  ✦  Schly${c.r}`),
   row(`${c.d}     Feature Cleanup Available${c.r}`),
   row(),
   div,

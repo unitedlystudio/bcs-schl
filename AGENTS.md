@@ -6,7 +6,7 @@ This file provides essential information for AI coding agents working on this pr
 
 ## Project Overview
 
-**Next.js Admin Dashboard Starter** is a production-ready admin dashboard template built with:
+**Schly** is a school operations platform built with:
 
 - **Framework**: Next.js 16 (App Router)
 - **Language**: TypeScript 5.7
@@ -18,7 +18,7 @@ This file provides essential information for AI coding agents working on this pr
 - **Containerization**: Docker (Node.js & Bun Dockerfiles)
 - **Package Manager**: Bun (preferred) or npm
 
-The project follows a feature-based folder structure designed for scalability in SaaS applications, internal tools, and admin panels.
+The project follows a feature-based folder structure designed for scalable school operations workflows.
 
 ---
 

@@ -3,7 +3,7 @@
 /**
  * Feature Cleanup Tool
  *
- * Strips optional features from the dashboard starter.
+ * Strips optional features from the Schly codebase.
  * Run: node scripts/cleanup.js --help
  */
 

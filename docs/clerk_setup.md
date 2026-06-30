@@ -1,6 +1,6 @@
 # Clerk Setup Guide
 
-This guide covers the setup and configuration of Clerk features used in this starter template.
+This guide covers the setup and configuration of Clerk features used in Schly.
 
 ## Clerk Scopes Required
 
@@ -10,7 +10,7 @@ This guide covers the setup and configuration of Clerk features used in this sta
 
 ## Clerk Organizations Setup (Workspaces & Teams)
 
-This starter kit includes multi-tenant workspace management powered by **Clerk Organizations**. To enable this feature:
+Schly includes multi-tenant workspace management powered by **Clerk Organizations**. To enable this feature:
 
 ### Enable Organizations in Clerk Dashboard:
 
@@ -37,7 +37,7 @@ This starter kit includes multi-tenant workspace management powered by **Clerk O
 
 ## Clerk Billing Setup (Organization Subscriptions)
 
-This starter kit includes **Clerk Billing for B2B** to manage organization-level subscriptions. Plans and features are managed through the Clerk Dashboard, and the application checks access using Clerk's `has()` function.
+Schly includes **Clerk Billing for B2B** to manage organization-level subscriptions. Plans and features are managed through the Clerk Dashboard, and the application checks access using Clerk's `has()` function.
 
 > [!WARNING]
 > Billing is currently in Beta and its APIs are experimental and may undergo breaking changes. To mitigate potential disruptions, we recommend pinning your SDK and `clerk-js` package versions.

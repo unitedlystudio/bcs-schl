@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This is a Next.js 16 + shadcn/ui admin dashboard starter kit.
+This is the Schly codebase, built with Next.js 16 and shadcn/ui.
 
 ## Key References
 
