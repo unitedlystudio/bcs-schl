@@ -9,6 +9,7 @@ import type { Column, ColumnDef, FilterFn } from '@tanstack/react-table';
 
 export interface TeacherGridRow {
   id: string;
+  localTeacherId?: string;
   fullName: string;
   preferredName: string;
   role: string;

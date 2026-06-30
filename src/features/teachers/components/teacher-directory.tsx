@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import { useQuery } from 'convex/react';
+import { useOrganization } from '@clerk/nextjs';
+import { useMutation, useQuery } from 'convex/react';
+import { toast } from 'sonner';
 import {
   type ColumnFiltersState,
   type PaginationState,
@@ -50,6 +52,23 @@ function buildOptions(entries: Array<{ label: string; value: string; count: numb
     }));
 }
 
+function fullNameFromParts(
+  firstName?: string | null,
+  lastName?: string | null,
+  fallback?: string | null
+) {
+  const name = [firstName, lastName]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(' ');
+
+  return name || fallback?.trim() || 'Unnamed teacher';
+}
+
+function isTeacherRole(role: string) {
+  return role.toLowerCase().includes('teacher');
+}
+
 function countByValue(rows: TeacherGridRow[], key: keyof TeacherGridRow) {
   const counts = new Map<string, number>();
   for (const row of rows) {
@@ -64,14 +83,63 @@ function countByValue(rows: TeacherGridRow[], key: keyof TeacherGridRow) {
 }
 
 export default function TeacherDirectory() {
+  const { isLoaded, memberships } = useOrganization({
+    memberships: {
+      infinite: true,
+      keepPreviousData: true,
+      pageSize: 100
+    }
+  });
   const teachersQuery = useQuery(api.teachers.list, {});
+  const ensureTeacher = useMutation(api.teachers.ensureFromDirectory);
   const [sorting, setSorting] = useState<SortingState>([{ id: 'teacher', desc: false }]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingTeacherId, setEditingTeacherId] = useState<string | null>(null);
+  const [creatingTeacherId, setCreatingTeacherId] = useState<string | null>(null);
 
-  const rows = useMemo<TeacherGridRow[]>(() => teachersQuery ?? [], [teachersQuery]);
+  const rows = useMemo<TeacherGridRow[]>(() => {
+    const localByEmail = new Map(
+      (teachersQuery ?? [])
+        .filter((teacher) => teacher.email.trim())
+        .map((teacher) => [teacher.email.trim().toLowerCase(), teacher])
+    );
+
+    const teacherRows: TeacherGridRow[] = [];
+
+    for (const membership of memberships?.data ?? []) {
+      const user = membership.publicUserData;
+      const email = user?.identifier?.trim() ?? '';
+      const role = membership.roleName || membership.role || 'Teacher';
+
+      if (!isTeacherRole(role)) {
+        continue;
+      }
+
+      const localTeacher = email ? localByEmail.get(email.toLowerCase()) : undefined;
+      const fullName = fullNameFromParts(user?.firstName, user?.lastName, email);
+
+      teacherRows.push({
+        id: localTeacher?.id ?? user?.userId ?? membership.id,
+        localTeacherId: localTeacher?.id,
+        fullName: localTeacher?.fullName || fullName,
+        preferredName:
+          localTeacher?.preferredName ||
+          user?.firstName?.trim() ||
+          fullName.split(' ')[0] ||
+          fullName,
+        role: localTeacher?.role || role,
+        status: localTeacher?.status || 'Active',
+        academicYear: localTeacher?.academicYear ?? '',
+        homeroomClass: localTeacher?.homeroomClass ?? '',
+        email,
+        phone: localTeacher?.phone ?? ''
+      });
+    }
+
+    return teacherRows.toSorted((left, right) => compareLabels(left.fullName, right.fullName));
+  }, [memberships?.data, teachersQuery]);
 
   const roleOptions = useMemo(() => countByValue(rows, 'role'), [rows]);
   const academicYearOptions = useMemo(() => countByValue(rows, 'academicYear'), [rows]);
@@ -83,6 +151,35 @@ export default function TeacherDirectory() {
     setSheetOpen(true);
   }, []);
 
+  const openTeacherEditor = useCallback(
+    async (row: TeacherGridRow) => {
+      if (row.localTeacherId) {
+        openEditor(row.localTeacherId);
+        return;
+      }
+
+      if (!row.email) {
+        toast.error('This Clerk teacher membership does not have an email address to sync.');
+        return;
+      }
+
+      try {
+        setCreatingTeacherId(row.id);
+        const result = await ensureTeacher({
+          fullName: row.fullName,
+          preferredName: row.preferredName,
+          email: row.email
+        });
+        openEditor(result.teacherId);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Failed to prepare teacher editor');
+      } finally {
+        setCreatingTeacherId(null);
+      }
+    },
+    [ensureTeacher, openEditor]
+  );
+
   const columns = useMemo(
     () =>
       getTeacherGridColumns({
@@ -90,9 +187,9 @@ export default function TeacherDirectory() {
         academicYearOptions,
         homeroomOptions,
         statusOptions,
-        onEdit: (row) => openEditor(row.id)
+        onEdit: (row) => void openTeacherEditor(row)
       }),
-    [roleOptions, academicYearOptions, homeroomOptions, statusOptions, openEditor]
+    [roleOptions, academicYearOptions, homeroomOptions, statusOptions, openTeacherEditor]
   );
 
   const table = useReactTable({
@@ -122,7 +219,7 @@ export default function TeacherDirectory() {
   const onLeaveTeachers = rows.filter((row) => row.status === 'On Leave').length;
   const coveredAcademicYears = new Set(rows.map((row) => row.academicYear).filter(Boolean)).size;
   const hasFilters = columnFilters.length > 0;
-  const isLoading = teachersQuery === undefined;
+  const isLoading = !isLoaded || memberships === null || teachersQuery === undefined;
 
   if (isLoading) {
     return (
@@ -138,20 +235,20 @@ export default function TeacherDirectory() {
         <CardHeader>
           <CardTitle>Teacher directory</CardTitle>
           <CardDescription>
-            Edit teacher ownership, academic-year coverage, and homeroom assignments directly from
-            the grid. Tap a row or use Edit to open the assignment panel.
+            Showing Clerk workspace members whose role is Teacher, with editable Schly assignment
+            details layered on top for academic-year coverage and homerooms.
           </CardDescription>
         </CardHeader>
         <CardContent className='grid gap-3'>
           <div className='flex flex-wrap gap-2 text-sm text-muted-foreground'>
-            <Badge variant='secondary'>{rows.length} teacher records</Badge>
+            <Badge variant='secondary'>{rows.length} Clerk teacher members</Badge>
             <Badge variant='outline'>{activeTeachers} active</Badge>
             <Badge variant='outline'>{onLeaveTeachers} on leave</Badge>
             <Badge variant='outline'>{coveredAcademicYears} academic years in coverage</Badge>
           </div>
           <div className='text-sm text-muted-foreground'>
-            On desktop and mobile the editor opens as a right-side panel, keeping the grid context
-            visible while you update the teacher record.
+            Demo teacher rows are filtered out unless they match a live Clerk Teacher member by
+            email.
           </div>
           <div>
             <AddTeacherButton onClick={() => openEditor(null)} />
@@ -162,9 +259,10 @@ export default function TeacherDirectory() {
       {rows.length === 0 ? (
         <Card>
           <CardContent className='flex flex-col items-start gap-2 p-6'>
-            <div className='font-medium'>No teacher records found yet.</div>
+            <div className='font-medium'>No Clerk Teacher members found yet.</div>
             <div className='text-sm text-muted-foreground'>
-              Add teachers here to manage homeroom ownership and class/year coverage from the grid.
+              Set a workspace member to a Clerk role whose name includes “Teacher” to show them
+              here.
             </div>
             <AddTeacherButton onClick={() => openEditor(null)} />
           </CardContent>
@@ -172,12 +270,14 @@ export default function TeacherDirectory() {
       ) : (
         <Card className='flex flex-1 flex-col'>
           <CardContent className='flex flex-1 flex-col p-4'>
-            <DataTable table={table} onRowClick={(row) => openEditor(row.original.id)}>
+            <DataTable table={table} onRowClick={(row) => void openTeacherEditor(row.original)}>
               <DataTableToolbar table={table}>
                 <div className='hidden text-xs text-muted-foreground xl:block'>
-                  {hasFilters
-                    ? 'Filters applied. Reset any filter to widen the editable teacher directory.'
-                    : 'Select any teacher row to edit assignment details.'}
+                  {creatingTeacherId
+                    ? 'Preparing editable teacher assignment record...'
+                    : hasFilters
+                      ? 'Filters applied. Reset any filter to widen the live teacher directory.'
+                      : 'This table is sourced from Clerk workspace members with Teacher roles. Select a row to edit assignment details.'}
                 </div>
                 <AddTeacherButton onClick={() => openEditor(null)} />
               </DataTableToolbar>

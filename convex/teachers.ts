@@ -149,6 +149,40 @@ export const create = mutation({
   }
 });
 
+export const ensureFromDirectory = mutation({
+  args: {
+    fullName: v.string(),
+    preferredName: v.optional(v.string()),
+    email: v.string()
+  },
+  handler: async (ctx, args) => {
+    await requireAuthenticatedUser(ctx);
+
+    const normalizedEmail = args.email.trim().toLowerCase();
+    const teachers = await ctx.db.query('teachers').collect();
+    const existing = teachers.find(
+      (teacher) => (teacher.email ?? '').trim().toLowerCase() === normalizedEmail
+    );
+
+    if (existing) {
+      return { teacherId: existing._id };
+    }
+
+    const teacherId = await ctx.db.insert(
+      'teachers',
+      normalizeTeacher({
+        fullName: args.fullName,
+        preferredName: args.preferredName,
+        role: 'Teacher',
+        status: 'Active',
+        email: normalizedEmail
+      })
+    );
+
+    return { teacherId };
+  }
+});
+
 export const update = mutation({
   args: {
     teacherId: v.id('teachers'),
