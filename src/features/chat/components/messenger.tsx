@@ -1,26 +1,94 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { useOrganization } from '@clerk/nextjs';
 import { useMutation, useQuery } from 'convex/react';
+import { toast } from 'sonner';
 import { Id } from '../../../../convex/_generated/dataModel';
 import { api } from '../../../../convex/_generated/api';
-import type { Attachment, Conversation } from '../utils/types';
+import type { Attachment, Conversation, StaffMember } from '../utils/types';
 import { ChatArea } from './chat-area';
 import { ConversationList } from './conversation-list';
 import { ConversationSelect } from './conversation-select';
 
 export function Messenger() {
+  const { isLoaded, organization } = useOrganization();
   const conversationsQuery = useQuery(api.conversations.list, {});
   const conversations = useMemo(() => conversationsQuery ?? [], [conversationsQuery]);
   const [selectedConversationId, setSelectedConversationId] = useState<string>('');
   const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [members, setMembers] = useState<StaffMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(true);
+  const [startingMemberId, setStartingMemberId] = useState<string | null>(null);
   const sendMessage = useMutation(api.conversations.sendMessage);
   const markRead = useMutation(api.conversations.markRead);
+  const startConversation = useMutation(api.conversations.startConversation);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    const orgId = organization?.id;
+    if (!orgId) {
+      setMembers([]);
+      setMembersLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadMembers() {
+      try {
+        setMembersLoading(true);
+        const response = await fetch(
+          `/api/chat-members?orgId=${encodeURIComponent(orgId as string)}`,
+          {
+            cache: 'no-store',
+            credentials: 'same-origin'
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error('Unable to load school staff members.');
+        }
+
+        const result = (await response.json()) as { members?: StaffMember[] };
+        if (!cancelled) {
+          setMembers(result.members ?? []);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setMembers([]);
+          toast.error(
+            error instanceof Error ? error.message : 'Unable to load school staff members'
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setMembersLoading(false);
+        }
+      }
+    }
+
+    void loadMembers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoaded, organization?.id]);
 
   useEffect(() => {
     if (!selectedConversationId && conversations[0]?.id) {
       setSelectedConversationId(conversations[0].id);
+    }
+  }, [conversations, selectedConversationId]);
+
+  useEffect(() => {
+    if (
+      selectedConversationId &&
+      !conversations.some((conversation) => conversation.id === selectedConversationId)
+    ) {
+      setSelectedConversationId(conversations[0]?.id ?? '');
     }
   }, [conversations, selectedConversationId]);
 
@@ -57,6 +125,33 @@ export function Messenger() {
     [markRead]
   );
 
+  const handleStartConversation = useCallback(
+    async (member: StaffMember) => {
+      const orgId = organization?.id;
+      if (!orgId) {
+        toast.error('Choose a school workspace before starting a chat.');
+        return;
+      }
+
+      try {
+        setStartingMemberId(member.userId);
+        const result = await startConversation({
+          orgId,
+          memberUserId: member.userId,
+          memberEmail: member.email,
+          memberName: member.name,
+          memberRole: member.role
+        });
+        setSelectedConversationId(result.conversationId);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Unable to start chat');
+      } finally {
+        setStartingMemberId(null);
+      }
+    },
+    [organization?.id, startConversation]
+  );
+
   const handleAddAttachments = useCallback((files: FileList) => {
     const newAttachments: Attachment[] = Array.from(files).map((file) => ({
       id: 'file-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
@@ -89,10 +184,10 @@ export function Messenger() {
     [attachments, draft, selectedConversationId, sendMessage]
   );
 
-  if (!activeConversation) {
+  if (conversationsQuery === undefined || membersLoading) {
     return (
       <div className='border-border/50 bg-background/70 flex h-[calc(100dvh-5.5rem)] items-center justify-center rounded-2xl border p-6 text-sm text-muted-foreground backdrop-blur-xl'>
-        Loading conversations...
+        Loading staff inbox...
       </div>
     );
   }
@@ -102,22 +197,38 @@ export function Messenger() {
       <ConversationSelect
         conversations={conversations}
         selectedId={selectedConversationId}
+        members={members}
+        startingMemberId={startingMemberId}
         onSelect={selectConversation}
+        onStartConversation={handleStartConversation}
       />
       <ConversationList
         conversations={conversations}
         selectedId={selectedConversationId}
+        members={members}
+        startingMemberId={startingMemberId}
         onSelect={selectConversation}
+        onStartConversation={handleStartConversation}
       />
-      <ChatArea
-        conversation={activeConversation}
-        draft={draft}
-        onDraftChange={setDraft}
-        onSubmit={handleSubmit}
-        attachments={attachments}
-        onAddAttachments={handleAddAttachments}
-        onRemoveAttachment={handleRemoveAttachment}
-      />
+      {activeConversation ? (
+        <ChatArea
+          conversation={activeConversation}
+          draft={draft}
+          onDraftChange={setDraft}
+          onSubmit={handleSubmit}
+          attachments={attachments}
+          onAddAttachments={handleAddAttachments}
+          onRemoveAttachment={handleRemoveAttachment}
+        />
+      ) : (
+        <div className='border-border/40 bg-background/80 flex min-h-0 flex-col items-center justify-center gap-3 rounded-2xl border p-6 text-center backdrop-blur sm:p-8 lg:col-start-2 lg:col-end-3 lg:rounded-3xl'>
+          <div className='text-lg font-semibold'>No chat selected</div>
+          <p className='text-muted-foreground max-w-md text-sm'>
+            Start a new staff chat from the left panel, or select an existing conversation when it
+            appears in your inbox.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

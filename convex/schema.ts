@@ -3,6 +3,9 @@ import { v } from 'convex/values';
 
 export default defineSchema({
   conversations: defineTable({
+    orgId: v.optional(v.string()),
+    participantUserIds: v.optional(v.array(v.string())),
+    participantEmails: v.optional(v.array(v.string())),
     name: v.string(),
     title: v.string(),
     status: v.union(v.literal('online'), v.literal('offline')),

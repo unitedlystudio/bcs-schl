@@ -5,9 +5,10 @@ import { Icons } from '@/components/icons';
 import { motion } from 'motion/react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import type { Conversation } from '../utils/types';
+import type { Conversation, StaffMember } from '../utils/types';
 
 const statusDotColor = {
   online: 'bg-green-500',
@@ -17,11 +18,34 @@ const statusDotColor = {
 interface ConversationListProps {
   conversations: Conversation[];
   selectedId: string;
+  members: StaffMember[];
+  startingMemberId?: string | null;
   onSelect: (id: string) => void;
+  onStartConversation: (member: StaffMember) => void;
 }
 
-export function ConversationList({ conversations, selectedId, onSelect }: ConversationListProps) {
+function initialsFor(name: string) {
+  return (
+    name
+      .split(/\s+/)
+      .map((part) => part[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join('')
+      .toUpperCase() || 'ST'
+  );
+}
+
+export function ConversationList({
+  conversations,
+  selectedId,
+  members,
+  startingMemberId,
+  onSelect,
+  onStartConversation
+}: ConversationListProps) {
   const [search, setSearch] = useState('');
+  const [memberSearch, setMemberSearch] = useState('');
 
   const filtered = useMemo(() => {
     if (!search.trim()) return conversations;
@@ -31,22 +55,89 @@ export function ConversationList({ conversations, selectedId, onSelect }: Conver
     );
   }, [conversations, search]);
 
+  const filteredMembers = useMemo(() => {
+    const q = memberSearch.trim().toLowerCase();
+    const base = q
+      ? members.filter(
+          (member) =>
+            member.name.toLowerCase().includes(q) ||
+            member.email.toLowerCase().includes(q) ||
+            member.role.toLowerCase().includes(q)
+        )
+      : members;
+
+    return base.slice(0, 8);
+  }, [memberSearch, members]);
+
   return (
     <div className='border-border/40 bg-background/75 hidden h-full flex-col gap-4 overflow-hidden rounded-2xl border p-3 backdrop-blur lg:col-start-1 lg:col-end-2 lg:flex lg:rounded-3xl lg:p-4'>
       <div className='flex items-center justify-between gap-3'>
         <div>
-          <p className='text-foreground text-sm font-semibold'>Messenger</p>
+          <p className='text-foreground text-sm font-semibold'>Staff chat</p>
           <p className='text-muted-foreground text-xs'>
-            {conversations.length} active conversation
-            {conversations.length === 1 ? '' : 's'}
+            {conversations.length} conversation{conversations.length === 1 ? '' : 's'}
           </p>
         </div>
         <Badge
           variant='outline'
           className='bg-primary/15 text-primary hover:bg-primary/15 hover:text-primary border-border/50 rounded-full border px-3 py-1 text-[0.7rem] tracking-[0.24em] uppercase'
         >
-          Live
+          Inbox
         </Badge>
+      </div>
+
+      <div className='space-y-2 rounded-2xl border border-border/40 bg-background/60 p-3'>
+        <div className='flex items-center justify-between gap-2'>
+          <div>
+            <p className='text-sm font-medium'>New chat</p>
+            <p className='text-muted-foreground text-xs'>Search staff, owners, and admins</p>
+          </div>
+        </div>
+        <label htmlFor='member-search' className='sr-only'>
+          Search staff members
+        </label>
+        <div className='relative'>
+          <Icons.search
+            className='text-muted-foreground/70 pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2'
+            aria-hidden='true'
+          />
+          <Input
+            id='member-search'
+            type='search'
+            value={memberSearch}
+            onChange={(event) => setMemberSearch(event.target.value)}
+            placeholder='Search member name, role, email'
+            className='border-border/40 bg-background/80 text-foreground placeholder:text-muted-foreground/70 focus-visible:ring-primary/40 w-full rounded-2xl pl-10 text-sm focus-visible:ring-2'
+          />
+        </div>
+        <div className='max-h-48 space-y-1 overflow-y-auto pr-1'>
+          {filteredMembers.length === 0 ? (
+            <p className='text-muted-foreground py-3 text-center text-xs'>No staff members found</p>
+          ) : null}
+          {filteredMembers.map((member) => (
+            <Button
+              key={member.userId}
+              type='button'
+              variant='ghost'
+              className='h-auto w-full justify-start rounded-xl px-2 py-2 text-left'
+              disabled={startingMemberId === member.userId}
+              onClick={() => onStartConversation(member)}
+            >
+              <Avatar className='mr-2 h-8 w-8 rounded-xl'>
+                <AvatarFallback className='bg-primary/15 text-primary rounded-xl text-xs'>
+                  {initialsFor(member.name)}
+                </AvatarFallback>
+              </Avatar>
+              <span className='min-w-0 flex-1'>
+                <span className='block truncate text-sm font-medium'>{member.name}</span>
+                <span className='text-muted-foreground block truncate text-xs'>{member.role}</span>
+              </span>
+              <span className='text-muted-foreground text-xs'>
+                {startingMemberId === member.userId ? 'Starting…' : 'Chat'}
+              </span>
+            </Button>
+          ))}
+        </div>
       </div>
 
       <label htmlFor='messenger-search' className='sr-only'>
@@ -73,7 +164,7 @@ export function ConversationList({ conversations, selectedId, onSelect }: Conver
         role='list'
       >
         {filtered.length === 0 ? (
-          <p className='text-muted-foreground py-8 text-center text-xs'>No conversations found</p>
+          <p className='text-muted-foreground py-8 text-center text-xs'>No conversations yet</p>
         ) : null}
         {filtered.map((conversation) => {
           const isActive = conversation.id === selectedId;

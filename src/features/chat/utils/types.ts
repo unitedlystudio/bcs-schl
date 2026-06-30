@@ -16,6 +16,14 @@ export type Message = {
 
 export type ConversationStatus = 'online' | 'offline';
 
+export type StaffMember = {
+  userId: string;
+  email: string;
+  name: string;
+  role: string;
+  status: string;
+};
+
 export type Conversation = {
   id: string;
   name: string;

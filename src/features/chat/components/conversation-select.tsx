@@ -1,36 +1,112 @@
 'use client';
 
+import { useMemo, useState } from 'react';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import type { Conversation } from '../utils/types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import type { Conversation, StaffMember } from '../utils/types';
 
 interface ConversationSelectProps {
   conversations: Conversation[];
   selectedId: string;
+  members: StaffMember[];
+  startingMemberId?: string | null;
   onSelect: (id: string) => void;
+  onStartConversation: (member: StaffMember) => void;
+}
+
+function initialsFor(name: string) {
+  return (
+    name
+      .split(/\s+/)
+      .map((part) => part[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join('')
+      .toUpperCase() || 'ST'
+  );
 }
 
 export function ConversationSelect({
   conversations,
   selectedId,
-  onSelect
+  members,
+  startingMemberId,
+  onSelect,
+  onStartConversation
 }: ConversationSelectProps) {
+  const [memberSearch, setMemberSearch] = useState('');
+
+  const filteredMembers = useMemo(() => {
+    const q = memberSearch.trim().toLowerCase();
+    const base = q
+      ? members.filter(
+          (member) =>
+            member.name.toLowerCase().includes(q) ||
+            member.email.toLowerCase().includes(q) ||
+            member.role.toLowerCase().includes(q)
+        )
+      : members;
+
+    return base.slice(0, 6);
+  }, [memberSearch, members]);
+
   return (
     <div className='border-border/40 bg-background/75 flex flex-col gap-3 rounded-2xl border p-3 backdrop-blur sm:gap-4 sm:rounded-3xl sm:p-4 lg:hidden'>
       <div className='flex items-center justify-between gap-2 sm:gap-3'>
         <div>
-          <p className='text-foreground text-xs font-semibold sm:text-sm'>Messenger</p>
+          <p className='text-foreground text-xs font-semibold sm:text-sm'>Staff chat</p>
           <p className='text-muted-foreground text-[0.65rem] sm:text-xs'>
-            {conversations.length} active conversation
-            {conversations.length === 1 ? '' : 's'}
+            {conversations.length} conversation{conversations.length === 1 ? '' : 's'}
           </p>
         </div>
         <Badge
           variant='outline'
           className='bg-primary/15 text-primary hover:bg-primary/15 hover:text-primary border-border/50 rounded-full border px-2 py-0.5 text-[0.65rem] tracking-[0.2em] uppercase sm:px-3 sm:py-1 sm:text-[0.7rem] sm:tracking-[0.24em]'
         >
-          Live
+          Inbox
         </Badge>
       </div>
+
+      <div className='space-y-2 rounded-2xl border border-border/40 bg-background/60 p-2.5'>
+        <p className='text-xs font-medium'>New chat</p>
+        <Input
+          type='search'
+          value={memberSearch}
+          onChange={(event) => setMemberSearch(event.target.value)}
+          placeholder='Search staff member'
+          className='h-9 rounded-xl text-xs'
+        />
+        <div className='max-h-40 space-y-1 overflow-y-auto'>
+          {filteredMembers.map((member) => (
+            <Button
+              key={member.userId}
+              type='button'
+              variant='ghost'
+              className='h-auto w-full justify-start rounded-xl px-2 py-2 text-left'
+              disabled={startingMemberId === member.userId}
+              onClick={() => onStartConversation(member)}
+            >
+              <Avatar className='mr-2 h-7 w-7 rounded-xl'>
+                <AvatarFallback className='bg-primary/15 text-primary rounded-xl text-[0.65rem]'>
+                  {initialsFor(member.name)}
+                </AvatarFallback>
+              </Avatar>
+              <span className='min-w-0 flex-1'>
+                <span className='block truncate text-xs font-medium'>{member.name}</span>
+                <span className='text-muted-foreground block truncate text-[0.65rem]'>
+                  {member.role}
+                </span>
+              </span>
+            </Button>
+          ))}
+          {filteredMembers.length === 0 ? (
+            <p className='text-muted-foreground py-2 text-center text-xs'>No staff members found</p>
+          ) : null}
+        </div>
+      </div>
+
       <div className='space-y-1.5 sm:space-y-2'>
         <label
           htmlFor='messenger-conversation'
@@ -44,6 +120,7 @@ export function ConversationSelect({
           onChange={(e) => onSelect(e.target.value)}
           className='border-border/40 bg-background/70 text-foreground focus:border-primary/40 focus:ring-primary/30 w-full rounded-xl border px-2.5 py-1.5 text-xs focus:ring-2 focus:outline-none sm:rounded-2xl sm:px-3 sm:py-2 sm:text-sm'
         >
+          {conversations.length === 0 ? <option value=''>No conversations yet</option> : null}
           {conversations.map((conversation) => (
             <option key={conversation.id} value={conversation.id}>
               {conversation.name}
