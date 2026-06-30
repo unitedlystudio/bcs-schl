@@ -2,14 +2,12 @@
 
 import { useState } from 'react';
 import { useOrganizationList } from '@clerk/nextjs';
-import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Icons } from '@/components/icons';
 
 export default function WorkspaceMembershipList() {
-  const router = useRouter();
   const { isLoaded, setActive, userMemberships } = useOrganizationList({
     userMemberships: {
       infinite: true,
@@ -24,7 +22,7 @@ export default function WorkspaceMembershipList() {
     setActivatingOrgId(organizationId);
     try {
       await setActive?.({ organization: organizationId });
-      router.push('/dashboard/workspaces/team');
+      window.location.assign('/dashboard');
     } finally {
       setActivatingOrgId(null);
     }
@@ -75,7 +73,7 @@ export default function WorkspaceMembershipList() {
                   {membership.organization.name}
                 </CardTitle>
                 <CardDescription>
-                  Open this invited school workspace and continue into the team dashboard.
+                  Open this invited school workspace and continue into your school dashboard.
                 </CardDescription>
               </div>
               <Badge variant='outline'>{membership.roleName}</Badge>
