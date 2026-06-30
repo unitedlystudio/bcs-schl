@@ -20,6 +20,10 @@ export async function GET() {
     adminAuthAvailable: false,
     queryOk: false as boolean,
     queryError: null as string | null,
+    queryErrorName: null as string | null,
+    queryErrorStack: null as string[] | null,
+    queryErrorKeys: null as string[] | null,
+    queryErrorJson: null as Record<string, string> | null,
     roleTemplateCount: null as number | null,
     accessProfileCount: null as number | null
   };
@@ -52,6 +56,19 @@ export async function GET() {
     summary.accessProfileCount = accessProfiles.length;
   } catch (error) {
     summary.queryError = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    if (error && typeof error === 'object') {
+      summary.queryErrorName = (error as { name?: string }).name ?? null;
+      summary.queryErrorKeys = Object.keys(error);
+      summary.queryErrorJson = Object.fromEntries(
+        Object.entries(error).map(([key, value]) => [
+          key,
+          typeof value === 'string' ? value : JSON.stringify(value)
+        ])
+      );
+    }
+    if (error instanceof Error) {
+      summary.queryErrorStack = error.stack?.split('\n').slice(0, 6) ?? null;
+    }
   }
 
   return NextResponse.json(summary);
