@@ -9,14 +9,6 @@ import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
-import {
-  Drawer,
-  DrawerContent,
-  DrawerDescription,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerTitle
-} from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -34,7 +26,6 @@ import {
   SheetHeader,
   SheetTitle
 } from '@/components/ui/sheet';
-import { useIsMobile } from '@/hooks/use-mobile';
 
 const DEFAULT_FORM = {
   fullName: '',
@@ -202,7 +193,6 @@ export function TeacherFormSheet({
   teacherId?: string | null;
   onSaved?: () => void;
 }) {
-  const isMobile = useIsMobile();
   const isEdit = Boolean(teacherId);
   const createTeacher = useMutation(api.teachers.create);
   const updateTeacher = useMutation(api.teachers.update);
@@ -331,29 +321,9 @@ export function TeacherFormSheet({
     </>
   );
 
-  if (isMobile) {
-    return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className='max-h-[85dvh] min-h-0'>
-          <DrawerHeader className='shrink-0'>
-            <DrawerTitle>{isEdit ? 'Manage teacher assignment' : 'Add teacher'}</DrawerTitle>
-            <DrawerDescription>
-              Keep teacher ownership editable so class/year assignment stays operational, not
-              hard-coded.
-            </DrawerDescription>
-          </DrawerHeader>
-          <div className='min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-4'>
-            {content}
-          </div>
-          <DrawerFooter className='shrink-0'>{footer}</DrawerFooter>
-        </DrawerContent>
-      </Drawer>
-    );
-  }
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className='sm:max-w-xl'>
+      <SheetContent className='w-[92vw] overflow-y-auto sm:max-w-xl'>
         <SheetHeader>
           <SheetTitle>{isEdit ? 'Manage teacher assignment' : 'Add teacher'}</SheetTitle>
           <SheetDescription>

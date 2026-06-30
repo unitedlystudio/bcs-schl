@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useOrganization } from '@clerk/nextjs';
+import { useCallback, useMemo, useState } from 'react';
+import { useQuery } from 'convex/react';
 import {
   type ColumnFiltersState,
   type PaginationState,
@@ -21,6 +21,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Option } from '@/types/data-table';
+import { api } from '../../../../convex/_generated/api';
+import { AddTeacherButton, TeacherFormSheet } from './teacher-form-sheet';
 import { getTeacherGridColumns, type TeacherGridRow } from './teacher-grid-columns';
 
 function compareLabels(left: string, right: string) {
@@ -48,19 +50,6 @@ function buildOptions(entries: Array<{ label: string; value: string; count: numb
     }));
 }
 
-function fullNameFromParts(
-  firstName?: string | null,
-  lastName?: string | null,
-  fallback?: string | null
-) {
-  const name = [firstName, lastName]
-    .map((part) => part?.trim())
-    .filter(Boolean)
-    .join(' ');
-
-  return name || fallback?.trim() || 'Unnamed staff member';
-}
-
 function countByValue(rows: TeacherGridRow[], key: keyof TeacherGridRow) {
   const counts = new Map<string, number>();
   for (const row of rows) {
@@ -75,68 +64,35 @@ function countByValue(rows: TeacherGridRow[], key: keyof TeacherGridRow) {
 }
 
 export default function TeacherDirectory() {
-  const { isLoaded, memberships, invitations } = useOrganization({
-    memberships: {
-      infinite: true,
-      keepPreviousData: true,
-      pageSize: 100
-    },
-    invitations: {
-      infinite: true,
-      keepPreviousData: true,
-      pageSize: 100
-    }
-  });
+  const teachersQuery = useQuery(api.teachers.list, {});
   const [sorting, setSorting] = useState<SortingState>([{ id: 'teacher', desc: false }]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [editingTeacherId, setEditingTeacherId] = useState<string | null>(null);
 
-  const rows = useMemo<TeacherGridRow[]>(() => {
-    const memberRows = (memberships?.data ?? []).map((membership) => {
-      const user = membership.publicUserData;
-      const fullName = fullNameFromParts(user?.firstName, user?.lastName, user?.identifier);
-
-      return {
-        id: user?.userId ?? membership.id,
-        fullName,
-        preferredName: user?.firstName?.trim() || fullName.split(' ')[0] || fullName,
-        role: membership.roleName || membership.role || 'Staff',
-        status: 'Active',
-        academicYear: '',
-        homeroomClass: '',
-        email: user?.identifier ?? '',
-        phone: ''
-      };
-    });
-
-    const invitationRows = (invitations?.data ?? [])
-      .filter((invitation) => invitation.status === 'pending')
-      .map((invitation) => ({
-        id: invitation.id,
-        fullName: invitation.emailAddress,
-        preferredName: invitation.emailAddress.split('@')[0] || invitation.emailAddress,
-        role: invitation.roleName || invitation.role || 'Invited staff',
-        status: 'Pending invite',
-        academicYear: '',
-        homeroomClass: '',
-        email: invitation.emailAddress,
-        phone: ''
-      }));
-
-    return [...memberRows, ...invitationRows].toSorted((left, right) =>
-      compareLabels(left.fullName, right.fullName)
-    );
-  }, [invitations?.data, memberships?.data]);
+  const rows = useMemo<TeacherGridRow[]>(() => teachersQuery ?? [], [teachersQuery]);
 
   const roleOptions = useMemo(() => countByValue(rows, 'role'), [rows]);
   const academicYearOptions = useMemo(() => countByValue(rows, 'academicYear'), [rows]);
   const homeroomOptions = useMemo(() => countByValue(rows, 'homeroomClass'), [rows]);
   const statusOptions = useMemo(() => countByValue(rows, 'status'), [rows]);
 
+  const openEditor = useCallback((teacherId: string | null) => {
+    setEditingTeacherId(teacherId);
+    setSheetOpen(true);
+  }, []);
+
   const columns = useMemo(
     () =>
-      getTeacherGridColumns({ roleOptions, academicYearOptions, homeroomOptions, statusOptions }),
-    [roleOptions, academicYearOptions, homeroomOptions, statusOptions]
+      getTeacherGridColumns({
+        roleOptions,
+        academicYearOptions,
+        homeroomOptions,
+        statusOptions,
+        onEdit: (row) => openEditor(row.id)
+      }),
+    [roleOptions, academicYearOptions, homeroomOptions, statusOptions, openEditor]
   );
 
   const table = useReactTable({
@@ -163,20 +119,15 @@ export default function TeacherDirectory() {
 
   const filteredRows = table.getFilteredRowModel().rows;
   const activeTeachers = rows.filter((row) => row.status === 'Active').length;
-  const pendingInvites = rows.filter((row) => row.status === 'Pending invite').length;
+  const onLeaveTeachers = rows.filter((row) => row.status === 'On Leave').length;
   const coveredAcademicYears = new Set(rows.map((row) => row.academicYear).filter(Boolean)).size;
   const hasFilters = columnFilters.length > 0;
-  const isLoading = !isLoaded || memberships === null || invitations === null;
-  const canLoadMore = Boolean(memberships?.hasNextPage || invitations?.hasNextPage);
-
-  const loadMore = async () => {
-    await Promise.all([memberships?.fetchNext?.(), invitations?.fetchNext?.()]);
-  };
+  const isLoading = teachersQuery === undefined;
 
   if (isLoading) {
     return (
       <div className='rounded-2xl border border-border/50 bg-background/70 p-6 text-sm text-muted-foreground'>
-        Loading real teacher and staff records from the active school workspace...
+        Loading editable teacher records...
       </div>
     );
   }
@@ -187,20 +138,23 @@ export default function TeacherDirectory() {
         <CardHeader>
           <CardTitle>Teacher directory</CardTitle>
           <CardDescription>
-            Showing live staff records from the active Clerk school workspace. Seed/demo teacher
-            rows are no longer used for this page.
+            Edit teacher ownership, academic-year coverage, and homeroom assignments directly from
+            the grid. Tap a row or use Edit to open the assignment panel.
           </CardDescription>
         </CardHeader>
         <CardContent className='grid gap-3'>
           <div className='flex flex-wrap gap-2 text-sm text-muted-foreground'>
-            <Badge variant='secondary'>{rows.length} staff records</Badge>
+            <Badge variant='secondary'>{rows.length} teacher records</Badge>
             <Badge variant='outline'>{activeTeachers} active</Badge>
-            <Badge variant='outline'>{pendingInvites} pending invites</Badge>
+            <Badge variant='outline'>{onLeaveTeachers} on leave</Badge>
             <Badge variant='outline'>{coveredAcademicYears} academic years in coverage</Badge>
           </div>
           <div className='text-sm text-muted-foreground'>
-            Manage people and invitations from the Workspaces area. Academic-year and homeroom
-            coverage can be connected once those live records are assigned.
+            On desktop and mobile the editor opens as a right-side panel, keeping the grid context
+            visible while you update the teacher record.
+          </div>
+          <div>
+            <AddTeacherButton onClick={() => openEditor(null)} />
           </div>
         </CardContent>
       </Card>
@@ -208,32 +162,29 @@ export default function TeacherDirectory() {
       {rows.length === 0 ? (
         <Card>
           <CardContent className='flex flex-col items-start gap-2 p-6'>
-            <div className='font-medium'>No staff records found in the active workspace.</div>
+            <div className='font-medium'>No teacher records found yet.</div>
             <div className='text-sm text-muted-foreground'>
-              Invite teachers or staff from Workspaces to populate this directory with real data.
+              Add teachers here to manage homeroom ownership and class/year coverage from the grid.
             </div>
+            <AddTeacherButton onClick={() => openEditor(null)} />
           </CardContent>
         </Card>
       ) : (
         <Card className='flex flex-1 flex-col'>
           <CardContent className='flex flex-1 flex-col p-4'>
-            <DataTable table={table}>
+            <DataTable table={table} onRowClick={(row) => openEditor(row.original.id)}>
               <DataTableToolbar table={table}>
                 <div className='hidden text-xs text-muted-foreground xl:block'>
                   {hasFilters
-                    ? 'Filters applied. Reset any filter to widen the real staff directory.'
-                    : 'This table is sourced from active workspace memberships and pending invitations.'}
+                    ? 'Filters applied. Reset any filter to widen the editable teacher directory.'
+                    : 'Select any teacher row to edit assignment details.'}
                 </div>
-                {canLoadMore ? (
-                  <Button type='button' variant='outline' size='sm' onClick={() => void loadMore()}>
-                    Load more
-                  </Button>
-                ) : null}
+                <AddTeacherButton onClick={() => openEditor(null)} />
               </DataTableToolbar>
             </DataTable>
             {filteredRows.length === 0 ? (
               <div className='mt-3 flex items-center justify-between gap-3 rounded-xl border border-dashed p-3 text-sm text-muted-foreground'>
-                <span>No staff records match the current directory filters.</span>
+                <span>No teacher records match the current directory filters.</span>
                 <Button
                   type='button'
                   variant='outline'
@@ -247,6 +198,7 @@ export default function TeacherDirectory() {
           </CardContent>
         </Card>
       )}
+      <TeacherFormSheet open={sheetOpen} onOpenChange={setSheetOpen} teacherId={editingTeacherId} />
     </div>
   );
 }

@@ -1,6 +1,8 @@
 'use client';
 
+import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { DataTableColumnHeader } from '@/components/ui/table/data-table-column-header';
 import type { Option } from '@/types/data-table';
 import type { Column, ColumnDef, FilterFn } from '@tanstack/react-table';
@@ -29,12 +31,14 @@ export function getTeacherGridColumns({
   roleOptions,
   academicYearOptions,
   homeroomOptions,
-  statusOptions
+  statusOptions,
+  onEdit
 }: {
   roleOptions: Option[];
   academicYearOptions: Option[];
   homeroomOptions: Option[];
   statusOptions: Option[];
+  onEdit?: (row: TeacherGridRow) => void;
 }): ColumnDef<TeacherGridRow>[] {
   return [
     {
@@ -158,6 +162,27 @@ export function getTeacherGridColumns({
       enableColumnFilter: true,
       enableSorting: false,
       filterFn: matchesSelectedValues
+    },
+    {
+      id: 'actions',
+      header: () => <span className='sr-only'>Actions</span>,
+      cell: ({ row }) => (
+        <Button
+          type='button'
+          variant='ghost'
+          size='sm'
+          className='h-8 px-2'
+          onClick={(event) => {
+            event.stopPropagation();
+            onEdit?.(row.original);
+          }}
+        >
+          <Icons.edit className='mr-2 h-4 w-4' />
+          Edit
+        </Button>
+      ),
+      enableSorting: false,
+      enableHiding: false
     }
   ];
 }
