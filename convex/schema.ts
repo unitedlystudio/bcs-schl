@@ -17,6 +17,8 @@ export default defineSchema({
   messages: defineTable({
     conversationId: v.id('conversations'),
     sender: v.union(v.literal('user'), v.literal('contact')),
+    authorUserId: v.optional(v.string()),
+    authorEmail: v.optional(v.string()),
     author: v.string(),
     text: v.string(),
     timestampLabel: v.string(),

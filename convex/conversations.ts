@@ -16,6 +16,55 @@ function readEmail(identity: IdentityLike) {
   ).toLowerCase();
 }
 
+function readDisplayName(identity: IdentityLike) {
+  return readString(identity.name) || readEmail(identity) || 'You';
+}
+
+function sameLabel(left: string, right: string) {
+  return left.trim().toLowerCase() === right.trim().toLowerCase();
+}
+
+function isLegacyConversationNamedForCurrentUser(
+  conversation: { name: string },
+  identity: IdentityLike
+) {
+  const email = readEmail(identity);
+  const name = readDisplayName(identity);
+  return Boolean(
+    (email && sameLabel(conversation.name, email)) || (name && sameLabel(conversation.name, name))
+  );
+}
+
+function messageSenderForViewer(
+  message: {
+    sender: 'user' | 'contact';
+    authorUserId?: string;
+    authorEmail?: string;
+  },
+  conversation: { name: string },
+  identity: IdentityLike
+): 'user' | 'contact' {
+  const currentUserId = readString(identity.subject);
+  const currentEmail = readEmail(identity);
+
+  if (message.authorUserId) {
+    return message.authorUserId === currentUserId ? 'user' : 'contact';
+  }
+
+  if (message.authorEmail) {
+    return sameLabel(message.authorEmail, currentEmail) ? 'user' : 'contact';
+  }
+
+  if (
+    message.sender === 'user' &&
+    isLegacyConversationNamedForCurrentUser(conversation, identity)
+  ) {
+    return 'contact';
+  }
+
+  return message.sender;
+}
+
 function initialsFor(name: string) {
   const initials = name
     .split(/\s+/)
@@ -60,11 +109,14 @@ function displayConversation(
   lastMessage: Array<{
     _id: string;
     sender: 'user' | 'contact';
+    authorUserId?: string;
+    authorEmail?: string;
     author: string;
     text: string;
     timestampLabel: string;
     attachments?: Array<{ id: string; name: string; size: number; type: string }>;
-  }>
+  }>,
+  identity: IdentityLike
 ) {
   return {
     id: conversation._id,
@@ -76,7 +128,7 @@ function displayConversation(
     quickReplies: conversation.quickReplies,
     messages: lastMessage.map((message) => ({
       id: message._id,
-      sender: message.sender,
+      sender: messageSenderForViewer(message, conversation, identity),
       author: message.author,
       text: message.text,
       timestamp: message.timestampLabel,
@@ -117,7 +169,7 @@ export const list = query({
           .order('desc')
           .take(1);
 
-        return displayConversation(conversation, lastMessage);
+        return displayConversation(conversation, lastMessage, identity);
       })
     );
   }
@@ -141,7 +193,7 @@ export const getMessages = query({
 
     return messages.map((message) => ({
       id: message._id,
-      sender: message.sender,
+      sender: messageSenderForViewer(message, conversation, identity),
       author: message.author,
       text: message.text,
       timestamp: message.timestampLabel,
@@ -261,7 +313,9 @@ export const sendMessage = mutation({
     const messageId = await ctx.db.insert('messages', {
       conversationId: args.conversationId,
       sender: 'user',
-      author: 'You',
+      authorUserId: readString(identity.subject),
+      authorEmail: readEmail(identity),
+      author: readDisplayName(identity),
       text: trimmed,
       timestampLabel: timeLabel(),
       attachments: args.attachments,
