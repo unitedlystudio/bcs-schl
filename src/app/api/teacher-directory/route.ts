@@ -31,9 +31,34 @@ function fullNameFromParts(
   return name || fallback?.trim() || 'Unnamed teacher';
 }
 
-function isTeacherRole(role: string) {
-  return role.toLowerCase().includes('teacher');
+function isTeacherRole(role: string, roleName?: string | null) {
+  return [role, roleName ?? ''].some((value) => value.toLowerCase().includes('teacher'));
 }
+
+function roleLabel(role: string, roleName?: string | null) {
+  if (roleName?.trim()) {
+    return roleName.trim();
+  }
+
+  if (isTeacherRole(role)) {
+    return 'Teacher';
+  }
+
+  return role;
+}
+
+type TeacherDirectoryRow = {
+  id: string;
+  localTeacherId?: string;
+  fullName: string;
+  preferredName: string;
+  role: string;
+  status: string;
+  academicYear: string;
+  homeroomClass: string;
+  email: string;
+  phone: string;
+};
 
 async function canAccessRequestedOrg(userId: string, requestedOrgId: string) {
   const client = await clerkClient();
@@ -76,24 +101,35 @@ export async function GET(request: Request) {
     tokenIdentifier: `teacher-directory:${session.userId}`
   });
 
-  const [membershipsResponse, teachers] = await Promise.all([
-    clerk.organizations.getOrganizationMembershipList({ limit: 100, organizationId: orgId }),
-    convex.query(api.teachers.list, {})
-  ]);
+  const [membershipsResponse, invitationsResponse, accessProfiles, staffInvites, teachers] =
+    await Promise.all([
+      clerk.organizations.getOrganizationMembershipList({ limit: 100, organizationId: orgId }),
+      clerk.organizations.getOrganizationInvitationList({ limit: 100, organizationId: orgId }),
+      convex.query(api.schoolOrganization.listAccessProfiles, { orgId }),
+      convex.query(api.schoolOrganization.listStaffInvites, { orgId }),
+      convex.query(api.teachers.list, {})
+    ]);
 
   const localByEmail = new Map(
     teachers
       .filter((teacher) => teacher.email.trim())
       .map((teacher) => [teacher.email.trim().toLowerCase(), teacher])
   );
+  const profileByUserId = new Map(accessProfiles.map((profile) => [profile.userId, profile]));
+  const staffInviteByEmail = new Map(
+    staffInvites.map((invite) => [invite.email.trim().toLowerCase(), invite])
+  );
 
-  const rows = membershipsResponse.data
+  const rows: TeacherDirectoryRow[] = membershipsResponse.data
     .map((membership) => {
       const user = membership.publicUserData;
       const email = user?.identifier?.trim() ?? '';
       const role = membership.role || '';
+      const accessProfile = user?.userId ? profileByUserId.get(user.userId) : undefined;
+      const staffInvite = email ? staffInviteByEmail.get(email.toLowerCase()) : undefined;
+      const managedRole = accessProfile?.dashboardRole || staffInvite?.dashboardRole || '';
 
-      if (!isTeacherRole(role)) {
+      if (!isTeacherRole(role) && !isTeacherRole(managedRole)) {
         return null;
       }
 
@@ -109,7 +145,7 @@ export async function GET(request: Request) {
           user?.firstName?.trim() ||
           fullName.split(' ')[0] ||
           fullName,
-        role: localTeacher?.role || 'Teacher',
+        role: localTeacher?.role || roleLabel(managedRole || role),
         status: localTeacher?.status || 'Active',
         academicYear: localTeacher?.academicYear ?? '',
         homeroomClass: localTeacher?.homeroomClass ?? '',
@@ -119,6 +155,41 @@ export async function GET(request: Request) {
     })
     .filter((row): row is NonNullable<typeof row> => Boolean(row))
     .toSorted((left, right) => compareLabels(left.fullName, right.fullName));
+
+  const seenEmails = new Set(rows.map((row) => row.email.trim().toLowerCase()).filter(Boolean));
+
+  for (const invitation of invitationsResponse.data) {
+    const email = invitation.emailAddress.trim().toLowerCase();
+
+    if (!email || seenEmails.has(email) || !isTeacherRole(invitation.role, invitation.roleName)) {
+      continue;
+    }
+
+    const localTeacher = localByEmail.get(email);
+    const fullName = localTeacher?.fullName || email;
+
+    rows.push({
+      id: localTeacher?.id ?? invitation.id,
+      localTeacherId: localTeacher?.id,
+      fullName,
+      preferredName: localTeacher?.preferredName || fullName.split('@')[0] || fullName,
+      role: localTeacher?.role || roleLabel(invitation.role, invitation.roleName),
+      status: localTeacher?.status || 'Pending invite',
+      academicYear: localTeacher?.academicYear ?? '',
+      homeroomClass: localTeacher?.homeroomClass ?? '',
+      email,
+      phone: localTeacher?.phone ?? ''
+    });
+  }
+
+  rows.sort((left, right) => compareLabels(left.fullName, right.fullName));
+
+  console.warn('[teacher-directory] resolved', {
+    orgId,
+    membershipCount: membershipsResponse.data.length,
+    invitationCount: invitationsResponse.data.length,
+    teacherRows: rows.map((row) => ({ email: row.email, role: row.role, status: row.status }))
+  });
 
   return NextResponse.json({ rows });
 }
