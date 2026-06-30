@@ -32,7 +32,10 @@ export async function GET() {
     getCurrentAccessResult: null as unknown,
     getCurrentAccessNoEmailResult: null as unknown,
     getCurrentAccessError: null as string | null,
-    getCurrentAccessNoEmailError: null as string | null
+    getCurrentAccessNoEmailError: null as string | null,
+    rawFetchStatus: null as number | null,
+    rawFetchText: null as string | null,
+    rawFetchHeaders: null as Record<string, string> | null
   };
 
   if (!convexUrl || !deployKey) {
@@ -119,6 +122,36 @@ export async function GET() {
     summary.getCurrentAccessNoEmailOk = true;
   } catch (error) {
     summary.getCurrentAccessNoEmailError =
+      error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  }
+
+  try {
+    const actingAsIdentity = {
+      subject: USER_ID,
+      email: 'don@donhphoto.com',
+      orgId: ORG_ID,
+      orgRole: 'org:member',
+      orgPermissions: [],
+      tokenIdentifier: USER_ID
+    };
+    const encodedIdentity = btoa(JSON.stringify(actingAsIdentity));
+    const response = await fetch(`${convexUrl}/api/query`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Convex ${deployKey}:${encodedIdentity}`
+      },
+      body: JSON.stringify({
+        path: 'schoolOrganization:getCurrentAccess',
+        format: 'convex_encoded_json',
+        args: [{ orgId: ORG_ID }]
+      })
+    });
+    summary.rawFetchStatus = response.status;
+    summary.rawFetchText = (await response.text()).slice(0, 1000);
+    summary.rawFetchHeaders = Object.fromEntries(response.headers.entries());
+  } catch (error) {
+    summary.rawFetchText =
       error instanceof Error ? `${error.name}: ${error.message}` : String(error);
   }
 
