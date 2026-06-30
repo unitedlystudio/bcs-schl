@@ -4,6 +4,22 @@ import { auth, currentUser } from '@clerk/nextjs/server';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '../../../convex/_generated/api';
 
+function readNormalizedEmail(value: unknown) {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+function readEmailFromSessionClaims(sessionClaims: Record<string, unknown> | null | undefined) {
+  if (!sessionClaims) {
+    return '';
+  }
+
+  return (
+    readNormalizedEmail(sessionClaims.email_address) ||
+    readNormalizedEmail(sessionClaims.email) ||
+    readNormalizedEmail(sessionClaims.primary_email_address)
+  );
+}
+
 type TrustedAccessIdentity = {
   email: string;
   orgId: string;
@@ -24,11 +40,24 @@ function getRequiredEnv(name: 'CONVEX_DEPLOY_KEY' | 'NEXT_PUBLIC_CONVEX_URL') {
 
 async function getTrustedIdentity(): Promise<TrustedAccessIdentity | null> {
   const session = await auth();
-  const user = await currentUser();
-  const email =
-    user?.primaryEmailAddress?.emailAddress?.trim().toLowerCase() ??
-    user?.emailAddresses?.[0]?.emailAddress?.trim().toLowerCase() ??
-    '';
+  let email = readEmailFromSessionClaims(
+    (session.sessionClaims ?? null) as Record<string, unknown> | null
+  );
+
+  if (!email) {
+    try {
+      const user = await currentUser();
+      email =
+        user?.primaryEmailAddress?.emailAddress?.trim().toLowerCase() ??
+        user?.emailAddresses?.[0]?.emailAddress?.trim().toLowerCase() ??
+        '';
+    } catch (error) {
+      console.warn(
+        'Falling back to Clerk session claims for trusted dashboard access email lookup.',
+        error
+      );
+    }
+  }
 
   if (!session.userId || !session.orgId || !email) {
     return null;
