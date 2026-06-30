@@ -53,7 +53,6 @@ import {
   DASHBOARD_ROLE_OPTIONS,
   MANAGED_NAV_PERMISSION_KEYS,
   type DashboardPermissionKey,
-  type DashboardRole,
   isDashboardRole,
   normalizeDashboardPermissions,
   permissionSetForRole,
@@ -201,8 +200,7 @@ function getPermissionSummary(permissions: DashboardPermissionKey[]) {
 
 function buildAssignmentRoleOptions(roleTemplates: RoleTemplateRecord[]): AssignmentRoleOption[] {
   const presetRoles = DASHBOARD_ROLE_OPTIONS.filter(
-    (role): role is Exclude<DashboardRole, 'Inherited' | 'Custom'> =>
-      role !== 'Inherited' && role !== 'Custom'
+    (role): role is 'Admin' => role === 'Admin'
   ).map((role) => ({
     value: role,
     label: role,
@@ -251,7 +249,7 @@ function getRoleValueForRow(row: StaffAccessRow, roleTemplates: RoleTemplateReco
     return toTemplateRoleValue(row.roleTemplateId);
   }
 
-  if (isDashboardRole(row.dashboardRole)) {
+  if (row.dashboardRole === 'Admin') {
     return row.dashboardRole;
   }
 
@@ -499,8 +497,7 @@ function RoleTemplateEditorSheet({
             {roleTemplate ? `Edit ${roleTemplate.name}` : 'Create organisation role'}
           </SheetTitle>
           <SheetDescription>
-            Save a reusable role like Accounts Staff or Teacher Assistant, then assign it to staff
-            from the permissions grid.
+            Save a reusable organisation role, then assign it to staff from the permissions grid.
           </SheetDescription>
         </SheetHeader>
 
@@ -793,8 +790,7 @@ function AccessEditorSheet({
                 </SelectContent>
               </Select>
               <p className='text-muted-foreground text-xs'>
-                Saved organisation roles can be reused for accounts staff, teachers, assistants, and
-                any other school-specific access pattern.
+                Saved organisation roles can be reused for any school-specific access pattern.
               </p>
             </div>
 
@@ -1217,8 +1213,8 @@ export default function SchoolOrganizationShell() {
                 <div>
                   <CardTitle>Organisation roles</CardTitle>
                   <CardDescription>
-                    Create reusable school roles like Accounts Staff, Teacher, or Teacher Assistant,
-                    then assign them from the staff permissions table.
+                    Create reusable school roles that match your team structure, then assign them
+                    from the staff permissions table.
                   </CardDescription>
                 </div>
                 <Button

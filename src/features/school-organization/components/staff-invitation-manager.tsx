@@ -26,7 +26,6 @@ import {
   DASHBOARD_PERMISSION_CATALOG,
   DASHBOARD_ROLE_OPTIONS,
   type DashboardPermissionKey,
-  type DashboardRole,
   normalizeDashboardPermissions,
   permissionSetForRole
 } from '@/lib/school-permissions';
@@ -96,8 +95,7 @@ function isEmailAddress(value: string) {
 
 function buildRoleOptions(roleTemplates: RoleTemplateRecord[]): RoleOption[] {
   const presetRoles = DASHBOARD_ROLE_OPTIONS.filter(
-    (role): role is Exclude<DashboardRole, 'Inherited' | 'Custom'> =>
-      role !== 'Inherited' && role !== 'Custom'
+    (role): role is 'Admin' => role === 'Admin'
   ).map((role) => ({
     value: role,
     label: role,
@@ -166,7 +164,7 @@ export default function StaffInvitationManager({
   const roleOptions = useMemo(() => buildRoleOptions(roleTemplates), [roleTemplates]);
   const [inviteMode, setInviteMode] = useState<'single' | 'group'>('single');
   const [selectedRoleValue, setSelectedRoleValue] = useState<string>(
-    roleOptions[0]?.value ?? 'Teacher'
+    roleOptions[0]?.value ?? 'Admin'
   );
   const [singleEmail, setSingleEmail] = useState('');
   const [bulkEmails, setBulkEmails] = useState('');
