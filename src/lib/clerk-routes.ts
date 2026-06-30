@@ -1,4 +1,4 @@
-export const SCHLY_POST_AUTH_REDIRECT = '/dashboard/workspaces/team';
+export const SCHLY_POST_AUTH_REDIRECT = '/dashboard/workspaces';
 
 export const clerkRouteConfig = {
   signInUrl: '/auth/sign-in',

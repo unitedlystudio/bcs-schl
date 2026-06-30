@@ -6,6 +6,7 @@ import { InfobarProvider } from '@/components/ui/infobar';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
+import ActiveOrganizationSync from '@/features/school-organization/components/active-organization-sync';
 import CurrentUserInviteClaimSync from '@/features/school-organization/components/current-user-invite-claim-sync';
 
 export const metadata: Metadata = {
@@ -27,6 +28,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <InfobarProvider defaultOpen={false}>
           <AppSidebar />
           <SidebarInset>
+            <ActiveOrganizationSync />
             <CurrentUserInviteClaimSync />
             <Header />
             {/* page main content */}
