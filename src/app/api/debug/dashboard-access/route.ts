@@ -6,7 +6,7 @@ const ORG_ID = 'org_33Slcbw2nxEhbVSbb5JslO1sNTV';
 const USER_ID = 'user_3FpxeDHFv1nu3FpMFVpaLz73OBd';
 
 export async function GET() {
-  const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL?.trim() ?? '';
+  const convexUrl = (process.env.NEXT_PUBLIC_CONVEX_URL?.trim() ?? '').replace(/\/+$/, '');
   const deployKey = process.env.CONVEX_DEPLOY_KEY?.trim() ?? '';
   const deployment = process.env.CONVEX_DEPLOYMENT?.trim() ?? '';
   const clerkSecret = process.env.CLERK_SECRET_KEY?.trim() ?? '';
@@ -17,6 +17,7 @@ export async function GET() {
     hasDeployment: Boolean(deployment),
     hasClerkSecret: Boolean(clerkSecret),
     convexUrlHost: convexUrl ? new URL(convexUrl).host : null,
+    convexUrlNormalized: convexUrl || null,
     deployment,
     adminAuthAvailable: false,
     queryOk: false as boolean,

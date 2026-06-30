@@ -43,7 +43,7 @@ function getRequiredEnv(name: 'CONVEX_DEPLOY_KEY' | 'NEXT_PUBLIC_CONVEX_URL') {
     throw new Error(`${name} is not configured.`);
   }
 
-  return value;
+  return name === 'NEXT_PUBLIC_CONVEX_URL' ? value.replace(/\/+$/, '') : value;
 }
 
 function normalizeMembership(membership: ClerkOrganizationMembershipLike | null | undefined) {
