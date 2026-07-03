@@ -81,14 +81,14 @@ function TeacherFormFields({
         </div>
       </div>
 
-      <div className='grid gap-4 md:grid-cols-2'>
-        <div className='grid gap-2'>
-          <Label>Role</Label>
+      <div className='grid grid-cols-2 gap-3 md:gap-4'>
+        <div className='grid min-w-0 gap-2'>
+          <Label className='truncate'>Role</Label>
           <Select
             value={values.role}
             onValueChange={(value) => onChange('role', value as TeacherFormValues['role'])}
           >
-            <SelectTrigger disabled={isSubmitting}>
+            <SelectTrigger className='w-full min-w-0 text-base sm:text-sm' disabled={isSubmitting}>
               <SelectValue placeholder='Select role' />
             </SelectTrigger>
             <SelectContent>
@@ -98,13 +98,13 @@ function TeacherFormFields({
             </SelectContent>
           </Select>
         </div>
-        <div className='grid gap-2'>
-          <Label>Status</Label>
+        <div className='grid min-w-0 gap-2'>
+          <Label className='truncate'>Status</Label>
           <Select
             value={values.status}
             onValueChange={(value) => onChange('status', value as TeacherFormValues['status'])}
           >
-            <SelectTrigger disabled={isSubmitting}>
+            <SelectTrigger className='w-full min-w-0 text-base sm:text-sm' disabled={isSubmitting}>
               <SelectValue placeholder='Select status' />
             </SelectTrigger>
             <SelectContent>
@@ -113,16 +113,13 @@ function TeacherFormFields({
             </SelectContent>
           </Select>
         </div>
-      </div>
-
-      <div className='grid gap-4 md:grid-cols-2'>
-        <div className='grid gap-2'>
-          <Label>Academic year</Label>
+        <div className='grid min-w-0 gap-2'>
+          <Label className='truncate'>Academic year</Label>
           <Select
             value={values.academicYear || '__none'}
             onValueChange={(value) => onChange('academicYear', value === '__none' ? '' : value)}
           >
-            <SelectTrigger disabled={isSubmitting}>
+            <SelectTrigger className='w-full min-w-0 text-base sm:text-sm' disabled={isSubmitting}>
               <SelectValue placeholder='Choose academic year' />
             </SelectTrigger>
             <SelectContent>
@@ -135,13 +132,13 @@ function TeacherFormFields({
             </SelectContent>
           </Select>
         </div>
-        <div className='grid gap-2'>
-          <Label>Homeroom class</Label>
+        <div className='grid min-w-0 gap-2'>
+          <Label className='truncate'>Homeroom class</Label>
           <Select
             value={values.homeroomClass || '__none'}
             onValueChange={(value) => onChange('homeroomClass', value === '__none' ? '' : value)}
           >
-            <SelectTrigger disabled={isSubmitting}>
+            <SelectTrigger className='w-full min-w-0 text-base sm:text-sm' disabled={isSubmitting}>
               <SelectValue placeholder='Choose homeroom class' />
             </SelectTrigger>
             <SelectContent>
