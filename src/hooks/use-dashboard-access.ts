@@ -22,6 +22,55 @@ type TrustedDashboardAccessResponse = {
 };
 
 const DASHBOARD_ACCESS_UPDATED_EVENT = 'schly-dashboard-access-updated';
+const DASHBOARD_ACCESS_CACHE_TTL_MS = 5 * 60 * 1000;
+
+const trustedAccessCache = new Map<
+  string,
+  { payload: TrustedDashboardAccessResponse; loadedAt: number }
+>();
+const trustedAccessRequests = new Map<string, Promise<TrustedDashboardAccessResponse>>();
+
+function readCachedTrustedAccess(organizationId?: string) {
+  if (!organizationId) return null;
+
+  const cached = trustedAccessCache.get(organizationId);
+  if (!cached) return null;
+
+  if (Date.now() - cached.loadedAt > DASHBOARD_ACCESS_CACHE_TTL_MS) {
+    trustedAccessCache.delete(organizationId);
+    return null;
+  }
+
+  return cached.payload;
+}
+
+async function loadTrustedDashboardAccess(organizationId: string) {
+  const cached = readCachedTrustedAccess(organizationId);
+  if (cached) return cached;
+
+  const existingRequest = trustedAccessRequests.get(organizationId);
+  if (existingRequest) return existingRequest;
+
+  const request = fetch(`/api/dashboard-access?orgId=${encodeURIComponent(organizationId)}`, {
+    cache: 'no-store',
+    credentials: 'same-origin'
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        throw new Error(`dashboard access bootstrap failed with ${response.status}`);
+      }
+
+      const payload = (await response.json()) as TrustedDashboardAccessResponse;
+      trustedAccessCache.set(organizationId, { payload, loadedAt: Date.now() });
+      return payload;
+    })
+    .finally(() => {
+      trustedAccessRequests.delete(organizationId);
+    });
+
+  trustedAccessRequests.set(organizationId, request);
+  return request;
+}
 
 export function useDashboardAccess() {
   const { organization, membership } = useOrganization();
@@ -35,8 +84,12 @@ export function useDashboardAccess() {
     api.schoolOrganization.getCurrentAccess,
     organizationId ? { orgId: organizationId } : 'skip'
   );
-  const [trustedAccess, setTrustedAccess] = useState<TrustedDashboardAccessResponse | null>(null);
-  const [trustedAccessLoaded, setTrustedAccessLoaded] = useState(false);
+  const [trustedAccess, setTrustedAccess] = useState<TrustedDashboardAccessResponse | null>(() =>
+    readCachedTrustedAccess(organizationId)
+  );
+  const [trustedAccessLoaded, setTrustedAccessLoaded] = useState(() =>
+    Boolean(!organizationId || readCachedTrustedAccess(organizationId))
+  );
 
   useEffect(() => {
     if (!organizationId) {
@@ -48,22 +101,17 @@ export function useDashboardAccess() {
     let cancelled = false;
 
     const loadTrustedAccess = async () => {
-      setTrustedAccessLoaded(false);
+      const cached = readCachedTrustedAccess(organizationId);
+      if (cached) {
+        setTrustedAccess(cached);
+        setTrustedAccessLoaded(true);
+        return;
+      }
+
+      setTrustedAccessLoaded(Boolean(trustedAccess));
 
       try {
-        const response = await fetch(
-          `/api/dashboard-access?orgId=${encodeURIComponent(organizationId)}`,
-          {
-            cache: 'no-store',
-            credentials: 'same-origin'
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`dashboard access bootstrap failed with ${response.status}`);
-        }
-
-        const payload = (await response.json()) as TrustedDashboardAccessResponse;
+        const payload = await loadTrustedDashboardAccess(organizationId);
 
         if (!cancelled) {
           setTrustedAccess(payload);
@@ -83,6 +131,7 @@ export function useDashboardAccess() {
     void loadTrustedAccess();
 
     const refreshTrustedAccess = () => {
+      trustedAccessCache.delete(organizationId);
       void loadTrustedAccess();
     };
 
@@ -92,7 +141,7 @@ export function useDashboardAccess() {
       cancelled = true;
       window.removeEventListener(DASHBOARD_ACCESS_UPDATED_EVENT, refreshTrustedAccess);
     };
-  }, [organizationId]);
+  }, [organizationId, trustedAccess]);
 
   return useMemo(() => {
     const resolvedAccess = trustedAccess ?? storedAccess;
@@ -105,7 +154,8 @@ export function useDashboardAccess() {
     const dashboardRole = storedRole;
     const effectiveRole = hasManagedProfile ? '' : clerkRole;
     const isTrustedAccessPending = Boolean(organizationId) && !trustedAccessLoaded;
-    const isDirectAccessPending = Boolean(organizationId) && storedAccess === undefined;
+    const isDirectAccessPending =
+      Boolean(organizationId) && !trustedAccess && storedAccess === undefined;
 
     return {
       hasOrg: Boolean(organization),

@@ -26,14 +26,9 @@ export function DashboardPermissionGate({
 
   if (dashboardAccess.isLoadingManagedProfile) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Checking {resolvedAreaLabel.toLowerCase()} access</CardTitle>
-          <CardDescription>
-            Schly is resolving your school dashboard permissions before opening this area.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <div className='text-muted-foreground rounded-xl border border-dashed px-3 py-2 text-sm'>
+        Opening {resolvedAreaLabel.toLowerCase()}...
+      </div>
     );
   }
 
