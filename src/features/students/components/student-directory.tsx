@@ -21,9 +21,8 @@ import { api } from '../../../../convex/_generated/api';
 import { DataTable } from '@/components/ui/table/data-table';
 import { DataTableToolbar } from '@/components/ui/table/data-table-toolbar';
 import { AddStudentSheetTrigger } from './add-student-sheet';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import type { Option } from '@/types/data-table';
 import { getStudentGridColumns, type StudentGridRow } from './student-grid-columns';
 
@@ -207,17 +206,7 @@ export default function StudentDirectory() {
 
   const filteredRows = table.getFilteredRowModel().rows;
   const visibleStudentCount = filteredRows.length;
-  const visibleAcademicYears = new Set(filteredRows.map((row) => row.original.academicYear)).size;
-  const visibleClassGroups = new Set(
-    filteredRows.map((row) => `${row.original.academicYear}::${row.original.className}`)
-  ).size;
-  const visibleHomerooms = new Set(
-    filteredRows
-      .map((row) => row.original.homeroomTeacher)
-      .filter((teacherName) => teacherName && teacherName !== 'Unassigned')
-  ).size;
   const hasFilters = columnFilters.length > 0;
-  const activeTeachers = teachers.filter((teacher) => teacher.status === 'Active').length;
 
   if (studentsQuery === undefined || teachersQuery === undefined) {
     return (
@@ -246,29 +235,6 @@ export default function StudentDirectory() {
 
   return (
     <div className='flex flex-1 flex-col gap-4'>
-      <Card>
-        <CardHeader>
-          <CardTitle>Student directory</CardTitle>
-          <CardDescription>
-            Using the access-style data grid for faster filtering, while keeping student profiles as
-            the richer detail layer.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className='grid gap-3'>
-          <div className='flex flex-wrap gap-2 text-sm text-muted-foreground'>
-            <Badge variant='secondary'>{visibleStudentCount} students in view</Badge>
-            <Badge variant='outline'>{visibleAcademicYears} academic years</Badge>
-            <Badge variant='outline'>{visibleClassGroups} class groups</Badge>
-            <Badge variant='outline'>{visibleHomerooms} linked homerooms</Badge>
-            <Badge variant='outline'>{activeTeachers} active teachers</Badge>
-          </div>
-          <div className='text-sm text-muted-foreground'>
-            Filter by year, class, homeroom, and status like /dashboard/access, then click any
-            student row to open the profile.
-          </div>
-        </CardContent>
-      </Card>
-
       <Card className='flex flex-1 flex-col'>
         <CardContent className='flex flex-1 flex-col p-4'>
           <DataTable
