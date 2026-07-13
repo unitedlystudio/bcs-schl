@@ -399,41 +399,20 @@ export default function FinanceShell() {
   return (
     <FinanceAccessGate>
       <div className='flex min-w-0 flex-1 flex-col gap-4'>
-        <Card className='border-border/60'>
-          <CardContent className='flex flex-col gap-4 p-5 lg:flex-row lg:items-start lg:justify-between'>
-            <div className='min-w-0 space-y-3'>
-              <div className='space-y-1'>
-                <div className='text-sm font-medium text-foreground'>School finance workspace</div>
-                <p className='max-w-3xl text-sm leading-6 text-muted-foreground'>
-                  Keep student accounts, charge activity, payments, and collections in one simple
-                  operator flow. Start from accounts, review activity in one ledger lane, then work
-                  the overdue queue without losing context.
-                </p>
-              </div>
-              <div className='flex flex-wrap gap-2 text-xs'>
-                <Badge variant='outline'>Simple desktop + mobile flow</Badge>
-                <Badge variant='outline'>Per-student finance detail</Badge>
-                <Badge variant='outline'>Accounts-only workspace</Badge>
-              </div>
-            </div>
-            <div className='flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end'>
-              {hasFinanceWriteAccess ? (
-                <>
-                  <Button
-                    variant='outline'
-                    className='w-full sm:w-auto'
-                    onClick={() => setProfileSheetOpen(true)}
-                  >
-                    Add billing profile
-                  </Button>
-                  <Button className='w-full sm:w-auto' onClick={() => setBillingRunSheetOpen(true)}>
-                    Generate billing run
-                  </Button>
-                </>
-              ) : null}
-            </div>
-          </CardContent>
-        </Card>
+        {hasFinanceWriteAccess ? (
+          <div className='flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end'>
+            <Button
+              variant='outline'
+              className='w-full sm:w-auto'
+              onClick={() => setProfileSheetOpen(true)}
+            >
+              Add Profile
+            </Button>
+            <Button className='w-full sm:w-auto' onClick={() => setBillingRunSheetOpen(true)}>
+              Generate Billing
+            </Button>
+          </div>
+        ) : null}
 
         <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-4'>
           <SummaryCard
