@@ -33,7 +33,7 @@ export function MessageComposer({
       <label htmlFor='messenger-editor' className='sr-only'>
         Write a message
       </label>
-      <div className='border-border/40 bg-background/80 flex items-end gap-2 rounded-2xl border p-3 backdrop-blur sm:gap-3 sm:rounded-3xl sm:p-4'>
+      <div className='border-border/50 bg-background/80 flex items-end gap-2 rounded-2xl border p-2.5 sm:gap-3 sm:rounded-3xl sm:p-4'>
         <div className='min-w-0 flex-1'>
           {attachments.length > 0 && (
             <FilePreview
