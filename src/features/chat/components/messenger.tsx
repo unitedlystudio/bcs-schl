@@ -23,6 +23,7 @@ export function Messenger() {
   const [membersLoading, setMembersLoading] = useState(true);
   const [startingMemberId, setStartingMemberId] = useState<string | null>(null);
   const sendMessage = useMutation(api.conversations.sendMessage);
+  const generateAttachmentUploadUrl = useMutation(api.conversations.generateAttachmentUploadUrl);
   const markRead = useMutation(api.conversations.markRead);
   const startConversation = useMutation(api.conversations.startConversation);
 
@@ -187,13 +188,22 @@ export function Messenger() {
   );
 
   const handleAddAttachments = useCallback((files: FileList) => {
-    const newAttachments: Attachment[] = Array.from(files).map((file) => ({
+    const selectedFiles = Array.from(files).slice(0, 5);
+    const oversizedFile = selectedFiles.find((file) => file.size > 10 * 1024 * 1024);
+
+    if (oversizedFile) {
+      toast.error(`${oversizedFile.name} is larger than the 10 MB attachment limit.`);
+      return;
+    }
+
+    const newAttachments: Attachment[] = selectedFiles.map((file) => ({
       id: 'file-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
       name: file.name,
       size: file.size,
-      type: file.type
+      type: file.type || 'application/octet-stream',
+      file
     }));
-    setAttachments((prev) => [...prev, ...newAttachments]);
+    setAttachments((prev) => [...prev, ...newAttachments].slice(0, 5));
   }, []);
 
   const handleRemoveAttachment = useCallback((id: string) => {
@@ -206,20 +216,44 @@ export function Messenger() {
       if (!selectedConversationId) return;
       if (!draft.trim() && attachments.length === 0) return;
 
-      await sendMessage({
-        conversationId: selectedConversationId as Id<'conversations'>,
-        text: draft,
-        authorUserId: user?.id,
-        authorEmail:
-          user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses?.[0]?.emailAddress,
-        authorName: user?.fullName ?? user?.username ?? undefined,
-        attachments: attachments.length > 0 ? attachments : undefined
-      });
+      try {
+        const uploadedAttachments = await Promise.all(
+          attachments.map(async ({ file, url: _url, ...attachment }) => {
+            if (!file) return attachment;
 
-      setDraft('');
-      setAttachments([]);
+            const uploadUrl = await generateAttachmentUploadUrl({});
+            const uploadResponse = await fetch(uploadUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': attachment.type },
+              body: file
+            });
+
+            if (!uploadResponse.ok) {
+              throw new Error(`Unable to upload ${attachment.name}.`);
+            }
+
+            const { storageId } = (await uploadResponse.json()) as { storageId: Id<'_storage'> };
+            return { ...attachment, storageId };
+          })
+        );
+
+        await sendMessage({
+          conversationId: selectedConversationId as Id<'conversations'>,
+          text: draft,
+          authorUserId: user?.id,
+          authorEmail:
+            user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses?.[0]?.emailAddress,
+          authorName: user?.fullName ?? user?.username ?? undefined,
+          attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined
+        });
+
+        setDraft('');
+        setAttachments([]);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Unable to send message.');
+      }
     },
-    [attachments, draft, selectedConversationId, sendMessage, user]
+    [attachments, draft, generateAttachmentUploadUrl, selectedConversationId, sendMessage, user]
   );
 
   if (conversationsQuery === undefined || membersLoading) {

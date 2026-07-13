@@ -1,5 +1,10 @@
+import type { Id } from '../../../../convex/_generated/dataModel';
+
 export type Attachment = {
   id: string;
+  storageId?: Id<'_storage'>;
+  url?: string | null;
+  file?: File;
   name: string;
   size: number;
   type: string;

@@ -1,4 +1,5 @@
-import { mutation, query } from './_generated/server';
+import { mutation, query, type QueryCtx } from './_generated/server';
+import type { Id } from './_generated/dataModel';
 import { v } from 'convex/values';
 import { requireAuthenticatedUser, getOrganizationIdFromIdentity } from './lib/auth';
 
@@ -97,7 +98,27 @@ function isParticipant(
   );
 }
 
-function displayConversation(
+type StoredAttachment = {
+  id: string;
+  storageId?: Id<'_storage'>;
+  name: string;
+  size: number;
+  type: string;
+};
+
+async function attachmentViews(ctx: QueryCtx, attachments?: StoredAttachment[]) {
+  if (!attachments) return undefined;
+
+  return Promise.all(
+    attachments.map(async (attachment) => ({
+      ...attachment,
+      url: attachment.storageId ? await ctx.storage.getUrl(attachment.storageId) : undefined
+    }))
+  );
+}
+
+async function displayConversation(
+  ctx: QueryCtx,
   conversation: {
     _id: string;
     name: string;
@@ -114,7 +135,7 @@ function displayConversation(
     author: string;
     text: string;
     timestampLabel: string;
-    attachments?: Array<{ id: string; name: string; size: number; type: string }>;
+    attachments?: StoredAttachment[];
   }>,
   identity: IdentityLike
 ) {
@@ -126,16 +147,18 @@ function displayConversation(
     initials: conversation.initials,
     unread: 0,
     quickReplies: conversation.quickReplies,
-    messages: lastMessage.map((message) => ({
-      id: message._id,
-      sender: messageSenderForViewer(message, conversation, identity),
-      author: message.author,
-      authorUserId: message.authorUserId,
-      authorEmail: message.authorEmail,
-      text: message.text,
-      timestamp: message.timestampLabel,
-      attachments: message.attachments
-    }))
+    messages: await Promise.all(
+      lastMessage.map(async (message) => ({
+        id: message._id,
+        sender: messageSenderForViewer(message, conversation, identity),
+        author: message.author,
+        authorUserId: message.authorUserId,
+        authorEmail: message.authorEmail,
+        text: message.text,
+        timestamp: message.timestampLabel,
+        attachments: await attachmentViews(ctx, message.attachments)
+      }))
+    )
   };
 }
 
@@ -171,7 +194,7 @@ export const list = query({
           .order('desc')
           .take(1);
 
-        return displayConversation(conversation, lastMessage, identity);
+        return displayConversation(ctx, conversation, lastMessage, identity);
       })
     );
   }
@@ -193,16 +216,18 @@ export const getMessages = query({
       .order('asc')
       .collect();
 
-    return messages.map((message) => ({
-      id: message._id,
-      sender: messageSenderForViewer(message, conversation, identity),
-      author: message.author,
-      authorUserId: message.authorUserId,
-      authorEmail: message.authorEmail,
-      text: message.text,
-      timestamp: message.timestampLabel,
-      attachments: message.attachments
-    }));
+    return Promise.all(
+      messages.map(async (message) => ({
+        id: message._id,
+        sender: messageSenderForViewer(message, conversation, identity),
+        author: message.author,
+        authorUserId: message.authorUserId,
+        authorEmail: message.authorEmail,
+        text: message.text,
+        timestamp: message.timestampLabel,
+        attachments: await attachmentViews(ctx, message.attachments)
+      }))
+    );
   }
 });
 
@@ -215,6 +240,14 @@ export const markRead = mutation({
     if (!conversation || !isParticipant(conversation, identity)) return;
 
     await ctx.db.patch(args.conversationId, { updatedAt: Date.now() });
+  }
+});
+
+export const generateAttachmentUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireAuthenticatedUser(ctx);
+    return ctx.storage.generateUploadUrl();
   }
 });
 
@@ -297,6 +330,7 @@ export const sendMessage = mutation({
       v.array(
         v.object({
           id: v.string(),
+          storageId: v.optional(v.id('_storage')),
           name: v.string(),
           size: v.number(),
           type: v.string()

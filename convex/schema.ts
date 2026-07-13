@@ -26,6 +26,7 @@ export default defineSchema({
       v.array(
         v.object({
           id: v.string(),
+          storageId: v.optional(v.id('_storage')),
           name: v.string(),
           size: v.number(),
           type: v.string()

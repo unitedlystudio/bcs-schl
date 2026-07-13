@@ -18,7 +18,7 @@ interface ChatHeaderProps {
 
 export function ChatHeader({ conversation, onBack }: ChatHeaderProps) {
   return (
-    <header className='flex flex-wrap items-center justify-between gap-3 sm:gap-4'>
+    <header className='flex items-center gap-3 sm:gap-4'>
       <div className='flex min-w-0 items-center gap-2 sm:gap-3'>
         <Button
           type='button'
@@ -50,36 +50,6 @@ export function ChatHeader({ conversation, onBack }: ChatHeaderProps) {
           </p>
           <p className='text-muted-foreground truncate text-xs sm:text-sm'>{conversation.title}</p>
         </div>
-      </div>
-
-      <div className='flex items-center gap-1.5 sm:gap-2'>
-        <Button
-          type='button'
-          variant='ghost'
-          size='icon'
-          className='border-border/40 bg-background/60 text-muted-foreground hover:bg-muted/60 focus-visible:ring-primary/40 focus-visible:ring-offset-background size-8 rounded-full border transition focus-visible:ring-2 focus-visible:ring-offset-2 sm:size-10'
-          aria-label='Start audio call'
-        >
-          <Icons.phone className='h-3.5 w-3.5 sm:h-4 sm:w-4' />
-        </Button>
-        <Button
-          type='button'
-          variant='ghost'
-          size='icon'
-          className='border-border/40 bg-background/60 text-muted-foreground hover:bg-muted/60 focus-visible:ring-primary/40 focus-visible:ring-offset-background size-8 rounded-full border transition focus-visible:ring-2 focus-visible:ring-offset-2 sm:size-10'
-          aria-label='Start video call'
-        >
-          <Icons.video className='h-3.5 w-3.5 sm:h-4 sm:w-4' />
-        </Button>
-        <Button
-          type='button'
-          variant='ghost'
-          size='icon'
-          className='border-border/40 bg-background/60 text-muted-foreground hover:bg-muted/60 focus-visible:ring-primary/40 focus-visible:ring-offset-background size-8 rounded-full border transition focus-visible:ring-2 focus-visible:ring-offset-2 sm:size-10'
-          aria-label='Open conversation menu'
-        >
-          <Icons.ellipsis className='h-3.5 w-3.5 sm:h-4 sm:w-4' />
-        </Button>
       </div>
     </header>
   );

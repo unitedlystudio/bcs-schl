@@ -46,6 +46,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           <FilePreview
             files={message.attachments.map((a) => ({
               id: a.id,
+              url: a.url ?? undefined,
               name: a.name,
               type: a.type
             }))}
@@ -53,6 +54,29 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             className='mt-1 p-0'
           />
         )}
+        {message.attachments?.some((attachment) => attachment.url) ? (
+          <div className='mt-2 flex flex-wrap gap-2'>
+            {message.attachments
+              .filter((attachment) => attachment.url)
+              .map((attachment) => (
+                <a
+                  key={attachment.id}
+                  href={attachment.url ?? undefined}
+                  target='_blank'
+                  rel='noreferrer'
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:outline-none',
+                    isUser
+                      ? 'bg-primary-foreground/15 text-primary-foreground focus-visible:ring-primary-foreground/60'
+                      : 'bg-background text-foreground focus-visible:ring-primary/50'
+                  )}
+                >
+                  <Icons.externalLink className='h-3.5 w-3.5' aria-hidden='true' />
+                  Open file
+                </a>
+              ))}
+          </div>
+        ) : null}
         <div className='mt-2 flex items-center justify-end gap-1.5 text-[0.65rem] sm:mt-3 sm:gap-2 sm:text-[0.7rem]'>
           <span className={cn('text-muted-foreground', isUser && 'text-primary-foreground/80')}>
             {message.timestamp}
