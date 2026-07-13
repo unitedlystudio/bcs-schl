@@ -414,7 +414,7 @@ export default function FinanceShell() {
           </div>
         ) : null}
 
-        <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-4'>
+        <div className='grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-4'>
           <SummaryCard
             label='Active profiles'
             value={`${summary.profiles}`}
@@ -1039,11 +1039,13 @@ export default function FinanceShell() {
 
 function SummaryCard({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
-    <Card className='border-border/60'>
-      <CardContent className='space-y-2 p-4'>
-        <div className='text-sm text-muted-foreground'>{label}</div>
-        <div className='text-2xl font-semibold tracking-tight tabular-nums'>{value}</div>
-        <div className='text-xs leading-5 text-muted-foreground'>{detail}</div>
+    <Card className='h-full border-border/60'>
+      <CardContent className='space-y-1.5 p-3 sm:space-y-2 sm:p-3.5'>
+        <div className='text-xs text-muted-foreground sm:text-sm'>{label}</div>
+        <div className='text-xl font-semibold tracking-tight tabular-nums sm:text-2xl'>{value}</div>
+        <div className='text-[0.7rem] leading-4 text-muted-foreground sm:text-xs sm:leading-5'>
+          {detail}
+        </div>
       </CardContent>
     </Card>
   );
