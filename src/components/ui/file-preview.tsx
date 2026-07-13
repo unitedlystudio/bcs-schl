@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import type { FC } from 'react';
 import { Icons } from '@/components/icons';
 import { cn } from '@/lib/utils';
@@ -152,13 +151,8 @@ export const FilePreview: FC<FilePreviewProps> = ({
 
             {file.type.startsWith('image/') && file.url ? (
               <div className='h-12 w-12 overflow-hidden rounded-md'>
-                <Image
-                  width={48}
-                  height={48}
-                  src={file.url}
-                  alt={file.name}
-                  className='h-full w-full object-cover'
-                />
+                {/* eslint-disable-next-line @next/next/no-img-element -- Convex storage URLs are dynamic, signed file URLs. */}
+                <img src={file.url} alt={file.name} className='h-full w-full object-cover' />
               </div>
             ) : (
               <>
