@@ -9,7 +9,6 @@ import { api } from '../../../../convex/_generated/api';
 import type { Attachment, Conversation, StaffMember } from '../utils/types';
 import { ChatArea } from './chat-area';
 import { ConversationList } from './conversation-list';
-import { ConversationSelect } from './conversation-select';
 
 export function Messenger() {
   const { isLoaded, organization } = useOrganization();
@@ -17,6 +16,7 @@ export function Messenger() {
   const conversationsQuery = useQuery(api.conversations.list, {});
   const conversations = useMemo(() => conversationsQuery ?? [], [conversationsQuery]);
   const [selectedConversationId, setSelectedConversationId] = useState<string>('');
+  const [mobileView, setMobileView] = useState<'inbox' | 'thread'>('inbox');
   const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [members, setMembers] = useState<StaffMember[]>([]);
@@ -152,6 +152,7 @@ export function Messenger() {
   const selectConversation = useCallback(
     (id: string) => {
       setSelectedConversationId(id);
+      setMobileView('thread');
       void markRead({ conversationId: id as Id<'conversations'> });
     },
     [markRead]
@@ -175,6 +176,7 @@ export function Messenger() {
           memberRole: member.role
         });
         setSelectedConversationId(result.conversationId);
+        setMobileView('thread');
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Unable to start chat');
       } finally {
@@ -229,39 +231,41 @@ export function Messenger() {
   }
 
   return (
-    <div className='border-border/50 bg-background/70 relative grid h-[calc(100dvh-5.5rem)] w-full grid-rows-[auto,1fr] gap-3 overflow-hidden rounded-2xl border p-3 backdrop-blur-xl sm:gap-4 sm:p-4 lg:[grid-template-columns:30%_1fr] lg:grid-rows-[1fr] lg:gap-4 lg:rounded-3xl lg:p-5'>
-      <ConversationSelect
-        conversations={conversations}
-        selectedId={selectedConversationId}
-        members={members}
-        startingMemberId={startingMemberId}
-        onSelect={selectConversation}
-        onStartConversation={handleStartConversation}
-      />
+    <div className='border-border/50 bg-background/70 relative grid h-[calc(100dvh-5.5rem)] w-full overflow-hidden rounded-2xl border p-3 backdrop-blur sm:p-4 lg:grid-cols-[30%_1fr] lg:gap-4 lg:rounded-3xl lg:p-5'>
       <ConversationList
         conversations={conversations}
         selectedId={selectedConversationId}
         members={members}
         startingMemberId={startingMemberId}
+        mobileVisible={mobileView === 'inbox'}
         onSelect={selectConversation}
         onStartConversation={handleStartConversation}
       />
       {activeConversation ? (
-        <ChatArea
-          conversation={activeConversation}
-          draft={draft}
-          onDraftChange={setDraft}
-          onSubmit={handleSubmit}
-          attachments={attachments}
-          onAddAttachments={handleAddAttachments}
-          onRemoveAttachment={handleRemoveAttachment}
-        />
+        <div
+          className={
+            mobileView === 'thread'
+              ? 'flex min-h-0 flex-col lg:col-start-2 lg:col-end-3'
+              : 'hidden lg:flex lg:min-h-0 lg:flex-col lg:col-start-2 lg:col-end-3'
+          }
+        >
+          <ChatArea
+            conversation={activeConversation}
+            draft={draft}
+            onDraftChange={setDraft}
+            onSubmit={handleSubmit}
+            attachments={attachments}
+            onAddAttachments={handleAddAttachments}
+            onRemoveAttachment={handleRemoveAttachment}
+            onBack={() => setMobileView('inbox')}
+          />
+        </div>
       ) : (
-        <div className='border-border/40 bg-background/80 flex min-h-0 flex-col items-center justify-center gap-3 rounded-2xl border p-6 text-center backdrop-blur sm:p-8 lg:col-start-2 lg:col-end-3 lg:rounded-3xl'>
+        <div className='border-border/40 bg-background/80 hidden min-h-0 flex-col items-center justify-center gap-3 rounded-2xl border p-6 text-center backdrop-blur lg:col-start-2 lg:col-end-3 lg:flex lg:rounded-3xl lg:p-8'>
           <div className='text-lg font-semibold'>No chat selected</div>
           <p className='text-muted-foreground max-w-md text-sm'>
-            Start a new staff chat from the left panel, or select an existing conversation when it
-            appears in your inbox.
+            Start a new staff chat from the inbox, or select an existing conversation when it
+            appears.
           </p>
         </div>
       )}

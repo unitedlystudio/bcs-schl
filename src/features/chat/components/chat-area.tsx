@@ -15,6 +15,7 @@ interface ChatAreaProps {
   attachments: Attachment[];
   onAddAttachments: (files: FileList) => void;
   onRemoveAttachment: (id: string) => void;
+  onBack: () => void;
 }
 
 export function ChatArea({
@@ -24,7 +25,8 @@ export function ChatArea({
   onSubmit,
   attachments,
   onAddAttachments,
-  onRemoveAttachment
+  onRemoveAttachment,
+  onBack
 }: ChatAreaProps) {
   const shouldReduceMotion = useReducedMotion();
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
@@ -63,9 +65,9 @@ export function ChatArea({
           animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
           exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -12 }}
           transition={{ duration: 0.32, ease: 'easeOut' }}
-          className='border-border/40 bg-background/80 flex min-h-0 flex-col gap-3 overflow-hidden rounded-2xl border p-3 backdrop-blur sm:gap-4 sm:p-4 lg:col-start-2 lg:col-end-3 lg:rounded-3xl'
+          className='border-border/40 bg-background/80 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden rounded-2xl border p-3 backdrop-blur sm:gap-4 sm:p-4 lg:rounded-3xl'
         >
-          <ChatHeader conversation={conversation} />
+          <ChatHeader conversation={conversation} onBack={onBack} />
 
           <div
             ref={messagesContainerRef}

@@ -13,13 +13,24 @@ const statusDotColor = {
 
 interface ChatHeaderProps {
   conversation: Conversation;
+  onBack: () => void;
 }
 
-export function ChatHeader({ conversation }: ChatHeaderProps) {
+export function ChatHeader({ conversation, onBack }: ChatHeaderProps) {
   return (
     <header className='flex flex-wrap items-center justify-between gap-3 sm:gap-4'>
-      <div className='flex items-center gap-2 sm:gap-3'>
-        <div className='relative'>
+      <div className='flex min-w-0 items-center gap-2 sm:gap-3'>
+        <Button
+          type='button'
+          variant='ghost'
+          size='icon'
+          className='size-9 shrink-0 rounded-full lg:hidden'
+          onClick={onBack}
+          aria-label='Back to inbox'
+        >
+          <Icons.chevronLeft className='h-5 w-5' aria-hidden='true' />
+        </Button>
+        <div className='relative shrink-0'>
           <Avatar className='border-border/40 bg-card/80 text-foreground h-10 w-10 rounded-2xl border sm:h-12 sm:w-12 sm:rounded-3xl'>
             <AvatarFallback className='bg-primary/20 text-primary rounded-2xl text-sm font-semibold sm:rounded-3xl sm:text-base'>
               {conversation.initials}
@@ -33,9 +44,11 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
             aria-label={conversation.status === 'online' ? 'Online' : 'Offline'}
           />
         </div>
-        <div>
-          <p className='text-foreground text-sm font-semibold sm:text-base'>{conversation.name}</p>
-          <p className='text-muted-foreground text-xs sm:text-sm'>{conversation.title}</p>
+        <div className='min-w-0'>
+          <p className='text-foreground truncate text-sm font-semibold sm:text-base'>
+            {conversation.name}
+          </p>
+          <p className='text-muted-foreground truncate text-xs sm:text-sm'>{conversation.title}</p>
         </div>
       </div>
 
