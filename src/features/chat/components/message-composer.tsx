@@ -59,13 +59,13 @@ export function MessageComposer({
                 }
               }
             }}
-            placeholder={'Message ' + contactName + ' (Enter to send, Shift+Enter for newline)'}
+            placeholder='Chat now'
             rows={2}
             className='text-foreground placeholder:text-muted-foreground/70 min-h-[3rem] w-full resize-none border-none bg-transparent text-base focus-visible:ring-0 focus-visible:outline-none sm:min-h-[4rem] sm:text-sm'
             aria-label={'Message ' + contactName}
           />
         </div>
-        <div className='flex shrink-0 flex-col items-end gap-1.5 sm:w-24 sm:gap-2'>
+        <div className='flex shrink-0 items-center gap-2 sm:gap-3'>
           <input
             ref={fileInputRef}
             type='file'
@@ -83,20 +83,20 @@ export function MessageComposer({
             type='button'
             variant='ghost'
             size='icon'
-            className='border-border/40 bg-background/70 text-muted-foreground hover:bg-muted/50 focus-visible:ring-primary/40 focus-visible:ring-offset-background size-8 rounded-full border transition focus-visible:ring-2 focus-visible:ring-offset-2 sm:size-10'
+            className='border-border/40 bg-background/70 text-muted-foreground hover:bg-muted/50 focus-visible:ring-primary/40 focus-visible:ring-offset-background size-10 rounded-full border transition focus-visible:ring-2 focus-visible:ring-offset-2 sm:size-11'
             aria-label='Attach a file'
             onClick={() => fileInputRef.current?.click()}
           >
-            <Icons.paperclip className='h-3.5 w-3.5 sm:h-4 sm:w-4' />
+            <Icons.paperclip className='h-4 w-4 sm:h-[1.125rem] sm:w-[1.125rem]' />
           </Button>
           <Button
             type='submit'
             size='icon'
-            className='bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-primary/40 focus-visible:ring-offset-background size-8 rounded-full shadow-lg transition focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:size-10'
+            className='bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-primary/40 focus-visible:ring-offset-background size-10 rounded-full shadow-lg transition focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:size-11'
             disabled={!draft.trim() && attachments.length === 0}
             aria-label='Send message'
           >
-            <Icons.send className='h-3.5 w-3.5 sm:h-4 sm:w-4' aria-hidden='true' />
+            <Icons.send className='h-4 w-4 sm:h-[1.125rem] sm:w-[1.125rem]' aria-hidden='true' />
           </Button>
         </div>
       </div>
