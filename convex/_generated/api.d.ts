@@ -20,6 +20,7 @@ import type * as finance from "../finance.js";
 import type * as http from "../http.js";
 import type * as inbox from "../inbox.js";
 import type * as invites from "../invites.js";
+import type * as lib_accessSecretConfiguration from "../lib/accessSecretConfiguration.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_authPolicy from "../lib/authPolicy.js";
 import type * as lib_schoolRelationships from "../lib/schoolRelationships.js";
@@ -49,6 +50,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   inbox: typeof inbox;
   invites: typeof invites;
+  "lib/accessSecretConfiguration": typeof lib_accessSecretConfiguration;
   "lib/auth": typeof lib_auth;
   "lib/authPolicy": typeof lib_authPolicy;
   "lib/schoolRelationships": typeof lib_schoolRelationships;
