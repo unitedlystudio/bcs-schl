@@ -1,7 +1,7 @@
 import { mutation, query } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { requirePermission } from './lib/auth';
 
@@ -201,6 +201,7 @@ async function mapLeaveRequest(
   leaveRequest: Doc<'staffLeaveRequests'>,
   teachersById?: Map<string, Doc<'teachers'>>
 ): Promise<LeaveRequestView> {
+  if (!leaveRequest.schoolId) throw new ConvexError('NOT_FOUND');
   const resolvedTeachersById =
     teachersById ??
     ((await loadTeachersById(ctx, leaveRequest.schoolId)) as Map<string, Doc<'teachers'>>);
@@ -255,6 +256,7 @@ async function regenerateCoverAssignments(
   ctx: MutationCtx,
   leaveRequest: Doc<'staffLeaveRequests'>
 ) {
+  if (!leaveRequest.schoolId) throw new ConvexError('NOT_FOUND');
   const teachersById = await loadTeachersById(ctx, leaveRequest.schoolId);
   const teacher = teachersById.get(leaveRequest.teacherId);
   if (!teacher) {

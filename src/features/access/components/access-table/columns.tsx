@@ -89,9 +89,9 @@ export const columns: ColumnDef<AccessRecord>[] = [
     header: 'SECRET MANAGER',
     cell: ({ row }) => (
       <div className='flex flex-col font-mono text-xs'>
-        <span>{row.original.secretManager || 'Not configured'}</span>
+        <span>{row.original.secretConfigured ? row.original.secretManager : 'Not configured'}</span>
         <span className='text-muted-foreground'>
-          {row.original.secretReference || 'No reference'}
+          {row.original.secretConfigured ? row.original.secretReference : 'No reference configured'}
         </span>
       </div>
     )

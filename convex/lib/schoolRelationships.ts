@@ -1,4 +1,4 @@
-export function resolveSchoolRelationship<T extends { schoolId: unknown }>(
+export function resolveSchoolRelationship<T extends { schoolId?: unknown }>(
   expectedSchoolId: unknown,
   record: T | null
 ): T | null {

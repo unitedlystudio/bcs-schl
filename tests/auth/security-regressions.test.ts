@@ -78,9 +78,18 @@ describe('hostile authorization regressions', () => {
   );
 
   it('never stores or returns platform passwords and has no reveal API', () => {
-    expect(read('convex/schema.ts')).not.toMatch(/accessRecords:[\s\S]*?password:/);
+    expect(read('convex/schema.final.ts')).not.toMatch(/accessRecords:[\s\S]*?password:/);
+    expect(read('convex/schema.ts')).toMatch(/password: v\.optional\(v\.string\(\)\)/);
+    expect(read('convex/schoolOwnershipMigration.ts')).toMatch(/password: undefined/);
     expect(read('convex/access.ts')).not.toMatch(/password|reveal/i);
-    expect(read('convex/access.ts')).toMatch(/secretManager|secretReference/);
+    expect(read('convex/access.ts')).toMatch(/normalizeSecretConfiguration/);
+    expect(read('convex/lib/accessSecretConfiguration.ts')).toMatch(
+      /secretManager[\s\S]*secretReference/
+    );
+    expect(read('src/features/access/api/types.ts')).toMatch(/secretConfigured: boolean/);
+    expect(read('src/features/access/components/access-table/columns.tsx')).toContain(
+      'No reference configured'
+    );
   });
 
   it('enforces safeguarding permission on every concerns surface', () => {
@@ -99,7 +108,7 @@ describe('hostile authorization regressions', () => {
     }
   });
 
-  it('requires school ownership and scoped indexes for every domain table', () => {
+  it('keeps transitional domain ownership fields scoped while identity tables stay strict', () => {
     const schema = read('convex/schema.ts');
     const tables = [
       'conversations',
@@ -130,8 +139,15 @@ describe('hostile authorization regressions', () => {
         schema
           .split(new RegExp(`\\n  ${table}: defineTable\\(`))[1]
           ?.split(/\n  [a-zA-Z][a-zA-Z]+: defineTable\(/)[0] ?? '';
-      expect(section, table).toContain("schoolId: v.id('schools')");
+      expect(section, table).toContain("schoolId: v.optional(v.id('schools'))");
       expect(section, table).toMatch(/\.index\('by_school/);
+    }
+    for (const table of ['appUsers', 'invites']) {
+      const section =
+        schema
+          .split(new RegExp(`\\n  ${table}: defineTable\\(`))[1]
+          ?.split(/\n  [a-zA-Z][a-zA-Z]+: defineTable\(/)[0] ?? '';
+      expect(section, table).toContain("schoolId: v.id('schools')");
     }
   });
 });

@@ -3,9 +3,7 @@ import { v } from 'convex/values';
 
 export default defineSchema({
   conversations: defineTable({
-    schoolId: v.optional(v.id('schools')),
-    // Transition-only: removed by schoolOwnershipMigration before the final schema is installed.
-    orgId: v.optional(v.string()),
+    schoolId: v.id('schools'),
     participantUserIds: v.optional(v.array(v.string())),
     participantEmails: v.optional(v.array(v.string())),
     name: v.string(),
@@ -19,7 +17,7 @@ export default defineSchema({
     .index('by_updatedAt', ['updatedAt']),
 
   messages: defineTable({
-    schoolId: v.optional(v.id('schools')),
+    schoolId: v.id('schools'),
     conversationId: v.id('conversations'),
     sender: v.union(v.literal('user'), v.literal('contact')),
     authorUserId: v.optional(v.string()),
@@ -44,7 +42,7 @@ export default defineSchema({
     .index('by_conversation', ['conversationId', 'createdAt']),
 
   inboxItems: defineTable({
-    schoolId: v.optional(v.id('schools')),
+    schoolId: v.id('schools'),
     title: v.string(),
     body: v.string(),
     status: v.union(v.literal('unread'), v.literal('read'), v.literal('archived')),
@@ -74,7 +72,7 @@ export default defineSchema({
     .index('by_status', ['status', 'createdAt']),
 
   accessRecords: defineTable({
-    schoolId: v.optional(v.id('schools')),
+    schoolId: v.id('schools'),
     category: v.union(
       v.literal('Business Suite'),
       v.literal('Subscriptions'),
@@ -84,9 +82,7 @@ export default defineSchema({
     fullName: v.string(),
     loginUrl: v.string(),
     username: v.string(),
-    // `password` is transition-only and is always deleted by the internal migration.
-    password: v.optional(v.string()),
-    // An access record may truthfully be unconfigured. Public write validators enforce pair parity.
+    // Both fields may be absent; every write boundary enforces both-or-neither.
     secretManager: v.optional(v.string()),
     secretReference: v.optional(v.string()),
     listingUrl: v.string(),
@@ -101,46 +97,6 @@ export default defineSchema({
     .index('by_sortOrder', ['sortOrder'])
     .index('by_category', ['category', 'sortOrder'])
     .index('by_status', ['status', 'sortOrder']),
-
-  // Transition-only Clerk-era authorization data. Fresh Better Auth users and re-invites are the
-  // approved policy, so these rows are counted in preflight and deleted atomically, never mapped.
-  schoolStaffAccessProfiles: defineTable({
-    dashboardRoleLabel: v.string(),
-    orgId: v.string(),
-    permissions: v.array(v.string()),
-    roleTemplateId: v.optional(v.string()),
-    updatedAt: v.number(),
-    updatedByUserId: v.string(),
-    userId: v.string()
-  }),
-
-  schoolDashboardRoles: defineTable({
-    name: v.string(),
-    orgId: v.string(),
-    permissions: v.array(v.string()),
-    slug: v.string(),
-    updatedAt: v.number(),
-    updatedByUserId: v.string()
-  }),
-
-  schoolStaffInvites: defineTable({
-    acceptedAt: v.optional(v.number()),
-    claimedByUserId: v.optional(v.string()),
-    clerkInvitationId: v.string(),
-    clerkRole: v.string(),
-    dashboardRoleLabel: v.string(),
-    email: v.string(),
-    invitedAt: v.number(),
-    invitedByUserId: v.string(),
-    lastSentAt: v.number(),
-    normalizedEmail: v.string(),
-    orgId: v.string(),
-    permissions: v.array(v.string()),
-    roleTemplateId: v.optional(v.string()),
-    sendCount: v.number(),
-    status: v.string(),
-    updatedAt: v.number()
-  }),
 
   schools: defineTable({
     key: v.string(),
@@ -222,7 +178,7 @@ export default defineSchema({
   }).index('by_createdAt', ['createdAt']),
 
   students: defineTable({
-    schoolId: v.optional(v.id('schools')),
+    schoolId: v.id('schools'),
     preferredName: v.string(),
     fullName: v.string(),
     sex: v.union(v.literal('M'), v.literal('F'), v.literal('Unknown')),
@@ -249,7 +205,7 @@ export default defineSchema({
     .index('by_academicYear', ['academicYear', 'className', 'sortName']),
 
   teachers: defineTable({
-    schoolId: v.optional(v.id('schools')),
+    schoolId: v.id('schools'),
     fullName: v.string(),
     preferredName: v.string(),
     role: v.union(
@@ -270,7 +226,7 @@ export default defineSchema({
     .index('by_academicYear', ['academicYear', 'sortName']),
 
   concernCases: defineTable({
-    schoolId: v.optional(v.id('schools')),
+    schoolId: v.id('schools'),
     studentId: v.id('students'),
     title: v.string(),
     category: v.union(
@@ -312,7 +268,7 @@ export default defineSchema({
     .index('by_updatedAt', ['updatedAt']),
 
   concernCaseUpdates: defineTable({
-    schoolId: v.optional(v.id('schools')),
+    schoolId: v.id('schools'),
     caseId: v.id('concernCases'),
     note: v.string(),
     authorLabel: v.string(),
@@ -322,7 +278,7 @@ export default defineSchema({
     .index('by_case', ['caseId', 'createdAt']),
 
   financeFamilyAccounts: defineTable({
-    schoolId: v.optional(v.id('schools')),
+    schoolId: v.id('schools'),
     accountLabel: v.string(),
     primaryGuardianName: v.string(),
     primaryGuardianPhone: v.string(),
@@ -334,7 +290,7 @@ export default defineSchema({
     .index('by_updatedAt', ['updatedAt']),
 
   studentBillingProfiles: defineTable({
-    schoolId: v.optional(v.id('schools')),
+    schoolId: v.id('schools'),
     studentId: v.id('students'),
     familyAccountId: v.optional(v.id('financeFamilyAccounts')),
     baseMonthlyFee: v.number(),
@@ -414,7 +370,7 @@ export default defineSchema({
     .index('by_updatedAt', ['updatedAt']),
 
   financeCharges: defineTable({
-    schoolId: v.optional(v.id('schools')),
+    schoolId: v.id('schools'),
     billingProfileId: v.id('studentBillingProfiles'),
     title: v.string(),
     category: v.union(
@@ -447,7 +403,7 @@ export default defineSchema({
     .index('by_updatedAt', ['updatedAt']),
 
   financePayments: defineTable({
-    schoolId: v.optional(v.id('schools')),
+    schoolId: v.id('schools'),
     billingProfileId: v.id('studentBillingProfiles'),
     amount: v.number(),
     paidAt: v.string(),
@@ -468,7 +424,7 @@ export default defineSchema({
     .index('by_createdAt', ['createdAt']),
 
   financeReminderLogs: defineTable({
-    schoolId: v.optional(v.id('schools')),
+    schoolId: v.id('schools'),
     billingProfileId: v.id('studentBillingProfiles'),
     reminderDate: v.string(),
     channel: v.union(
@@ -496,7 +452,7 @@ export default defineSchema({
     .index('by_createdAt', ['createdAt']),
 
   financePaymentApplications: defineTable({
-    schoolId: v.optional(v.id('schools')),
+    schoolId: v.id('schools'),
     billingProfileId: v.id('studentBillingProfiles'),
     paymentId: v.id('financePayments'),
     chargeId: v.id('financeCharges'),
@@ -513,7 +469,7 @@ export default defineSchema({
     .index('by_appliedAt', ['appliedAt']),
 
   admissionsEnquiries: defineTable({
-    schoolId: v.optional(v.id('schools')),
+    schoolId: v.id('schools'),
     studentName: v.string(),
     familyName: v.string(),
     classInterest: v.string(),
@@ -549,7 +505,7 @@ export default defineSchema({
     .index('by_convertedStudent', ['convertedStudentId', 'updatedAt']),
 
   attendanceSessions: defineTable({
-    schoolId: v.optional(v.id('schools')),
+    schoolId: v.id('schools'),
     className: v.string(),
     sessionDate: v.string(),
     status: v.union(v.literal('Draft'), v.literal('In progress'), v.literal('Completed')),
@@ -565,7 +521,7 @@ export default defineSchema({
     .index('by_updatedAt', ['updatedAt']),
 
   attendanceRecords: defineTable({
-    schoolId: v.optional(v.id('schools')),
+    schoolId: v.id('schools'),
     sessionId: v.id('attendanceSessions'),
     studentId: v.id('students'),
     status: v.union(
@@ -585,7 +541,7 @@ export default defineSchema({
     .index('by_student', ['studentId', 'updatedAt']),
 
   operationsTimeSlots: defineTable({
-    schoolId: v.optional(v.id('schools')),
+    schoolId: v.id('schools'),
     label: v.string(),
     startTime: v.string(),
     endTime: v.string(),
@@ -607,7 +563,7 @@ export default defineSchema({
     .index('by_blockType', ['blockType', 'sortOrder']),
 
   classTimetableEntries: defineTable({
-    schoolId: v.optional(v.id('schools')),
+    schoolId: v.id('schools'),
     academicYear: v.string(),
     className: v.string(),
     weekday: v.union(
@@ -636,7 +592,7 @@ export default defineSchema({
     .index('by_updatedAt', ['updatedAt']),
 
   operationsOverrides: defineTable({
-    schoolId: v.optional(v.id('schools')),
+    schoolId: v.id('schools'),
     overrideDate: v.string(),
     academicYear: v.optional(v.string()),
     className: v.optional(v.string()),
@@ -668,7 +624,7 @@ export default defineSchema({
     .index('by_updatedAt', ['updatedAt']),
 
   staffLeaveRequests: defineTable({
-    schoolId: v.optional(v.id('schools')),
+    schoolId: v.id('schools'),
     teacherId: v.id('teachers'),
     leaveType: v.union(
       v.literal('Annual'),
@@ -702,7 +658,7 @@ export default defineSchema({
     .index('by_updatedAt', ['updatedAt']),
 
   staffCoverAssignments: defineTable({
-    schoolId: v.optional(v.id('schools')),
+    schoolId: v.id('schools'),
     leaveRequestId: v.id('staffLeaveRequests'),
     coverDate: v.string(),
     className: v.optional(v.string()),

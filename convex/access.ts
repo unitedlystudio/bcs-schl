@@ -1,6 +1,7 @@
 import { query } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission } from './lib/auth';
+import { normalizeSecretConfiguration } from './lib/accessSecretConfiguration';
 
 const splitFilter = (value?: string) =>
   value
@@ -92,8 +93,7 @@ export const list = query({
         fullName: record.fullName,
         loginUrl: record.loginUrl,
         username: record.username,
-        secretManager: record.secretManager,
-        secretReference: record.secretReference,
+        ...normalizeSecretConfiguration(record),
         listingUrl: record.listingUrl,
         adminsAccess: record.adminsAccess,
         recoveryNumber: record.recoveryNumber,

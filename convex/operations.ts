@@ -1,7 +1,7 @@
 import { mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { requirePermission } from './lib/auth';
 
@@ -131,6 +131,7 @@ async function enrichEntry(
   entry: Doc<'classTimetableEntries'>,
   cachedTeachers?: Map<string, Doc<'teachers'>>
 ): Promise<TimetableEntryView> {
+  if (!entry.schoolId) throw new ConvexError('NOT_FOUND');
   const teachersById =
     cachedTeachers ??
     ((await loadTeachersById(ctx, entry.schoolId)) as Map<string, Doc<'teachers'>>);

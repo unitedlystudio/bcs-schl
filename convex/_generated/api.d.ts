@@ -24,6 +24,7 @@ import type * as lib_auth from "../lib/auth.js";
 import type * as lib_authPolicy from "../lib/authPolicy.js";
 import type * as lib_schoolRelationships from "../lib/schoolRelationships.js";
 import type * as operations from "../operations.js";
+import type * as schoolOwnershipMigration from "../schoolOwnershipMigration.js";
 import type * as staffing from "../staffing.js";
 import type * as students from "../students.js";
 import type * as teachers from "../teachers.js";
@@ -53,6 +54,7 @@ declare const fullApi: ApiFromModules<{
   "lib/authPolicy": typeof lib_authPolicy;
   "lib/schoolRelationships": typeof lib_schoolRelationships;
   operations: typeof operations;
+  schoolOwnershipMigration: typeof schoolOwnershipMigration;
   staffing: typeof staffing;
   students: typeof students;
   teachers: typeof teachers;
