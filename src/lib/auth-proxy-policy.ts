@@ -20,6 +20,7 @@ export function isAllowedAuthRequest(pathname: string, method: string): boolean 
       [
         '/api/auth/ok',
         '/api/auth/get-session',
+        '/api/auth/convex/token',
         '/api/auth/convex/jwks',
         '/api/auth/convex/.well-known/openid-configuration'
       ].includes(pathname))

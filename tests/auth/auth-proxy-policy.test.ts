@@ -4,6 +4,7 @@ import { hasTrustedMutationOrigin, isAllowedAuthRequest } from '../../src/lib/au
 describe('same-origin auth proxy policy', () => {
   it('allows only required endpoint methods', () => {
     expect(isAllowedAuthRequest('/api/auth/get-session', 'GET')).toBe(true);
+    expect(isAllowedAuthRequest('/api/auth/convex/token', 'GET')).toBe(true);
     expect(isAllowedAuthRequest('/api/auth/sign-in/email', 'POST')).toBe(true);
     expect(isAllowedAuthRequest('/api/auth/sign-out', 'GET')).toBe(false);
   });
