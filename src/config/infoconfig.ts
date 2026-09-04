@@ -41,14 +41,3 @@ export const billingInfoContent: InfobarContent = {
     }
   ]
 };
-
-export const productInfoContent: InfobarContent = {
-  title: 'Product management',
-  sections: [
-    {
-      title: 'Overview',
-      description: 'Use the table to search, filter, create, and update product records.',
-      links: []
-    }
-  ]
-};

@@ -73,76 +73,7 @@ form-context.tsx             fields/*.tsx
 
 ## File Structure (per feature)
 
-Every form feature should split into **schema**, **constants**, and **component**:
-
-```
-src/features/products/
-├── schemas/
-│   └── product.ts              ← Zod schema + inferred FormValues type
-├── constants/
-│   └── product-options.ts      ← Select options, enums, static data
-├── components/
-│   ├── product-form.tsx         ← Form UI (imports schema + options)
-│   └── product-form-fields.tsx  ← Optional: sections for large forms
-```
-
-**Why split?**
-
-| Concern     | File                           | Benefit                                                                         |
-| ----------- | ------------------------------ | ------------------------------------------------------------------------------- |
-| **Schema**  | `schemas/product.ts`           | Reusable in API routes, server actions, data tables, tests — no `'use client'`  |
-| **Type**    | `schemas/product.ts`           | `ProductFormValues` used in form, API, list components — single source of truth |
-| **Options** | `constants/product-options.ts` | Shared between form selects, table filters, search facets                       |
-| **Form UI** | `components/product-form.tsx`  | Pure UI — opens clean, no validation logic clutter                              |
-
-**Schema file example:**
-
-```ts
-// src/features/products/schemas/product.ts
-import * as z from 'zod';
-
-export const productSchema = z.object({
-  name: z.string().min(2, 'Product name must be at least 2 characters.'),
-  category: z.string().min(1, 'Please select a category'),
-  price: z.number({ message: 'Price is required' }),
-  description: z.string().min(10, 'Description must be at least 10 characters.')
-});
-
-// Always prefer z.infer — guarantees the type matches the schema exactly.
-// Manual types drift when the schema has unions, optionals, or refinements.
-export type ProductFormValues = z.infer<typeof productSchema>;
-```
-
-> **Rule of thumb:** Use `z.infer<typeof schema>` as the form values type. Only override individual fields (via `Omit & { ... }`) when the form's runtime value shape genuinely differs from the schema output (e.g., a `File[]` field stored as `string` after upload).
-
-**Form component imports the schema:**
-
-```tsx
-// src/features/products/components/product-form.tsx
-import { productSchema, type ProductFormValues } from '@/features/products/schemas/product';
-import { categoryOptions } from '@/features/products/constants/product-options';
-
-const form = useAppForm({
-  defaultValues: { ... } as ProductFormValues,
-  validators: { onSubmit: productSchema },
-  ...
-});
-
-const { FormTextField, FormSelectField } = useFormFields<ProductFormValues>();
-```
-
-**Same schema reused in API route:**
-
-```ts
-// src/app/api/products/route.ts
-import { productSchema } from '@/features/products/schemas/product';
-
-export async function POST(req: Request) {
-  const body = await req.json();
-  const data = productSchema.parse(body);  // same validation, zero duplication
-  ...
-}
-```
+Production form features should split schema, constants, and components when their size warrants it. Use an existing school-domain feature as the reference and keep server validation aligned with the form schema. Do not add generic product or user CRUD demos to production routes.
 
 ### When a form grows large
 
@@ -1036,8 +967,7 @@ To include in `useFormFields`, add to its return object.
 
 ### Other Forms
 
-| Form          | File                                                   | Patterns                                   |
-| ------------- | ------------------------------------------------------ | ------------------------------------------ |
-| Product CRUD  | `src/features/products/components/product-form.tsx`    | Pattern 1, split schema, onBlur validators |
-| Sheet Product | `src/features/forms/components/sheet-product-form.tsx` | Pattern 2 in Sheet                         |
-| Auth          | `src/features/auth/components/user-auth-form.tsx`      | Pattern 2, minimal                         |
+| Form          | File                                                   | Patterns           |
+| ------------- | ------------------------------------------------------ | ------------------ |
+| Sheet Product | `src/features/forms/components/sheet-product-form.tsx` | Pattern 2 in Sheet |
+| Auth          | `src/features/auth/components/user-auth-form.tsx`      | Pattern 2, minimal |
