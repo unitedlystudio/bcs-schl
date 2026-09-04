@@ -19,15 +19,13 @@ const patterns = [
   'setAdminAuth',
   'seedDemoData'
 ];
-// These files describe inspected transition-only rows. Runtime code and the final schema remain
-// deny-listed; remove this narrow exception with the migration artifacts after cutover.
+// These durable evidence files describe inspected transition-only rows. Runtime code remains
+// deny-listed after cutover.
 const transitionFixtureExceptions = new Map([
-  ['convex/schema.ts', new Set(['clerkInvitationId', 'clerkRole'])],
   [
     'tests/fixtures/school-migration-export.structural.json',
     new Set(['clerkInvitationId', 'clerkRole'])
   ],
-  ['tests/migrations/school-ownership-transition.test.ts', new Set(['clerkInvitationId'])],
   ['docs/setup/school-ownership-transition.md', new Set(['clerkInvitationId'])]
 ]);
 const files = execFileSync('rg', ['--files'], { encoding: 'utf8' })

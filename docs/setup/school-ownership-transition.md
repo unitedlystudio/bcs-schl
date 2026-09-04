@@ -75,17 +75,23 @@ bunx convex run schoolOwnershipMigration:validate '{}' --deployment clear-wren-5
 
 Require one canonical school, `unownedTotal: 0`, `mismatchTotal: 0`, every legacy-auth scanned count 0, no `orgId`, no plaintext `password`, and domain counts matching the backup (deletions apply only to the eight explicitly disposed old-auth rows). Reconcile every table count against the backup plus the documented disposition before finalizing.
 
-## 6. Deploy final schema
+## 6. Finalize source and deploy the final schema
 
-Replace the transition schema with the reviewed final contract; do not restore the old baseline because it incorrectly requires invented secret references.
+Only after step 5 postflight has been saved and reconciled, replace the transition schema with the reviewed final contract and remove the migration module and its generated API registration. Do not restore the old baseline because it incorrectly requires invented secret references.
 
 ```sh
 cp convex/schema.final.ts convex/schema.ts
+rm convex/schema.final.ts convex/schoolOwnershipMigration.ts
+bunx convex codegen
 bunx tsc -p convex/tsconfig.json --noEmit
 bunx convex dev --once --typecheck enable
 ```
 
-Approve only for `clear-wren-571`. Rerun postflight validation before removing the migration module in a later reviewed change.
+Approve only for `clear-wren-571`. The migration validation function must no longer exist after this deploy.
+
+## 7. Verify after final deploy
+
+Do not call the removed migration function. Keep maintenance mode enabled and use read-only Convex dashboard table queries or a fresh export to confirm the canonical school exists, all 122 domain rows remain, and each domain row has `schoolId`. Validate the export against the final schema and scan the exported field names to confirm the three Clerk-era tables, `orgId`, and plaintext `password` are absent. Confirm the deployed public and internal function lists contain no `schoolOwnershipMigration` module, then exercise the existing authenticated read/write smoke tests to prove the public runtime still fails closed outside the caller's school.
 
 ## Phase-specific rollback and roll-forward
 
@@ -105,4 +111,4 @@ Rollback past this boundary is allowed only by choosing a **verified full restor
 
 ## Exit maintenance
 
-Exit only after final-schema deployment, exact postflight reconciliation, canonical tests/typechecks/build, and confirmation that public runtime remains fail closed for missing ownership. Store the backup checksum and preflight/migration/postflight reports with the change record. Keep the backup according to retention policy.
+Exit only after final-schema deployment, the step 5 postflight reconciliation, the step 7 read-only/export/schema checks, canonical tests/typechecks/build, and confirmation that public runtime remains fail closed for missing ownership. Store the backup checksum and preflight/migration/postflight reports with the change record. Keep the backup according to retention policy.

@@ -78,9 +78,7 @@ describe('hostile authorization regressions', () => {
   );
 
   it('never stores or returns platform passwords and has no reveal API', () => {
-    expect(read('convex/schema.final.ts')).not.toMatch(/accessRecords:[\s\S]*?password:/);
-    expect(read('convex/schema.ts')).toMatch(/password: v\.optional\(v\.string\(\)\)/);
-    expect(read('convex/schoolOwnershipMigration.ts')).toMatch(/password: undefined/);
+    expect(read('convex/schema.ts')).not.toMatch(/accessRecords:[\s\S]*?password:/);
     expect(read('convex/access.ts')).not.toMatch(/password|reveal/i);
     expect(read('convex/access.ts')).toMatch(/normalizeSecretConfiguration/);
     expect(read('convex/lib/accessSecretConfiguration.ts')).toMatch(
@@ -108,7 +106,7 @@ describe('hostile authorization regressions', () => {
     }
   });
 
-  it('keeps transitional domain ownership fields scoped while identity tables stay strict', () => {
+  it('keeps final domain ownership mandatory while identity tables stay strict', () => {
     const schema = read('convex/schema.ts');
     const tables = [
       'conversations',
@@ -139,7 +137,8 @@ describe('hostile authorization regressions', () => {
         schema
           .split(new RegExp(`\\n  ${table}: defineTable\\(`))[1]
           ?.split(/\n  [a-zA-Z][a-zA-Z]+: defineTable\(/)[0] ?? '';
-      expect(section, table).toContain("schoolId: v.optional(v.id('schools'))");
+      expect(section, table).toContain("schoolId: v.id('schools')");
+      expect(section, table).not.toContain("schoolId: v.optional(v.id('schools'))");
       expect(section, table).toMatch(/\.index\('by_school/);
     }
     for (const table of ['appUsers', 'invites']) {
