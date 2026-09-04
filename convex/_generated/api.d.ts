@@ -22,6 +22,7 @@ import type * as inbox from "../inbox.js";
 import type * as invites from "../invites.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_authPolicy from "../lib/authPolicy.js";
+import type * as lib_schoolRelationships from "../lib/schoolRelationships.js";
 import type * as operations from "../operations.js";
 import type * as staffing from "../staffing.js";
 import type * as students from "../students.js";
@@ -50,6 +51,7 @@ declare const fullApi: ApiFromModules<{
   invites: typeof invites;
   "lib/auth": typeof lib_auth;
   "lib/authPolicy": typeof lib_authPolicy;
+  "lib/schoolRelationships": typeof lib_schoolRelationships;
   operations: typeof operations;
   staffing: typeof staffing;
   students: typeof students;
