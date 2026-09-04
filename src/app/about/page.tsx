@@ -39,19 +39,21 @@ export default function AboutPage() {
 
           {/* Auth Section */}
           <section className='bg-card rounded-2xl border p-8 shadow-sm'>
-            <h2 className='text-foreground mb-4 text-xl font-semibold'>Authentication by Clerk</h2>
+            <h2 className='text-foreground mb-4 text-xl font-semibold'>
+              Authentication by Better Auth
+            </h2>
             <p className='text-muted-foreground text-lg leading-relaxed'>
               Authentication for this application is securely handled by{' '}
               <a
-                href='https://clerk.com'
+                href='https://better-auth.com'
                 target='_blank'
                 rel='noopener noreferrer'
                 className='text-primary font-medium hover:underline'
               >
-                Clerk
+                Better Auth
               </a>
-              , a modern authentication and user management platform. Clerk provides secure sign-in,
-              session management, and user data protection out of the box.
+              , a modern authentication and user management platform. Better Auth provides secure
+              sign-in, session management, and user data protection out of the box.
             </p>
           </section>
 

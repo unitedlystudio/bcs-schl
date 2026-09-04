@@ -18,7 +18,7 @@ export const accessInfoContent: InfobarContent = {
     {
       title: 'Security recommendation',
       description:
-        'This first pass keeps the spreadsheet structure visible, but long term the actual password values should live in encrypted storage with role-based reveal access. The list view is best used as an inventory and admin surface, not as the final secret-management system.',
+        'Schly stores only non-secret inventory metadata plus an opaque external secret-manager reference. Passwords are never stored or revealed by this application; operators retrieve credentials directly through the separately audited secret manager.',
       links: []
     },
     {

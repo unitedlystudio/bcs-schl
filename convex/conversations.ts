@@ -1,9 +1,9 @@
 import { mutation, query, type QueryCtx } from './_generated/server';
 import type { Id } from './_generated/dataModel';
 import { v } from 'convex/values';
-import { requireAuthenticatedUser, getOrganizationIdFromIdentity } from './lib/auth';
+import { requirePermission } from './lib/auth';
 
-type IdentityLike = Awaited<ReturnType<typeof requireAuthenticatedUser>> & Record<string, unknown>;
+type IdentityLike = Awaited<ReturnType<typeof requirePermission>> & Record<string, unknown>;
 
 function readString(value: unknown) {
   return typeof value === 'string' ? value.trim() : '';
@@ -165,21 +165,16 @@ async function displayConversation(
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    const identity = (await requireAuthenticatedUser(ctx)) as IdentityLike;
-    const orgId = getOrganizationIdFromIdentity(identity);
+    const identity = (await requirePermission(ctx, 'org:chat:read')) as IdentityLike;
 
     const conversations = await ctx.db
       .query('conversations')
-      .withIndex('by_updatedAt')
+      .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId as never))
       .order('desc')
       .collect();
 
     const visible = conversations.filter((conversation) => {
       if (!conversation.participantUserIds?.length && !conversation.participantEmails?.length) {
-        return false;
-      }
-
-      if (orgId && conversation.orgId && conversation.orgId !== orgId) {
         return false;
       }
 
@@ -190,7 +185,9 @@ export const list = query({
       visible.map(async (conversation) => {
         const lastMessage = await ctx.db
           .query('messages')
-          .withIndex('by_conversation', (q) => q.eq('conversationId', conversation._id))
+          .withIndex('by_school_conversation', (q) =>
+            q.eq('schoolId', identity.schoolId as never).eq('conversationId', conversation._id)
+          )
           .order('desc')
           .take(1);
 
@@ -203,16 +200,22 @@ export const list = query({
 export const getMessages = query({
   args: { conversationId: v.id('conversations') },
   handler: async (ctx, args) => {
-    const identity = (await requireAuthenticatedUser(ctx)) as IdentityLike;
+    const identity = (await requirePermission(ctx, 'org:chat:read')) as IdentityLike;
     const conversation = await ctx.db.get(args.conversationId);
 
-    if (!conversation || !isParticipant(conversation, identity)) {
+    if (
+      !conversation ||
+      conversation.schoolId !== identity.schoolId ||
+      !isParticipant(conversation, identity)
+    ) {
       return [];
     }
 
     const messages = await ctx.db
       .query('messages')
-      .withIndex('by_conversation', (q) => q.eq('conversationId', args.conversationId))
+      .withIndex('by_school_conversation', (q) =>
+        q.eq('schoolId', identity.schoolId as never).eq('conversationId', args.conversationId)
+      )
       .order('asc')
       .collect();
 
@@ -234,10 +237,15 @@ export const getMessages = query({
 export const markRead = mutation({
   args: { conversationId: v.id('conversations') },
   handler: async (ctx, args) => {
-    const identity = (await requireAuthenticatedUser(ctx)) as IdentityLike;
+    const identity = (await requirePermission(ctx, 'org:chat:write')) as IdentityLike;
     const conversation = await ctx.db.get(args.conversationId);
 
-    if (!conversation || !isParticipant(conversation, identity)) return;
+    if (
+      !conversation ||
+      conversation.schoolId !== identity.schoolId ||
+      !isParticipant(conversation, identity)
+    )
+      return;
 
     await ctx.db.patch(args.conversationId, { updatedAt: Date.now() });
   }
@@ -246,42 +254,47 @@ export const markRead = mutation({
 export const generateAttachmentUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
-    await requireAuthenticatedUser(ctx);
+    await requirePermission(ctx, 'org:chat:write');
     return ctx.storage.generateUploadUrl();
   }
 });
 
 export const startConversation = mutation({
   args: {
-    orgId: v.string(),
-    memberUserId: v.string(),
-    memberEmail: v.string(),
-    memberName: v.string(),
-    memberRole: v.string()
+    memberUserId: v.id('appUsers')
   },
   handler: async (ctx, args) => {
-    const identity = (await requireAuthenticatedUser(ctx)) as IdentityLike;
+    const identity = (await requirePermission(ctx, 'org:chat:write')) as IdentityLike;
     const currentUserId = readString(identity.subject);
     const currentEmail = readEmail(identity);
-    const currentOrgId = getOrganizationIdFromIdentity(identity);
 
     if (!currentUserId) {
       throw new Error('User identity required.');
     }
 
-    if (currentOrgId && currentOrgId !== args.orgId) {
-      throw new Error('Active school workspace mismatch.');
-    }
-
-    if (args.memberUserId === currentUserId) {
+    const member = await ctx.db.get(args.memberUserId);
+    if (
+      !member ||
+      member.schoolId !== identity.schoolId ||
+      member.status !== 'active' ||
+      member.authUserId === currentUserId
+    ) {
       throw new Error('Choose another staff member to start a chat.');
     }
+    const memberRoles = await ctx.db
+      .query('userRoles')
+      .withIndex('by_user', (q) => q.eq('userId', member._id))
+      .collect();
+    if (memberRoles.length === 0) throw new Error('Staff member is not active.');
+    const memberRole = await ctx.db.get(memberRoles[0].roleId);
 
-    const conversations = await ctx.db.query('conversations').collect();
+    const conversations = await ctx.db
+      .query('conversations')
+      .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId as never))
+      .collect();
     const existing = conversations.find((conversation) => {
-      if (conversation.orgId !== args.orgId) return false;
       const participants = conversation.participantUserIds ?? [];
-      return participants.includes(currentUserId) && participants.includes(args.memberUserId);
+      return participants.includes(currentUserId) && participants.includes(member.authUserId);
     });
 
     if (existing) {
@@ -289,15 +302,13 @@ export const startConversation = mutation({
     }
 
     const conversationId = await ctx.db.insert('conversations', {
-      orgId: args.orgId,
-      participantUserIds: [currentUserId, args.memberUserId].toSorted(),
-      participantEmails: [currentEmail, args.memberEmail.trim().toLowerCase()]
-        .filter(Boolean)
-        .toSorted(),
-      name: args.memberName,
-      title: args.memberRole,
+      schoolId: identity.schoolId as never,
+      participantUserIds: [currentUserId, member.authUserId].toSorted(),
+      participantEmails: [currentEmail, member.normalizedEmail].filter(Boolean).toSorted(),
+      name: member.name ?? member.email,
+      title: memberRole?.name ?? 'Staff',
       status: 'online',
-      initials: initialsFor(args.memberName),
+      initials: initialsFor(member.name ?? member.email),
       quickReplies: [
         'Thanks — I will check.',
         'Can you send the details?',
@@ -307,10 +318,11 @@ export const startConversation = mutation({
     });
 
     await ctx.db.insert('messages', {
+      schoolId: identity.schoolId as never,
       conversationId,
       sender: 'contact',
       author: 'Schly',
-      text: `Chat started with ${args.memberName}.`,
+      text: `Chat started with ${member.name ?? member.email}.`,
       timestampLabel: timeLabel(),
       createdAt: Date.now()
     });
@@ -339,10 +351,14 @@ export const sendMessage = mutation({
     )
   },
   handler: async (ctx, args) => {
-    const identity = (await requireAuthenticatedUser(ctx)) as IdentityLike;
+    const identity = (await requirePermission(ctx, 'org:chat:write')) as IdentityLike;
     const conversation = await ctx.db.get(args.conversationId);
 
-    if (!conversation || !isParticipant(conversation, identity)) {
+    if (
+      !conversation ||
+      conversation.schoolId !== identity.schoolId ||
+      !isParticipant(conversation, identity)
+    ) {
       throw new Error('Conversation not found.');
     }
 
@@ -352,11 +368,12 @@ export const sendMessage = mutation({
     }
 
     const messageId = await ctx.db.insert('messages', {
+      schoolId: identity.schoolId as never,
       conversationId: args.conversationId,
       sender: 'user',
-      authorUserId: args.authorUserId?.trim() || readString(identity.subject),
-      authorEmail: args.authorEmail?.trim().toLowerCase() || readEmail(identity),
-      author: args.authorName?.trim() || readDisplayName(identity),
+      authorUserId: readString(identity.subject),
+      authorEmail: readEmail(identity),
+      author: readDisplayName(identity),
       text: trimmed,
       timestampLabel: timeLabel(),
       attachments: args.attachments,

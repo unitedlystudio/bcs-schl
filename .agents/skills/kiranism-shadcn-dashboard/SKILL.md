@@ -1,7 +1,7 @@
 ---
 name: kiranism-shadcn-dashboard
 description: |
-  Guide for building features, pages, tables, forms, themes, and navigation in this Next.js 16 shadcn dashboard template. Use this skill whenever the user wants to add a new page, create a feature module, build a data table, add a form, configure navigation items, add a theme, set up RBAC access control, or work with the dashboard's patterns and conventions. Also triggers when adding routes under /dashboard, working with Clerk auth/orgs/billing, creating mock APIs, or modifying the sidebar. Even if the user doesn't mention "dashboard" explicitly — if they're adding UI, pages, or features to this project, use this skill.
+  Guide for building features, pages, tables, forms, themes, and navigation in this Next.js 16 shadcn dashboard template. Use this skill whenever the user wants to add a new page, create a feature module, build a data table, add a form, configure navigation items, add a theme, set up RBAC access control, or work with the dashboard's patterns and conventions. Also triggers when adding routes under /dashboard, working with Better Auth auth/orgs/billing, creating mock APIs, or modifying the sidebar. Even if the user doesn't mention "dashboard" explicitly — if they're adding UI, pages, or features to this project, use this skill.
 ---
 
 # Dashboard Development Guide
@@ -576,13 +576,13 @@ See [references/query-abstractions.md](references/query-abstractions.md) for why
 
 ## Navigation & RBAC
 
-Configure in `src/config/nav-config.ts`. Items are filtered client-side in `src/hooks/use-nav.ts` using Clerk.
+Configure in `src/config/nav-config.ts`. Items are filtered client-side in `src/hooks/use-nav.ts` using Better Auth.
 
 **Access control properties** on nav items:
 
-- `requireOrg: boolean` — requires active Clerk organization
-- `permission: string` — requires specific Clerk permission
-- `role: string` — requires specific Clerk role
+- `requireMembership: boolean` — requires active Better Auth organization
+- `permission: string` — requires specific Better Auth permission
+- `role: string` — requires specific Better Auth role
 - `plan: string` — requires subscription plan (server-side)
 - `feature: string` — requires feature flag (server-side)
 

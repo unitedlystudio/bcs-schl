@@ -12,9 +12,21 @@ export const DASHBOARD_PERMISSION_CATALOG = [
     group: 'School records'
   },
   {
+    key: 'org:students:write',
+    label: 'Change students',
+    description: 'Create and update student records.',
+    group: 'School records'
+  },
+  {
     key: 'org:teachers:read',
     label: 'Teachers',
     description: 'View the teacher directory and ownership details.',
+    group: 'School records'
+  },
+  {
+    key: 'org:teachers:write',
+    label: 'Change teachers',
+    description: 'Create and update teacher records.',
     group: 'School records'
   },
   {
@@ -24,9 +36,21 @@ export const DASHBOARD_PERMISSION_CATALOG = [
     group: 'School records'
   },
   {
+    key: 'org:admissions:write',
+    label: 'Change admissions',
+    description: 'Create and update admissions records.',
+    group: 'School records'
+  },
+  {
     key: 'org:attendance:read',
     label: 'Attendance',
     description: 'Review attendance boards and attendance operations.',
+    group: 'Operations'
+  },
+  {
+    key: 'org:attendance:write',
+    label: 'Change attendance',
+    description: 'Create and update attendance records.',
     group: 'Operations'
   },
   {
@@ -34,6 +58,18 @@ export const DASHBOARD_PERMISSION_CATALOG = [
     label: 'Concerns',
     description: 'View concern cases and student support workflows.',
     group: 'Operations'
+  },
+  {
+    key: 'org:concerns:write',
+    label: 'Change concerns',
+    description: 'Create and update standard concern records.',
+    group: 'Operations'
+  },
+  {
+    key: 'org:safeguarding:manage',
+    label: 'Safeguarding',
+    description: 'View and manage restricted safeguarding records.',
+    group: 'Safeguarding'
   },
   {
     key: 'org:finance:read',
@@ -54,9 +90,21 @@ export const DASHBOARD_PERMISSION_CATALOG = [
     group: 'Operations'
   },
   {
+    key: 'org:operations:write',
+    label: 'Change operations',
+    description: 'Create and update operations records.',
+    group: 'Operations'
+  },
+  {
     key: 'org:staffing:read',
     label: 'Staffing',
     description: 'View staff leave and cover planning.',
+    group: 'Operations'
+  },
+  {
+    key: 'org:staffing:write',
+    label: 'Change staffing',
+    description: 'Create and update staffing records.',
     group: 'Operations'
   },
   {
@@ -66,9 +114,21 @@ export const DASHBOARD_PERMISSION_CATALOG = [
     group: 'Communication'
   },
   {
+    key: 'org:notifications:write',
+    label: 'Change inbox',
+    description: 'Update inbox and notification records.',
+    group: 'Communication'
+  },
+  {
     key: 'org:chat:read',
     label: 'Chat',
     description: 'Open internal chat and message workflows.',
+    group: 'Communication'
+  },
+  {
+    key: 'org:chat:write',
+    label: 'Send chat messages',
+    description: 'Create conversations and send messages.',
     group: 'Communication'
   },
   {

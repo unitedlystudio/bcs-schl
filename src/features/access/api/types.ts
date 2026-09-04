@@ -9,7 +9,8 @@ export type AccessRecord = {
   fullName: string;
   loginUrl: string;
   username: string;
-  password: string;
+  secretManager: string;
+  secretReference: string;
   listingUrl: string;
   adminsAccess: string;
   recoveryNumber: string;

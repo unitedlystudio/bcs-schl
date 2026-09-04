@@ -1,5 +1,7 @@
 # Convex Chat + Inbox Integration Plan
 
+> Historical plan: this describes the pre-migration identity topology and is not active authentication guidance. See `docs/auth-setup.md` and `docs/nav-rbac.md` for the current contract.
+
 > For Hermes: implement this incrementally, preserving the current theme system and reusing the existing chat/inbox UI where possible.
 
 Goal: Set up Convex in the Schly Next.js app, create a dedicated Convex-backed chat and inbox backend, and replace the local mock Zustand data for those two features with realtime Convex subscriptions and mutations.
@@ -11,6 +13,7 @@ Tech Stack: Next.js App Router, Clerk, shadcn/ui, Convex, Zustand only for UI-lo
 ---
 
 ## Task sequence
+
 1. Install Convex and create backend files under convex/
 2. Add Convex provider plumbing without changing the theme system
 3. Generate Convex API/types and seed starter data

@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { useOrganization, useUser } from '@clerk/nextjs';
+import { useApplicationAccess } from '@/components/layout/application-access-gate';
 import { useMutation, useQuery } from 'convex/react';
 import { toast } from 'sonner';
 import { Id } from '../../../../convex/_generated/dataModel';
@@ -11,8 +11,7 @@ import { ChatArea } from './chat-area';
 import { ConversationList } from './conversation-list';
 
 export function Messenger() {
-  const { isLoaded, organization } = useOrganization();
-  const { user } = useUser();
+  const { user } = useApplicationAccess();
   const conversationsQuery = useQuery(api.conversations.list, {});
   const conversations = useMemo(() => conversationsQuery ?? [], [conversationsQuery]);
   const [selectedConversationId, setSelectedConversationId] = useState<string>('');
@@ -28,27 +27,15 @@ export function Messenger() {
   const startConversation = useMutation(api.conversations.startConversation);
 
   useEffect(() => {
-    if (!isLoaded) return;
-
-    const orgId = organization?.id;
-    if (!orgId) {
-      setMembers([]);
-      setMembersLoading(false);
-      return;
-    }
-
     let cancelled = false;
 
     async function loadMembers() {
       try {
         setMembersLoading(true);
-        const response = await fetch(
-          `/api/chat-members?orgId=${encodeURIComponent(orgId as string)}`,
-          {
-            cache: 'no-store',
-            credentials: 'same-origin'
-          }
-        );
+        const response = await fetch('/api/chat-members', {
+          cache: 'no-store',
+          credentials: 'same-origin'
+        });
 
         if (!response.ok) {
           throw new Error('Unable to load school staff members.');
@@ -77,7 +64,7 @@ export function Messenger() {
     return () => {
       cancelled = true;
     };
-  }, [isLoaded, organization?.id]);
+  }, []);
 
   useEffect(() => {
     if (!selectedConversationId && conversations[0]?.id) {
@@ -113,13 +100,8 @@ export function Messenger() {
   const activeConversation: Conversation | undefined = useMemo(() => {
     if (!selectedConversation) return undefined;
 
-    const viewerUserId = user?.id;
-    const viewerEmails = [
-      user?.primaryEmailAddress?.emailAddress,
-      user?.emailAddresses?.[0]?.emailAddress
-    ]
-      .map((value) => value?.trim().toLowerCase())
-      .filter(Boolean);
+    const viewerUserId = user?.authUserId;
+    const viewerEmails = [user?.email].map((value) => value?.trim().toLowerCase()).filter(Boolean);
     const normalizedMessages = (messages ?? selectedConversation.messages).map((message) => {
       if (message.authorUserId) {
         return {
@@ -161,20 +143,10 @@ export function Messenger() {
 
   const handleStartConversation = useCallback(
     async (member: StaffMember) => {
-      const orgId = organization?.id;
-      if (!orgId) {
-        toast.error('Choose a school workspace before starting a chat.');
-        return;
-      }
-
       try {
         setStartingMemberId(member.userId);
         const result = await startConversation({
-          orgId,
-          memberUserId: member.userId,
-          memberEmail: member.email,
-          memberName: member.name,
-          memberRole: member.role
+          memberUserId: member.userId as Id<'appUsers'>
         });
         setSelectedConversationId(result.conversationId);
         setMobileView('thread');
@@ -184,7 +156,7 @@ export function Messenger() {
         setStartingMemberId(null);
       }
     },
-    [organization?.id, startConversation]
+    [startConversation]
   );
 
   const handleAddAttachments = useCallback((files: FileList) => {
@@ -240,10 +212,9 @@ export function Messenger() {
         await sendMessage({
           conversationId: selectedConversationId as Id<'conversations'>,
           text: draft,
-          authorUserId: user?.id,
-          authorEmail:
-            user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses?.[0]?.emailAddress,
-          authorName: user?.fullName ?? user?.username ?? undefined,
+          authorUserId: user?.authUserId,
+          authorEmail: user?.email,
+          authorName: user?.name,
           attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined
         });
 

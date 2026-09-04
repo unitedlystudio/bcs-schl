@@ -1,9 +1,9 @@
 import { mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import type { Doc, Id } from './_generated/dataModel';
-import { requireAuthenticatedUser } from './lib/auth';
+import { requirePermission } from './lib/auth';
 
 const CONCERN_CATEGORIES = [
   'Learning Support',
@@ -16,6 +16,23 @@ const CONCERN_CATEGORIES = [
 const CONCERN_SEVERITIES = ['Low', 'Medium', 'High', 'Critical'] as const;
 const CONCERN_STATUSES = ['Open', 'Monitoring', 'Escalated', 'Resolved'] as const;
 const CONCERN_VISIBILITY = ['Standard', 'Restricted'] as const;
+
+function isSafeguarding(concern: Pick<Doc<'concernCases'>, 'category' | 'visibility'>) {
+  return concern.category === 'Safeguarding' || concern.visibility === 'Restricted';
+}
+
+async function enforceSafeguarding(
+  ctx: QueryCtx | MutationCtx,
+  concern: Pick<Doc<'concernCases'>, 'category' | 'visibility'>
+): Promise<boolean> {
+  if (!isSafeguarding(concern)) return true;
+  try {
+    await requirePermission(ctx, 'org:safeguarding:manage');
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function matchesSearch(
   concern: {
@@ -95,13 +112,14 @@ function isConcernRecord(
 
 async function enrichConcern(ctx: QueryCtx | MutationCtx, concern: Doc<'concernCases'>) {
   const student = await ctx.db.get(concern.studentId);
-  if (!student) {
+  if (!student || student.schoolId !== concern.schoolId) {
     return null;
   }
 
   const assignedTeacher = concern.assignedTeacherId
     ? await ctx.db.get(concern.assignedTeacherId)
     : null;
+  if (assignedTeacher && assignedTeacher.schoolId !== concern.schoolId) return null;
 
   return mapCase({
     caseId: concern._id,
@@ -167,11 +185,11 @@ export const list = query({
     studentId: v.optional(v.id('students'))
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:concerns:read');
 
     let concerns = await ctx.db
       .query('concernCases')
-      .withIndex('by_updatedAt')
+      .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
       .order('desc')
       .collect();
 
@@ -179,8 +197,15 @@ export const list = query({
       concerns = concerns.filter((concern) => concern.studentId === args.studentId);
     }
 
+    const visible = (
+      await Promise.all(
+        concerns.map(async (concern) =>
+          (await enforceSafeguarding(ctx, concern)) ? concern : null
+        )
+      )
+    ).filter((concern): concern is Doc<'concernCases'> => concern !== null);
     const enriched = (
-      await Promise.all(concerns.map((concern) => enrichConcern(ctx, concern)))
+      await Promise.all(visible.map((concern) => enrichConcern(ctx, concern)))
     ).filter(isConcernRecord);
 
     return enriched.filter((concern) => matchesSearch(concern, args.search));
@@ -190,20 +215,27 @@ export const list = query({
 export const summary = query({
   args: {},
   handler: async (ctx) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:concerns:read');
 
     const concerns = await ctx.db
       .query('concernCases')
-      .withIndex('by_updatedAt')
+      .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
       .order('desc')
       .collect();
 
+    const visible = (
+      await Promise.all(
+        concerns.map(async (concern) =>
+          (await enforceSafeguarding(ctx, concern)) ? concern : null
+        )
+      )
+    ).filter((concern): concern is Doc<'concernCases'> => concern !== null);
     return {
-      total: concerns.length,
-      open: concerns.filter((concern) => concern.status === 'Open').length,
-      monitoring: concerns.filter((concern) => concern.status === 'Monitoring').length,
-      escalated: concerns.filter((concern) => concern.status === 'Escalated').length,
-      restricted: concerns.filter((concern) => concern.visibility === 'Restricted').length
+      total: visible.length,
+      open: visible.filter((concern) => concern.status === 'Open').length,
+      monitoring: visible.filter((concern) => concern.status === 'Monitoring').length,
+      escalated: visible.filter((concern) => concern.status === 'Escalated').length,
+      restricted: visible.filter((concern) => concern.visibility === 'Restricted').length
     };
   }
 });
@@ -211,15 +243,26 @@ export const summary = query({
 export const recentForStudent = query({
   args: { studentId: v.id('students') },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:concerns:read');
+    const student = await ctx.db.get(args.studentId);
+    if (!student || student.schoolId !== identity.schoolId) return [];
 
     const concerns = await ctx.db
       .query('concernCases')
-      .withIndex('by_student', (q) => q.eq('studentId', args.studentId))
+      .withIndex('by_school_student', (q) =>
+        q.eq('schoolId', identity.schoolId).eq('studentId', args.studentId)
+      )
       .order('desc')
       .take(5);
 
-    const enriched = await Promise.all(concerns.map((concern) => enrichConcern(ctx, concern)));
+    const visible = (
+      await Promise.all(
+        concerns.map(async (concern) =>
+          (await enforceSafeguarding(ctx, concern)) ? concern : null
+        )
+      )
+    ).filter((concern): concern is Doc<'concernCases'> => concern !== null);
+    const enriched = await Promise.all(visible.map((concern) => enrichConcern(ctx, concern)));
     return enriched.filter(isConcernRecord);
   }
 });
@@ -227,10 +270,14 @@ export const recentForStudent = query({
 export const getById = query({
   args: { caseId: v.id('concernCases') },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:concerns:read');
 
     const concern = await ctx.db.get(args.caseId);
-    if (!concern) {
+    if (
+      !concern ||
+      concern.schoolId !== identity.schoolId ||
+      !(await enforceSafeguarding(ctx, concern))
+    ) {
       return null;
     }
 
@@ -241,7 +288,9 @@ export const getById = query({
 
     const updates = await ctx.db
       .query('concernCaseUpdates')
-      .withIndex('by_case', (q) => q.eq('caseId', args.caseId))
+      .withIndex('by_school_case', (q) =>
+        q.eq('schoolId', identity.schoolId).eq('caseId', args.caseId)
+      )
       .order('desc')
       .collect();
 
@@ -271,13 +320,24 @@ export const create = mutation({
     initialUpdate: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:concerns:write');
+    if (!(await enforceSafeguarding(ctx, args))) throw new ConvexError('FORBIDDEN');
+    const student = await ctx.db.get(args.studentId);
+    if (!student || student.schoolId !== identity.schoolId) throw new ConvexError('NOT_FOUND');
+    if (args.assignedTeacherId) {
+      const teacher = await ctx.db.get(args.assignedTeacherId);
+      if (!teacher || teacher.schoolId !== identity.schoolId) throw new ConvexError('NOT_FOUND');
+    }
 
-    const caseId = await ctx.db.insert('concernCases', normalizeConcern(args));
+    const caseId = await ctx.db.insert('concernCases', {
+      schoolId: identity.schoolId,
+      ...normalizeConcern(args)
+    });
 
     const initialUpdate = args.initialUpdate?.trim();
     if (initialUpdate) {
       await ctx.db.insert('concernCaseUpdates', {
+        schoolId: identity.schoolId,
         caseId,
         note: initialUpdate,
         authorLabel: 'Initial entry',
@@ -303,13 +363,23 @@ export const update = mutation({
     nextReviewDate: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:concerns:write');
 
     const existing = await ctx.db.get(args.caseId);
-    if (!existing) {
+    if (!existing || existing.schoolId !== identity.schoolId) {
       throw new Error('Concern case not found.');
     }
 
+    if (!(await enforceSafeguarding(ctx, existing)) || !(await enforceSafeguarding(ctx, args)))
+      throw new ConvexError('FORBIDDEN');
+    const student = await ctx.db.get(args.studentId);
+    const teacher = args.assignedTeacherId ? await ctx.db.get(args.assignedTeacherId) : null;
+    if (
+      !student ||
+      student.schoolId !== identity.schoolId ||
+      (args.assignedTeacherId && (!teacher || teacher.schoolId !== identity.schoolId))
+    )
+      throw new ConvexError('NOT_FOUND');
     await ctx.db.patch(args.caseId, normalizeConcern(args));
     return { caseId: args.caseId };
   }
@@ -322,13 +392,14 @@ export const addUpdate = mutation({
     authorLabel: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:concerns:write');
 
     const concern = await ctx.db.get(args.caseId);
-    if (!concern) {
+    if (!concern || concern.schoolId !== identity.schoolId) {
       throw new Error('Concern case not found.');
     }
 
+    if (!(await enforceSafeguarding(ctx, concern))) throw new ConvexError('FORBIDDEN');
     const note = args.note.trim();
     if (!note) {
       throw new Error('Update note is required.');
@@ -336,6 +407,7 @@ export const addUpdate = mutation({
 
     const createdAt = Date.now();
     await ctx.db.insert('concernCaseUpdates', {
+      schoolId: identity.schoolId,
       caseId: args.caseId,
       note,
       authorLabel: args.authorLabel?.trim() || 'Schly operator',

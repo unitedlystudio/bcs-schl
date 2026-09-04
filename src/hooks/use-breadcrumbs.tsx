@@ -40,11 +40,10 @@ function getDynamicBreadcrumbs(pathname: string): BreadcrumbItem[] | null {
     ];
   }
 
-  if (pathname.startsWith('/dashboard/workspaces/team')) {
+  if (pathname.startsWith('/dashboard/school-access')) {
     return [
       { title: 'Dashboard', link: '/dashboard' },
-      { title: 'Workspaces', link: '/dashboard/workspaces' },
-      { title: 'Team Workspace', link: pathname }
+      { title: 'School access', link: pathname }
     ];
   }
 

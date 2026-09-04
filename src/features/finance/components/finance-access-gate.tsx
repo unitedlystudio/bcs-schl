@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useFinanceAccess } from '../hooks/use-finance-access';
 
 export function FinanceAccessGate({ children }: { children: React.ReactNode }) {
-  const { hasFinanceAccess, hasOrg, isLoadingFinanceAccess } = useFinanceAccess();
+  const { hasFinanceAccess, hasMembership, isLoadingFinanceAccess } = useFinanceAccess();
 
   if (isLoadingFinanceAccess) {
     return (
@@ -34,9 +34,9 @@ export function FinanceAccessGate({ children }: { children: React.ReactNode }) {
         </CardDescription>
       </CardHeader>
       <CardContent className='text-sm text-muted-foreground'>
-        {hasOrg
-          ? 'Your current organization membership does not include finance visibility.'
-          : 'Switch into an organization with finance access to open student billing and collections.'}
+        {hasMembership
+          ? 'Your school membership does not include finance visibility.'
+          : 'An active school membership is required to open student billing and collections.'}
       </CardContent>
     </Card>
   );

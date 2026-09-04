@@ -18,8 +18,8 @@ export function useFinanceAccess() {
       hasFinanceWriteAccess,
       canQueryFinance: !isLoadingFinanceAccess && hasFinanceAccess,
       isLoadingFinanceAccess,
-      hasOrg: dashboardAccess.hasOrg,
-      role: dashboardAccess.clerkRole,
+      hasMembership: dashboardAccess.hasMembership,
+      role: dashboardAccess.role,
       dashboardRole: dashboardAccess.dashboardRole,
       hasManagedProfile: dashboardAccess.hasManagedProfile
     };

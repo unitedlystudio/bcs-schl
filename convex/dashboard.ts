@@ -1,18 +1,33 @@
 import { query } from './_generated/server';
-import { requireAuthenticatedUser } from './lib/auth';
+import { requirePermission } from './lib/auth';
 
 export const summary = query({
   args: {},
   handler: async (ctx) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:overview:read');
 
     const [conversations, inboxItems, accessRecords, admissionsEnquiries, attendanceSessions] =
       await Promise.all([
-        ctx.db.query('conversations').collect(),
-        ctx.db.query('inboxItems').collect(),
-        ctx.db.query('accessRecords').collect(),
-        ctx.db.query('admissionsEnquiries').collect(),
-        ctx.db.query('attendanceSessions').collect()
+        ctx.db
+          .query('conversations')
+          .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
+          .collect(),
+        ctx.db
+          .query('inboxItems')
+          .withIndex('by_school_createdAt', (q) => q.eq('schoolId', identity.schoolId))
+          .collect(),
+        ctx.db
+          .query('accessRecords')
+          .withIndex('by_school_sortOrder', (q) => q.eq('schoolId', identity.schoolId))
+          .collect(),
+        ctx.db
+          .query('admissionsEnquiries')
+          .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
+          .collect(),
+        ctx.db
+          .query('attendanceSessions')
+          .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
+          .collect()
       ]);
 
     const unreadInboxCount = inboxItems.filter((item) => item.status === 'unread').length;
@@ -38,11 +53,19 @@ export const summary = query({
 export const recentActivity = query({
   args: {},
   handler: async (ctx) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:overview:read');
 
     const [latestInbox, latestConversations] = await Promise.all([
-      ctx.db.query('inboxItems').withIndex('by_createdAt').order('desc').take(5),
-      ctx.db.query('conversations').withIndex('by_updatedAt').order('desc').take(5)
+      ctx.db
+        .query('inboxItems')
+        .withIndex('by_school_createdAt', (q) => q.eq('schoolId', identity.schoolId))
+        .order('desc')
+        .take(5),
+      ctx.db
+        .query('conversations')
+        .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
+        .order('desc')
+        .take(5)
     ]);
 
     return {

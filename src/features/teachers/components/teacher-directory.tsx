@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useOrganization } from '@clerk/nextjs';
 import { useMutation } from 'convex/react';
 import { toast } from 'sonner';
 import {
@@ -66,7 +65,6 @@ function countByValue(rows: TeacherGridRow[], key: keyof TeacherGridRow) {
 }
 
 export default function TeacherDirectory() {
-  const { isLoaded, organization } = useOrganization();
   const ensureTeacher = useMutation(api.teachers.ensureFromDirectory);
   const [sorting, setSorting] = useState<SortingState>([{ id: 'teacher', desc: false }]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -78,29 +76,15 @@ export default function TeacherDirectory() {
   const [loadingRows, setLoadingRows] = useState(true);
 
   useEffect(() => {
-    if (!isLoaded) return;
-
-    const orgId = organization?.id;
-
-    if (!orgId) {
-      setRows([]);
-      setLoadingRows(false);
-      return;
-    }
-
-    const requestedOrgId = orgId as string;
     let cancelled = false;
 
     async function loadRows() {
       try {
         setLoadingRows(true);
-        const response = await fetch(
-          `/api/teacher-directory?orgId=${encodeURIComponent(requestedOrgId)}`,
-          {
-            cache: 'no-store',
-            credentials: 'same-origin'
-          }
-        );
+        const response = await fetch('/api/teacher-directory', {
+          cache: 'no-store',
+          credentials: 'same-origin'
+        });
 
         if (!response.ok) {
           throw new Error('Unable to load teacher records for this workspace.');
@@ -128,7 +112,7 @@ export default function TeacherDirectory() {
     return () => {
       cancelled = true;
     };
-  }, [isLoaded, organization?.id]);
+  }, []);
 
   const roleOptions = useMemo(() => countByValue(rows, 'role'), [rows]);
   const academicYearOptions = useMemo(() => countByValue(rows, 'academicYear'), [rows]);
@@ -208,7 +192,7 @@ export default function TeacherDirectory() {
   const onLeaveTeachers = rows.filter((row) => row.status === 'On Leave').length;
   const coveredAcademicYears = new Set(rows.map((row) => row.academicYear).filter(Boolean)).size;
   const hasFilters = columnFilters.length > 0;
-  const isLoading = !isLoaded || loadingRows;
+  const isLoading = loadingRows;
 
   if (isLoading) {
     return (

@@ -1,6 +1,6 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
-import { requireAuthenticatedUser } from './lib/auth';
+import { requirePermission } from './lib/auth';
 
 const ADMISSIONS_STAGES = [
   'New',
@@ -173,11 +173,11 @@ function normalizeEnquiry(input: {
 export const list = query({
   args: { search: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:admissions:read');
 
     let enquiries = await ctx.db
       .query('admissionsEnquiries')
-      .withIndex('by_updatedAt')
+      .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
       .order('desc')
       .collect();
 
@@ -190,11 +190,11 @@ export const list = query({
 export const board = query({
   args: { search: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:admissions:read');
 
     let enquiries = await ctx.db
       .query('admissionsEnquiries')
-      .withIndex('by_updatedAt')
+      .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
       .order('desc')
       .collect();
 
@@ -236,11 +236,11 @@ export const board = query({
 export const recent = query({
   args: {},
   handler: async (ctx) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:admissions:read');
 
     const enquiries = await ctx.db
       .query('admissionsEnquiries')
-      .withIndex('by_updatedAt')
+      .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
       .order('desc')
       .take(5);
 
@@ -251,10 +251,10 @@ export const recent = query({
 export const getById = query({
   args: { enquiryId: v.id('admissionsEnquiries') },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:admissions:read');
 
     const enquiry = await ctx.db.get(args.enquiryId);
-    if (!enquiry) {
+    if (!enquiry || enquiry.schoolId !== identity.schoolId) {
       return null;
     }
 
@@ -284,8 +284,11 @@ export const create = mutation({
     notesSummary: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
-    const enquiryId = await ctx.db.insert('admissionsEnquiries', normalizeEnquiry(args));
+    const identity = await requirePermission(ctx, 'org:admissions:write');
+    const enquiryId = await ctx.db.insert('admissionsEnquiries', {
+      schoolId: identity.schoolId,
+      ...normalizeEnquiry(args)
+    });
     return { enquiryId };
   }
 });
@@ -313,10 +316,10 @@ export const update = mutation({
     notesSummary: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:admissions:write');
 
     const existing = await ctx.db.get(args.enquiryId);
-    if (!existing) {
+    if (!existing || existing.schoolId !== identity.schoolId) {
       throw new Error('Admissions enquiry not found.');
     }
 
@@ -331,16 +334,16 @@ export const convertToStudent = mutation({
     enquiryId: v.id('admissionsEnquiries')
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:admissions:write');
 
     const enquiry = await ctx.db.get(args.enquiryId);
-    if (!enquiry) {
+    if (!enquiry || enquiry.schoolId !== identity.schoolId) {
       throw new Error('Admissions enquiry not found.');
     }
 
     if (enquiry.convertedStudentId) {
       const existingStudent = await ctx.db.get(enquiry.convertedStudentId);
-      if (existingStudent) {
+      if (existingStudent?.schoolId === identity.schoolId) {
         return { studentId: existingStudent._id, reusedExistingStudent: true };
       }
     }
@@ -351,7 +354,11 @@ export const convertToStudent = mutation({
     const normalizedGuardianName = normalizeText(enquiry.guardianName);
     const guardianPhone = enquiry.guardianPhone.trim();
 
-    const students = await ctx.db.query('students').withIndex('by_sortName').order('asc').collect();
+    const students = await ctx.db
+      .query('students')
+      .withIndex('by_school_sortName', (q) => q.eq('schoolId', identity.schoolId))
+      .order('asc')
+      .collect();
     const matchedStudent = students.find((student) => {
       const fullNameMatches = normalizeText(student.fullName) === normalizedFullName;
       const preferredNameMatches = normalizeText(student.preferredName) === normalizedStudentName;
@@ -376,6 +383,7 @@ export const convertToStudent = mutation({
     const studentId = matchedStudent
       ? matchedStudent._id
       : await ctx.db.insert('students', {
+          schoolId: identity.schoolId,
           preferredName: enquiry.studentName.trim().split(' ')[0] || enquiry.studentName.trim(),
           fullName,
           sex: 'Unknown',

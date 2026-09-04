@@ -16,6 +16,8 @@
     "build/**",
     "node_modules/**",
     "scripts/**",
+    "convex/_generated/**",
+    "public/schly-management.html",
     "pnpm-lock.yaml",
     "CHANGELOG.md"
   ],

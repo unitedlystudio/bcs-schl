@@ -1,44 +1,24 @@
 # Schly
 
-Schly is a school operations dashboard built with Next.js 16, TypeScript, Tailwind CSS, Clerk, and Convex.
+Schly is a single-school operations dashboard built with Next.js 16, TypeScript, Tailwind CSS, Better Auth, and Convex.
 
-## Overview
-
-This repo powers Schly's operational workspace for:
-
-- student records
-- attendance
-- teachers and staffing
-- admissions
-- finance and billing workflows
-- internal notifications and coordination
-- organisation roles and school access controls
-
-## Core stack
-
-- Next.js 16
-- TypeScript
-- Tailwind CSS
-- shadcn/ui
-- Clerk
-- Convex
-- TanStack Query
-- Oxlint / Oxfmt
+Authentication uses same-origin email/password sessions. Registration is closed: the backend-configured initial administrator bootstraps once, then administrators create expiring, copyable invitation links. Convex application roles are the only authorization authority.
 
 ## Local development
 
-```bash
-npm install
-npm run dev
-```
-
-## Production checks
+Copy `env.example.txt` to `.env.local`, configure a Convex development deployment, then run:
 
 ```bash
-npm run lint
-npm run build
+bun install
+bun run dev
 ```
 
-## Repository
+## Verification
 
-- GitHub: https://github.com/unitedlystudio/bcs-schl
+```bash
+bun run test
+bun run auth:denylist
+bun run lint:strict
+bun run format:check
+bun run build
+```

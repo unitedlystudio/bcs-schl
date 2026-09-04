@@ -17,8 +17,11 @@
 
 import { fakeUsers } from '@/constants/mock-api-users';
 import { NextRequest, NextResponse } from 'next/server';
+import { authorizeApi, hasTrustedMutationOrigin } from '@/lib/server/api-authorization';
 
 export async function GET(request: NextRequest) {
+  if (!(await authorizeApi('org:admin:manage')))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const { searchParams } = request.nextUrl;
 
   const page = Number(searchParams.get('page') ?? 1);
@@ -39,6 +42,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!hasTrustedMutationOrigin(request) || !(await authorizeApi('org:admin:manage')))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const body = await request.json();
   const data = await fakeUsers.createUser(body);
   return NextResponse.json(data, { status: 201 });

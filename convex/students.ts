@@ -1,6 +1,6 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
-import { requireAuthenticatedUser } from './lib/auth';
+import { requirePermission } from './lib/auth';
 
 function compareLabels(left: string, right: string) {
   return left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
@@ -145,9 +145,12 @@ export const list = query({
     status: v.optional(v.union(v.literal('Active'), v.literal('Pending'), v.literal('Archived')))
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
-
-    let students = await ctx.db.query('students').withIndex('by_sortName').order('asc').collect();
+    const identity = await requirePermission(ctx, 'org:students:read');
+    let students = await ctx.db
+      .query('students')
+      .withIndex('by_school_sortName', (q) => q.eq('schoolId', identity.schoolId))
+      .order('asc')
+      .collect();
 
     if (args.academicYear) {
       students = students.filter((student) => (student.academicYear ?? '') === args.academicYear);
@@ -182,9 +185,12 @@ export const list = query({
 export const listFilterOptions = query({
   args: {},
   handler: async (ctx) => {
-    await requireAuthenticatedUser(ctx);
-
-    const students = await ctx.db.query('students').withIndex('by_sortName').order('asc').collect();
+    const identity = await requirePermission(ctx, 'org:students:read');
+    const students = await ctx.db
+      .query('students')
+      .withIndex('by_school_sortName', (q) => q.eq('schoolId', identity.schoolId))
+      .order('asc')
+      .collect();
     const years: string[] = [];
     const classesByYear = new Map<string, Map<string, number>>();
 
@@ -243,18 +249,24 @@ export const listFilterOptions = query({
 export const getById = query({
   args: { studentId: v.id('students') },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:students:read');
 
     const student = await ctx.db.get(args.studentId);
-    if (!student) return null;
+    if (!student || student.schoolId !== identity.schoolId) return null;
 
     const [attendanceRecords, admissionsEnquiries] = await Promise.all([
       ctx.db
         .query('attendanceRecords')
-        .withIndex('by_student', (query) => query.eq('studentId', args.studentId))
+        .withIndex('by_school_student', (query) =>
+          query.eq('schoolId', identity.schoolId).eq('studentId', args.studentId)
+        )
         .order('desc')
         .collect(),
-      ctx.db.query('admissionsEnquiries').withIndex('by_updatedAt').order('desc').collect()
+      ctx.db
+        .query('admissionsEnquiries')
+        .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
+        .order('desc')
+        .collect()
     ]);
 
     const recentAttendance = [] as Array<{
@@ -276,7 +288,7 @@ export const getById = query({
       }
 
       const session = await ctx.db.get(record.sessionId);
-      if (!session) {
+      if (!session || session.schoolId !== identity.schoolId) {
         continue;
       }
 
@@ -375,9 +387,11 @@ export const create = mutation({
     notesSummary: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
-
-    const studentId = await ctx.db.insert('students', normalizeStudent(args));
+    const identity = await requirePermission(ctx, 'org:students:write');
+    const studentId = await ctx.db.insert('students', {
+      schoolId: identity.schoolId,
+      ...normalizeStudent(args)
+    });
 
     return { studentId };
   }
@@ -402,10 +416,10 @@ export const update = mutation({
     notesSummary: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:students:write');
 
     const existing = await ctx.db.get(args.studentId);
-    if (!existing) {
+    if (!existing || existing.schoolId !== identity.schoolId) {
       throw new Error('Student not found.');
     }
 
@@ -419,9 +433,12 @@ export const update = mutation({
 export const listClassNames = query({
   args: {},
   handler: async (ctx) => {
-    await requireAuthenticatedUser(ctx);
-
-    const students = await ctx.db.query('students').withIndex('by_sortName').order('asc').collect();
+    const identity = await requirePermission(ctx, 'org:students:read');
+    const students = await ctx.db
+      .query('students')
+      .withIndex('by_school_sortName', (q) => q.eq('schoolId', identity.schoolId))
+      .order('asc')
+      .collect();
 
     return students.reduce<string[]>((acc, student) => {
       if (acc.includes(student.className)) {

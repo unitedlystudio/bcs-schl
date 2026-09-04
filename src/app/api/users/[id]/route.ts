@@ -6,10 +6,13 @@
 
 import { fakeUsers } from '@/constants/mock-api-users';
 import { NextRequest, NextResponse } from 'next/server';
+import { authorizeApi, hasTrustedMutationOrigin } from '@/lib/server/api-authorization';
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function PUT(request: NextRequest, { params }: Params) {
+  if (!hasTrustedMutationOrigin(request) || !(await authorizeApi('org:admin:manage')))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const { id } = await params;
   const body = await request.json();
   const data = await fakeUsers.updateUser(Number(id), body);
@@ -22,6 +25,8 @@ export async function PUT(request: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(request: NextRequest, { params }: Params) {
+  if (!hasTrustedMutationOrigin(request) || !(await authorizeApi('org:admin:manage')))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const { id } = await params;
   const data = await fakeUsers.deleteUser(Number(id));
 

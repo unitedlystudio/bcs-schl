@@ -3,7 +3,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import { v } from 'convex/values';
 
-import { requireAuthenticatedUser } from './lib/auth';
+import { requirePermission } from './lib/auth';
 
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] as const;
 const BLOCK_TYPES = [
@@ -100,17 +100,29 @@ function toTimeSlotView(slot: Doc<'operationsTimeSlots'>): TimeSlotView {
   };
 }
 
-async function loadTimeSlots(ctx: Ctx) {
-  return ctx.db.query('operationsTimeSlots').withIndex('by_sortOrder').order('asc').collect();
+async function loadTimeSlots(ctx: Ctx, schoolId: Id<'schools'>) {
+  return ctx.db
+    .query('operationsTimeSlots')
+    .withIndex('by_school_sortOrder', (q) => q.eq('schoolId', schoolId))
+    .order('asc')
+    .collect();
 }
 
-async function loadTeachersById(ctx: Ctx) {
-  const teachers = await ctx.db.query('teachers').withIndex('by_sortName').order('asc').collect();
+async function loadTeachersById(ctx: Ctx, schoolId: Id<'schools'>) {
+  const teachers = await ctx.db
+    .query('teachers')
+    .withIndex('by_school_sortName', (q) => q.eq('schoolId', schoolId))
+    .order('asc')
+    .collect();
   return new Map(teachers.map((teacher) => [teacher._id, teacher]));
 }
 
-async function loadStudentsById(ctx: Ctx) {
-  const students = await ctx.db.query('students').withIndex('by_sortName').order('asc').collect();
+async function loadStudentsById(ctx: Ctx, schoolId: Id<'schools'>) {
+  const students = await ctx.db
+    .query('students')
+    .withIndex('by_school_sortName', (q) => q.eq('schoolId', schoolId))
+    .order('asc')
+    .collect();
   return new Map(students.map((student) => [student._id, student]));
 }
 
@@ -120,7 +132,8 @@ async function enrichEntry(
   cachedTeachers?: Map<string, Doc<'teachers'>>
 ): Promise<TimetableEntryView> {
   const teachersById =
-    cachedTeachers ?? ((await loadTeachersById(ctx)) as Map<string, Doc<'teachers'>>);
+    cachedTeachers ??
+    ((await loadTeachersById(ctx, entry.schoolId)) as Map<string, Doc<'teachers'>>);
   const leadTeacher = entry.leadTeacherId ? teachersById.get(entry.leadTeacherId) : null;
 
   return {
@@ -263,13 +276,25 @@ function normalizeOverride(input: {
 export const listFilters = query({
   args: {},
   handler: async (ctx) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:operations:read');
 
     const [students, teachers, entries, timeSlots] = await Promise.all([
-      ctx.db.query('students').withIndex('by_sortName').order('asc').collect(),
-      ctx.db.query('teachers').withIndex('by_sortName').order('asc').collect(),
-      ctx.db.query('classTimetableEntries').withIndex('by_updatedAt').order('desc').collect(),
-      loadTimeSlots(ctx)
+      ctx.db
+        .query('students')
+        .withIndex('by_school_sortName', (q) => q.eq('schoolId', identity.schoolId))
+        .order('asc')
+        .collect(),
+      ctx.db
+        .query('teachers')
+        .withIndex('by_school_sortName', (q) => q.eq('schoolId', identity.schoolId))
+        .order('asc')
+        .collect(),
+      ctx.db
+        .query('classTimetableEntries')
+        .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
+        .order('desc')
+        .collect(),
+      loadTimeSlots(ctx, identity.schoolId)
     ]);
 
     const academicYears = new Set<string>();
@@ -333,8 +358,8 @@ export const listFilters = query({
 export const listTimeSlots = query({
   args: {},
   handler: async (ctx) => {
-    await requireAuthenticatedUser(ctx);
-    const slots = await loadTimeSlots(ctx);
+    const identity = await requirePermission(ctx, 'org:operations:read');
+    const slots = await loadTimeSlots(ctx, identity.schoolId);
     return slots.map((slot) => ({
       ...toTimeSlotView(slot),
       timeRangeLabel: formatTimeRange(slot)
@@ -349,17 +374,27 @@ export const summary = query({
     className: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:operations:read');
 
     const date = args.date?.trim() || new Date().toISOString().slice(0, 10);
     const [timeSlots, entries, overrides, students] = await Promise.all([
-      loadTimeSlots(ctx),
-      ctx.db.query('classTimetableEntries').withIndex('by_updatedAt').order('desc').collect(),
+      loadTimeSlots(ctx, identity.schoolId),
+      ctx.db
+        .query('classTimetableEntries')
+        .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
+        .order('desc')
+        .collect(),
       ctx.db
         .query('operationsOverrides')
-        .withIndex('by_date', (q) => q.eq('overrideDate', date))
+        .withIndex('by_school_date', (q) =>
+          q.eq('schoolId', identity.schoolId).eq('overrideDate', date)
+        )
         .collect(),
-      ctx.db.query('students').withIndex('by_sortName').order('asc').collect()
+      ctx.db
+        .query('students')
+        .withIndex('by_school_sortName', (q) => q.eq('schoolId', identity.schoolId))
+        .order('asc')
+        .collect()
     ]);
 
     const filteredEntries = entries.filter((entry) => {
@@ -408,15 +443,18 @@ export const getClassWeek = query({
     className: v.string()
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:operations:read');
 
     const [timeSlots, teachersById, entries] = await Promise.all([
-      loadTimeSlots(ctx),
-      loadTeachersById(ctx),
+      loadTimeSlots(ctx, identity.schoolId),
+      loadTeachersById(ctx, identity.schoolId),
       ctx.db
         .query('classTimetableEntries')
-        .withIndex('by_class', (q) =>
-          q.eq('academicYear', args.academicYear).eq('className', args.className)
+        .withIndex('by_school_class', (q) =>
+          q
+            .eq('schoolId', identity.schoolId)
+            .eq('academicYear', args.academicYear)
+            .eq('className', args.className)
         )
         .order('desc')
         .collect()
@@ -452,9 +490,9 @@ export const getClassWeek = query({
 export const getEntryById = query({
   args: { entryId: v.id('classTimetableEntries') },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:operations:read');
     const entry = await ctx.db.get(args.entryId);
-    if (!entry) return null;
+    if (!entry || entry.schoolId !== identity.schoolId) return null;
     return enrichEntry(ctx, entry);
   }
 });
@@ -462,14 +500,14 @@ export const getEntryById = query({
 export const getOverrideById = query({
   args: { overrideId: v.id('operationsOverrides') },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:operations:read');
     const override = await ctx.db.get(args.overrideId);
-    if (!override) return null;
+    if (!override || override.schoolId !== identity.schoolId) return null;
 
     const [teachersById, studentsById, timeSlots] = await Promise.all([
-      loadTeachersById(ctx),
-      loadStudentsById(ctx),
-      loadTimeSlots(ctx)
+      loadTeachersById(ctx, identity.schoolId),
+      loadStudentsById(ctx, identity.schoolId),
+      loadTimeSlots(ctx, identity.schoolId)
     ]);
     const timeSlot = override.timeSlotId
       ? timeSlots.find((slot) => slot._id === override.timeSlotId)
@@ -504,15 +542,17 @@ export const getDayBoard = query({
     className: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:operations:read');
 
     const [timeSlots, teachersById, studentsById, overrides] = await Promise.all([
-      loadTimeSlots(ctx),
-      loadTeachersById(ctx),
-      loadStudentsById(ctx),
+      loadTimeSlots(ctx, identity.schoolId),
+      loadTeachersById(ctx, identity.schoolId),
+      loadStudentsById(ctx, identity.schoolId),
       ctx.db
         .query('operationsOverrides')
-        .withIndex('by_date', (q) => q.eq('overrideDate', args.date))
+        .withIndex('by_school_date', (q) =>
+          q.eq('schoolId', identity.schoolId).eq('overrideDate', args.date)
+        )
         .collect()
     ]);
     const weekday = weekdayFromDate(args.date);
@@ -521,8 +561,11 @@ export const getDayBoard = query({
       args.academicYear && args.className
         ? await ctx.db
             .query('classTimetableEntries')
-            .withIndex('by_class', (q) =>
-              q.eq('academicYear', args.academicYear!).eq('className', args.className!)
+            .withIndex('by_school_class', (q) =>
+              q
+                .eq('schoolId', identity.schoolId)
+                .eq('academicYear', args.academicYear!)
+                .eq('className', args.className!)
             )
             .order('desc')
             .collect()
@@ -626,17 +669,21 @@ export const upsertTimeSlot = mutation({
     isActive: v.boolean()
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:operations:write');
     const payload = normalizeTimeSlot(args);
 
     if (args.timeSlotId) {
       const existing = await ctx.db.get(args.timeSlotId);
-      if (!existing) throw new Error('Time slot not found.');
+      if (!existing || existing.schoolId !== identity.schoolId)
+        throw new Error('Time slot not found.');
       await ctx.db.patch(args.timeSlotId, payload);
       return { timeSlotId: args.timeSlotId };
     }
 
-    const timeSlotId = await ctx.db.insert('operationsTimeSlots', payload);
+    const timeSlotId = await ctx.db.insert('operationsTimeSlots', {
+      schoolId: identity.schoolId,
+      ...payload
+    });
     return { timeSlotId };
   }
 });
@@ -658,20 +705,32 @@ export const upsertClassEntry = mutation({
     note: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:operations:write');
     const payload = normalizeEntry(args);
+    const timeSlot = await ctx.db.get(args.timeSlotId);
+    const leadTeacher = args.leadTeacherId ? await ctx.db.get(args.leadTeacherId) : null;
+    if (
+      !timeSlot ||
+      timeSlot.schoolId !== identity.schoolId ||
+      (args.leadTeacherId && (!leadTeacher || leadTeacher.schoolId !== identity.schoolId))
+    )
+      throw new Error('Related record not found.');
 
     if (args.entryId) {
       const existing = await ctx.db.get(args.entryId);
-      if (!existing) throw new Error('Timetable entry not found.');
+      if (!existing || existing.schoolId !== identity.schoolId)
+        throw new Error('Timetable entry not found.');
       await ctx.db.patch(args.entryId, payload);
       return { entryId: args.entryId };
     }
 
     const duplicate = await ctx.db
       .query('classTimetableEntries')
-      .withIndex('by_class', (q) =>
-        q.eq('academicYear', payload.academicYear).eq('className', payload.className)
+      .withIndex('by_school_class', (q) =>
+        q
+          .eq('schoolId', identity.schoolId)
+          .eq('academicYear', payload.academicYear)
+          .eq('className', payload.className)
       )
       .collect();
     const conflict = duplicate.find(
@@ -681,7 +740,10 @@ export const upsertClassEntry = mutation({
       throw new Error('A timetable block already exists for that class, weekday, and time slot.');
     }
 
-    const entryId = await ctx.db.insert('classTimetableEntries', payload);
+    const entryId = await ctx.db.insert('classTimetableEntries', {
+      schoolId: identity.schoolId,
+      ...payload
+    });
     return { entryId };
   }
 });
@@ -689,9 +751,10 @@ export const upsertClassEntry = mutation({
 export const deleteClassEntry = mutation({
   args: { entryId: v.id('classTimetableEntries') },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:operations:write');
     const existing = await ctx.db.get(args.entryId);
-    if (!existing) throw new Error('Timetable entry not found.');
+    if (!existing || existing.schoolId !== identity.schoolId)
+      throw new Error('Timetable entry not found.');
     await ctx.db.delete(args.entryId);
     return { ok: true };
   }
@@ -711,8 +774,18 @@ export const createOverride = mutation({
     summary: v.string()
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
-    const overrideId = await ctx.db.insert('operationsOverrides', normalizeOverride(args));
+    const identity = await requirePermission(ctx, 'org:operations:write');
+    for (const id of [args.timeSlotId, args.teacherId, args.studentId]) {
+      if (id) {
+        const record = await ctx.db.get(id);
+        if (!record || record.schoolId !== identity.schoolId)
+          throw new Error('Related record not found.');
+      }
+    }
+    const overrideId = await ctx.db.insert('operationsOverrides', {
+      schoolId: identity.schoolId,
+      ...normalizeOverride(args)
+    });
     return { overrideId };
   }
 });
@@ -732,9 +805,17 @@ export const updateOverride = mutation({
     summary: v.string()
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:operations:write');
     const existing = await ctx.db.get(args.overrideId);
-    if (!existing) throw new Error('Override not found.');
+    if (!existing || existing.schoolId !== identity.schoolId)
+      throw new Error('Override not found.');
+    for (const id of [args.timeSlotId, args.teacherId, args.studentId]) {
+      if (id) {
+        const record = await ctx.db.get(id);
+        if (!record || record.schoolId !== identity.schoolId)
+          throw new Error('Related record not found.');
+      }
+    }
     await ctx.db.patch(args.overrideId, normalizeOverride(args));
     return { overrideId: args.overrideId };
   }
@@ -743,9 +824,10 @@ export const updateOverride = mutation({
 export const resolveOverride = mutation({
   args: { overrideId: v.id('operationsOverrides') },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:operations:write');
     const existing = await ctx.db.get(args.overrideId);
-    if (!existing) throw new Error('Override not found.');
+    if (!existing || existing.schoolId !== identity.schoolId)
+      throw new Error('Override not found.');
     await ctx.db.patch(args.overrideId, {
       status: 'Resolved',
       updatedAt: Date.now()

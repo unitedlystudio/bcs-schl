@@ -84,15 +84,17 @@ export const columns: ColumnDef<AccessRecord>[] = [
       cell.getValue<string>() || <span className='text-muted-foreground'>Not added</span>
   },
   {
-    id: 'password',
-    accessorKey: 'password',
-    header: 'PASSWORD',
-    cell: ({ cell }) =>
-      cell.getValue<string>() ? (
-        <span className='font-mono'>••••••••</span>
-      ) : (
-        <span className='text-muted-foreground'>Not added</span>
-      )
+    id: 'secretManager',
+    accessorKey: 'secretManager',
+    header: 'SECRET MANAGER',
+    cell: ({ row }) => (
+      <div className='flex flex-col font-mono text-xs'>
+        <span>{row.original.secretManager || 'Not configured'}</span>
+        <span className='text-muted-foreground'>
+          {row.original.secretReference || 'No reference'}
+        </span>
+      </div>
+    )
   },
   {
     id: 'listingUrl',

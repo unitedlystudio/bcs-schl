@@ -17,7 +17,7 @@ export function getConvexClient() {
   const url = normalizeConvexUrl(rawUrl);
 
   if (!convexClient || cachedConvexUrl !== url) {
-    convexClient = new ConvexReactClient(url);
+    convexClient = new ConvexReactClient(url, { expectAuth: true });
     cachedConvexUrl = url;
   }
 

@@ -3,7 +3,7 @@ import { v } from 'convex/values';
 
 export default defineSchema({
   conversations: defineTable({
-    orgId: v.optional(v.string()),
+    schoolId: v.id('schools'),
     participantUserIds: v.optional(v.array(v.string())),
     participantEmails: v.optional(v.array(v.string())),
     name: v.string(),
@@ -12,9 +12,12 @@ export default defineSchema({
     initials: v.string(),
     quickReplies: v.array(v.string()),
     updatedAt: v.number()
-  }).index('by_updatedAt', ['updatedAt']),
+  })
+    .index('by_school_updatedAt', ['schoolId', 'updatedAt'])
+    .index('by_updatedAt', ['updatedAt']),
 
   messages: defineTable({
+    schoolId: v.id('schools'),
     conversationId: v.id('conversations'),
     sender: v.union(v.literal('user'), v.literal('contact')),
     authorUserId: v.optional(v.string()),
@@ -34,9 +37,12 @@ export default defineSchema({
       )
     ),
     createdAt: v.number()
-  }).index('by_conversation', ['conversationId', 'createdAt']),
+  })
+    .index('by_school_conversation', ['schoolId', 'conversationId', 'createdAt'])
+    .index('by_conversation', ['conversationId', 'createdAt']),
 
   inboxItems: defineTable({
+    schoolId: v.id('schools'),
     title: v.string(),
     body: v.string(),
     status: v.union(v.literal('unread'), v.literal('read'), v.literal('archived')),
@@ -60,10 +66,13 @@ export default defineSchema({
       )
     )
   })
+    .index('by_school_createdAt', ['schoolId', 'createdAt'])
+    .index('by_school_status', ['schoolId', 'status', 'createdAt'])
     .index('by_createdAt', ['createdAt'])
     .index('by_status', ['status', 'createdAt']),
 
   accessRecords: defineTable({
+    schoolId: v.id('schools'),
     category: v.union(
       v.literal('Business Suite'),
       v.literal('Subscriptions'),
@@ -73,73 +82,102 @@ export default defineSchema({
     fullName: v.string(),
     loginUrl: v.string(),
     username: v.string(),
-    password: v.string(),
+    secretManager: v.string(),
+    secretReference: v.string(),
     listingUrl: v.string(),
     adminsAccess: v.string(),
     recoveryNumber: v.string(),
     status: v.union(v.literal('Needs setup'), v.literal('Partial'), v.literal('Ready')),
     sortOrder: v.number()
   })
+    .index('by_school_sortOrder', ['schoolId', 'sortOrder'])
+    .index('by_school_category', ['schoolId', 'category', 'sortOrder'])
+    .index('by_school_status', ['schoolId', 'status', 'sortOrder'])
     .index('by_sortOrder', ['sortOrder'])
     .index('by_category', ['category', 'sortOrder'])
     .index('by_status', ['status', 'sortOrder']),
 
-  schoolDashboardRoles: defineTable({
-    orgId: v.string(),
+  schools: defineTable({
+    key: v.string(),
     name: v.string(),
-    slug: v.string(),
-    permissions: v.array(v.string()),
-    updatedAt: v.number(),
-    updatedByUserId: v.string()
-  })
-    .index('by_org_and_slug', ['orgId', 'slug'])
-    .index('by_org_and_name', ['orgId', 'name'])
-    .index('by_org_and_updatedAt', ['orgId', 'updatedAt']),
+    createdAt: v.number()
+  }).index('by_key', ['key']),
 
-  schoolStaffAccessProfiles: defineTable({
-    orgId: v.string(),
-    userId: v.string(),
-    dashboardRoleLabel: v.string(),
-    roleTemplateId: v.optional(v.id('schoolDashboardRoles')),
-    permissions: v.array(v.string()),
-    updatedAt: v.number(),
-    updatedByUserId: v.string()
-  })
-    .index('by_org_and_user', ['orgId', 'userId'])
-    .index('by_org_and_roleTemplate', ['orgId', 'roleTemplateId'])
-    .index('by_org_and_updatedAt', ['orgId', 'updatedAt']),
-
-  schoolStaffInvites: defineTable({
-    orgId: v.string(),
+  appUsers: defineTable({
+    schoolId: v.id('schools'),
+    authUserId: v.string(),
     email: v.string(),
     normalizedEmail: v.string(),
-    clerkInvitationId: v.string(),
-    clerkRole: v.string(),
-    batchLabel: v.optional(v.string()),
-    dashboardRoleLabel: v.string(),
-    roleTemplateId: v.optional(v.id('schoolDashboardRoles')),
+    name: v.optional(v.string()),
+    status: v.union(v.literal('active'), v.literal('disabled')),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index('by_school', ['schoolId'])
+    .index('by_authUserId', ['authUserId'])
+    .index('by_normalizedEmail', ['normalizedEmail']),
+
+  roles: defineTable({
+    key: v.string(),
+    name: v.string(),
     permissions: v.array(v.string()),
+    system: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    updatedBy: v.optional(v.id('appUsers'))
+  })
+    .index('by_key', ['key'])
+    .index('by_updatedAt', ['updatedAt']),
+
+  userRoles: defineTable({
+    userId: v.id('appUsers'),
+    roleId: v.id('roles'),
+    grantedBy: v.optional(v.id('appUsers')),
+    source: v.union(v.literal('bootstrap'), v.literal('invite'), v.literal('admin')),
+    createdAt: v.number()
+  })
+    .index('by_user', ['userId'])
+    .index('by_role', ['roleId'])
+    .index('by_user_role', ['userId', 'roleId']),
+
+  invites: defineTable({
+    schoolId: v.id('schools'),
+    email: v.string(),
+    normalizedEmail: v.string(),
+    roleId: v.id('roles'),
+    tokenDigest: v.string(),
+    tokenVersion: v.number(),
     status: v.union(
       v.literal('pending'),
       v.literal('accepted'),
       v.literal('revoked'),
       v.literal('expired')
     ),
-    invitedByUserId: v.string(),
-    invitedAt: v.number(),
-    lastSentAt: v.number(),
-    sendCount: v.number(),
+    expiresAt: v.number(),
+    createdBy: v.id('appUsers'),
+    createdAt: v.number(),
     updatedAt: v.number(),
-    claimedByUserId: v.optional(v.string()),
+    lastPresentedAt: v.number(),
+    claimedByUserId: v.optional(v.id('appUsers')),
     acceptedAt: v.optional(v.number()),
     revokedAt: v.optional(v.number())
   })
-    .index('by_org_and_email', ['orgId', 'normalizedEmail'])
-    .index('by_org_and_status', ['orgId', 'status'])
-    .index('by_org_and_updatedAt', ['orgId', 'updatedAt'])
-    .index('by_org_and_clerkInvitationId', ['orgId', 'clerkInvitationId']),
+    .index('by_school_createdAt', ['schoolId', 'createdAt'])
+    .index('by_tokenDigest', ['tokenDigest'])
+    .index('by_normalizedEmail_status', ['normalizedEmail', 'status'])
+    .index('by_status_expiresAt', ['status', 'expiresAt'])
+    .index('by_createdAt', ['createdAt']),
+
+  authAuditEvents: defineTable({
+    actorUserId: v.optional(v.id('appUsers')),
+    subjectUserId: v.optional(v.id('appUsers')),
+    event: v.string(),
+    inviteId: v.optional(v.id('invites')),
+    createdAt: v.number()
+  }).index('by_createdAt', ['createdAt']),
 
   students: defineTable({
+    schoolId: v.id('schools'),
     preferredName: v.string(),
     fullName: v.string(),
     sex: v.union(v.literal('M'), v.literal('F'), v.literal('Unknown')),
@@ -156,12 +194,17 @@ export default defineSchema({
     notesSummary: v.optional(v.string()),
     sortName: v.string()
   })
+    .index('by_school_sortName', ['schoolId', 'sortName'])
+    .index('by_school_className', ['schoolId', 'className', 'sortName'])
+    .index('by_school_status', ['schoolId', 'status', 'sortName'])
+    .index('by_school_academicYear', ['schoolId', 'academicYear', 'className', 'sortName'])
     .index('by_sortName', ['sortName'])
     .index('by_className', ['className', 'sortName'])
     .index('by_status', ['status', 'sortName'])
     .index('by_academicYear', ['academicYear', 'className', 'sortName']),
 
   teachers: defineTable({
+    schoolId: v.id('schools'),
     fullName: v.string(),
     preferredName: v.string(),
     role: v.union(
@@ -176,10 +219,13 @@ export default defineSchema({
     phone: v.optional(v.string()),
     sortName: v.string()
   })
+    .index('by_school_sortName', ['schoolId', 'sortName'])
+    .index('by_school_academicYear', ['schoolId', 'academicYear', 'sortName'])
     .index('by_sortName', ['sortName'])
     .index('by_academicYear', ['academicYear', 'sortName']),
 
   concernCases: defineTable({
+    schoolId: v.id('schools'),
     studentId: v.id('students'),
     title: v.string(),
     category: v.union(
@@ -209,6 +255,11 @@ export default defineSchema({
     updatedAt: v.number(),
     sortKey: v.string()
   })
+    .index('by_school_student', ['schoolId', 'studentId', 'updatedAt'])
+    .index('by_school_status', ['schoolId', 'status', 'updatedAt'])
+    .index('by_school_severity', ['schoolId', 'severity', 'updatedAt'])
+    .index('by_school_assignedTeacher', ['schoolId', 'assignedTeacherId', 'updatedAt'])
+    .index('by_school_updatedAt', ['schoolId', 'updatedAt'])
     .index('by_student', ['studentId', 'updatedAt'])
     .index('by_status', ['status', 'updatedAt'])
     .index('by_severity', ['severity', 'updatedAt'])
@@ -216,22 +267,29 @@ export default defineSchema({
     .index('by_updatedAt', ['updatedAt']),
 
   concernCaseUpdates: defineTable({
+    schoolId: v.id('schools'),
     caseId: v.id('concernCases'),
     note: v.string(),
     authorLabel: v.string(),
     createdAt: v.number()
-  }).index('by_case', ['caseId', 'createdAt']),
+  })
+    .index('by_school_case', ['schoolId', 'caseId', 'createdAt'])
+    .index('by_case', ['caseId', 'createdAt']),
 
   financeFamilyAccounts: defineTable({
+    schoolId: v.id('schools'),
     accountLabel: v.string(),
     primaryGuardianName: v.string(),
     primaryGuardianPhone: v.string(),
     updatedAt: v.number()
   })
+    .index('by_school_label', ['schoolId', 'accountLabel', 'updatedAt'])
+    .index('by_school_updatedAt', ['schoolId', 'updatedAt'])
     .index('by_label', ['accountLabel', 'updatedAt'])
     .index('by_updatedAt', ['updatedAt']),
 
   studentBillingProfiles: defineTable({
+    schoolId: v.id('schools'),
     studentId: v.id('students'),
     familyAccountId: v.optional(v.id('financeFamilyAccounts')),
     baseMonthlyFee: v.number(),
@@ -301,12 +359,17 @@ export default defineSchema({
     notesSummary: v.optional(v.string()),
     updatedAt: v.number()
   })
+    .index('by_school_student', ['schoolId', 'studentId', 'updatedAt'])
+    .index('by_school_familyAccount', ['schoolId', 'familyAccountId', 'updatedAt'])
+    .index('by_school_status', ['schoolId', 'billingStatus', 'updatedAt'])
+    .index('by_school_updatedAt', ['schoolId', 'updatedAt'])
     .index('by_student', ['studentId', 'updatedAt'])
     .index('by_familyAccount', ['familyAccountId', 'updatedAt'])
     .index('by_status', ['billingStatus', 'updatedAt'])
     .index('by_updatedAt', ['updatedAt']),
 
   financeCharges: defineTable({
+    schoolId: v.id('schools'),
     billingProfileId: v.id('studentBillingProfiles'),
     title: v.string(),
     category: v.union(
@@ -331,11 +394,15 @@ export default defineSchema({
     ),
     updatedAt: v.number()
   })
+    .index('by_school_profile', ['schoolId', 'billingProfileId', 'updatedAt'])
+    .index('by_school_status', ['schoolId', 'status', 'updatedAt'])
+    .index('by_school_updatedAt', ['schoolId', 'updatedAt'])
     .index('by_profile', ['billingProfileId', 'updatedAt'])
     .index('by_status', ['status', 'updatedAt'])
     .index('by_updatedAt', ['updatedAt']),
 
   financePayments: defineTable({
+    schoolId: v.id('schools'),
     billingProfileId: v.id('studentBillingProfiles'),
     amount: v.number(),
     paidAt: v.string(),
@@ -350,10 +417,13 @@ export default defineSchema({
     note: v.optional(v.string()),
     createdAt: v.number()
   })
+    .index('by_school_profile', ['schoolId', 'billingProfileId', 'createdAt'])
+    .index('by_school_createdAt', ['schoolId', 'createdAt'])
     .index('by_profile', ['billingProfileId', 'createdAt'])
     .index('by_createdAt', ['createdAt']),
 
   financeReminderLogs: defineTable({
+    schoolId: v.id('schools'),
     billingProfileId: v.id('studentBillingProfiles'),
     reminderDate: v.string(),
     channel: v.union(
@@ -375,22 +445,30 @@ export default defineSchema({
     authorLabel: v.string(),
     createdAt: v.number()
   })
+    .index('by_school_profile', ['schoolId', 'billingProfileId', 'createdAt'])
+    .index('by_school_createdAt', ['schoolId', 'createdAt'])
     .index('by_profile', ['billingProfileId', 'createdAt'])
     .index('by_createdAt', ['createdAt']),
 
   financePaymentApplications: defineTable({
+    schoolId: v.id('schools'),
     billingProfileId: v.id('studentBillingProfiles'),
     paymentId: v.id('financePayments'),
     chargeId: v.id('financeCharges'),
     amount: v.number(),
     appliedAt: v.number()
   })
+    .index('by_school_profile', ['schoolId', 'billingProfileId', 'appliedAt'])
+    .index('by_school_payment', ['schoolId', 'paymentId', 'appliedAt'])
+    .index('by_school_charge', ['schoolId', 'chargeId', 'appliedAt'])
+    .index('by_school_appliedAt', ['schoolId', 'appliedAt'])
     .index('by_profile', ['billingProfileId', 'appliedAt'])
     .index('by_payment', ['paymentId', 'appliedAt'])
     .index('by_charge', ['chargeId', 'appliedAt'])
     .index('by_appliedAt', ['appliedAt']),
 
   admissionsEnquiries: defineTable({
+    schoolId: v.id('schools'),
     studentName: v.string(),
     familyName: v.string(),
     classInterest: v.string(),
@@ -414,6 +492,11 @@ export default defineSchema({
     convertedAt: v.optional(v.number()),
     updatedAt: v.number()
   })
+    .index('by_school_sortName', ['schoolId', 'sortName'])
+    .index('by_school_stage', ['schoolId', 'stage', 'updatedAt'])
+    .index('by_school_status', ['schoolId', 'status', 'updatedAt'])
+    .index('by_school_updatedAt', ['schoolId', 'updatedAt'])
+    .index('by_school_convertedStudent', ['schoolId', 'convertedStudentId', 'updatedAt'])
     .index('by_sortName', ['sortName'])
     .index('by_stage', ['stage', 'updatedAt'])
     .index('by_status', ['status', 'updatedAt'])
@@ -421,6 +504,7 @@ export default defineSchema({
     .index('by_convertedStudent', ['convertedStudentId', 'updatedAt']),
 
   attendanceSessions: defineTable({
+    schoolId: v.id('schools'),
     className: v.string(),
     sessionDate: v.string(),
     status: v.union(v.literal('Draft'), v.literal('In progress'), v.literal('Completed')),
@@ -428,11 +512,15 @@ export default defineSchema({
     sortKey: v.string(),
     updatedAt: v.number()
   })
+    .index('by_school_sortKey', ['schoolId', 'sortKey'])
+    .index('by_school_classAndDate', ['schoolId', 'className', 'sessionDate'])
+    .index('by_school_updatedAt', ['schoolId', 'updatedAt'])
     .index('by_sortKey', ['sortKey'])
     .index('by_classAndDate', ['className', 'sessionDate'])
     .index('by_updatedAt', ['updatedAt']),
 
   attendanceRecords: defineTable({
+    schoolId: v.id('schools'),
     sessionId: v.id('attendanceSessions'),
     studentId: v.id('students'),
     status: v.union(
@@ -444,11 +532,15 @@ export default defineSchema({
     note: v.optional(v.string()),
     updatedAt: v.number()
   })
+    .index('by_school_session', ['schoolId', 'sessionId', 'updatedAt'])
+    .index('by_school_session_student', ['schoolId', 'sessionId', 'studentId'])
+    .index('by_school_student', ['schoolId', 'studentId', 'updatedAt'])
     .index('by_session', ['sessionId', 'updatedAt'])
     .index('by_session_student', ['sessionId', 'studentId'])
     .index('by_student', ['studentId', 'updatedAt']),
 
   operationsTimeSlots: defineTable({
+    schoolId: v.id('schools'),
     label: v.string(),
     startTime: v.string(),
     endTime: v.string(),
@@ -464,10 +556,13 @@ export default defineSchema({
     sortOrder: v.number(),
     isActive: v.boolean()
   })
+    .index('by_school_sortOrder', ['schoolId', 'sortOrder'])
+    .index('by_school_blockType', ['schoolId', 'blockType', 'sortOrder'])
     .index('by_sortOrder', ['sortOrder'])
     .index('by_blockType', ['blockType', 'sortOrder']),
 
   classTimetableEntries: defineTable({
+    schoolId: v.id('schools'),
     academicYear: v.string(),
     className: v.string(),
     weekday: v.union(
@@ -488,11 +583,15 @@ export default defineSchema({
     note: v.optional(v.string()),
     updatedAt: v.number()
   })
+    .index('by_school_class', ['schoolId', 'academicYear', 'className', 'updatedAt'])
+    .index('by_school_timeSlot', ['schoolId', 'timeSlotId', 'updatedAt'])
+    .index('by_school_updatedAt', ['schoolId', 'updatedAt'])
     .index('by_class', ['academicYear', 'className', 'updatedAt'])
     .index('by_timeSlot', ['timeSlotId', 'updatedAt'])
     .index('by_updatedAt', ['updatedAt']),
 
   operationsOverrides: defineTable({
+    schoolId: v.id('schools'),
     overrideDate: v.string(),
     academicYear: v.optional(v.string()),
     className: v.optional(v.string()),
@@ -514,12 +613,17 @@ export default defineSchema({
     summary: v.string(),
     updatedAt: v.number()
   })
+    .index('by_school_date', ['schoolId', 'overrideDate', 'updatedAt'])
+    .index('by_school_class_date', ['schoolId', 'className', 'overrideDate', 'updatedAt'])
+    .index('by_school_status', ['schoolId', 'status', 'updatedAt'])
+    .index('by_school_updatedAt', ['schoolId', 'updatedAt'])
     .index('by_date', ['overrideDate', 'updatedAt'])
     .index('by_class_date', ['className', 'overrideDate', 'updatedAt'])
     .index('by_status', ['status', 'updatedAt'])
     .index('by_updatedAt', ['updatedAt']),
 
   staffLeaveRequests: defineTable({
+    schoolId: v.id('schools'),
     teacherId: v.id('teachers'),
     leaveType: v.union(
       v.literal('Annual'),
@@ -543,12 +647,17 @@ export default defineSchema({
     requestedBy: v.string(),
     updatedAt: v.number()
   })
+    .index('by_school_teacher', ['schoolId', 'teacherId', 'updatedAt'])
+    .index('by_school_status', ['schoolId', 'status', 'updatedAt'])
+    .index('by_school_startDate', ['schoolId', 'startDate', 'updatedAt'])
+    .index('by_school_updatedAt', ['schoolId', 'updatedAt'])
     .index('by_teacher', ['teacherId', 'updatedAt'])
     .index('by_status', ['status', 'updatedAt'])
     .index('by_startDate', ['startDate', 'updatedAt'])
     .index('by_updatedAt', ['updatedAt']),
 
   staffCoverAssignments: defineTable({
+    schoolId: v.id('schools'),
     leaveRequestId: v.id('staffLeaveRequests'),
     coverDate: v.string(),
     className: v.optional(v.string()),
@@ -564,6 +673,12 @@ export default defineSchema({
     note: v.optional(v.string()),
     updatedAt: v.number()
   })
+    .index('by_school_leaveRequest', ['schoolId', 'leaveRequestId', 'updatedAt'])
+    .index('by_school_coverDate', ['schoolId', 'coverDate', 'updatedAt'])
+    .index('by_school_status', ['schoolId', 'status', 'updatedAt'])
+    .index('by_school_primaryTeacher', ['schoolId', 'primaryTeacherId', 'updatedAt'])
+    .index('by_school_coverTeacher', ['schoolId', 'coverTeacherId', 'updatedAt'])
+    .index('by_school_updatedAt', ['schoolId', 'updatedAt'])
     .index('by_leaveRequest', ['leaveRequestId', 'updatedAt'])
     .index('by_coverDate', ['coverDate', 'updatedAt'])
     .index('by_status', ['status', 'updatedAt'])

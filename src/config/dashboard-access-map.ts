@@ -11,7 +11,7 @@ export const dashboardNavGroups: NavGroup[] = [
         icon: 'dashboard',
         isActive: false,
         shortcut: ['d', 'd'],
-        access: { requireOrg: true, permission: 'org:overview:read' },
+        access: { requireMembership: true, permission: 'org:overview:read' },
         items: []
       },
       {
@@ -20,7 +20,7 @@ export const dashboardNavGroups: NavGroup[] = [
         icon: 'teams',
         isActive: false,
         shortcut: ['s', 's'],
-        access: { requireOrg: true, permission: 'org:students:read' },
+        access: { requireMembership: true, permission: 'org:students:read' },
         items: []
       },
       {
@@ -29,7 +29,7 @@ export const dashboardNavGroups: NavGroup[] = [
         icon: 'userPen',
         isActive: false,
         shortcut: ['t', 'e'],
-        access: { requireOrg: true, permission: 'org:teachers:read' },
+        access: { requireMembership: true, permission: 'org:teachers:read' },
         items: []
       },
       {
@@ -38,7 +38,7 @@ export const dashboardNavGroups: NavGroup[] = [
         icon: 'forms',
         isActive: false,
         shortcut: ['m', 'a'],
-        access: { requireOrg: true, permission: 'org:admissions:read' },
+        access: { requireMembership: true, permission: 'org:admissions:read' },
         items: []
       }
     ]
@@ -52,7 +52,7 @@ export const dashboardNavGroups: NavGroup[] = [
         icon: 'calendar',
         isActive: false,
         shortcut: ['t', 't'],
-        access: { requireOrg: true, permission: 'org:attendance:read' },
+        access: { requireMembership: true, permission: 'org:attendance:read' },
         items: []
       },
       {
@@ -61,7 +61,7 @@ export const dashboardNavGroups: NavGroup[] = [
         icon: 'warning',
         isActive: false,
         shortcut: ['c', 'o'],
-        access: { requireOrg: true, permission: 'org:concerns:read' },
+        access: { requireMembership: true, permission: 'org:concerns:read' },
         items: []
       },
       {
@@ -70,7 +70,7 @@ export const dashboardNavGroups: NavGroup[] = [
         icon: 'calendar',
         isActive: false,
         shortcut: ['o', 'p'],
-        access: { requireOrg: true, permission: 'org:operations:read' },
+        access: { requireMembership: true, permission: 'org:operations:read' },
         items: []
       },
       {
@@ -79,7 +79,7 @@ export const dashboardNavGroups: NavGroup[] = [
         icon: 'userPen',
         isActive: false,
         shortcut: ['s', 't'],
-        access: { requireOrg: true, permission: 'org:staffing:read' },
+        access: { requireMembership: true, permission: 'org:staffing:read' },
         items: []
       }
     ]
@@ -93,7 +93,7 @@ export const dashboardNavGroups: NavGroup[] = [
         icon: 'billing',
         isActive: false,
         shortcut: ['f', 'i'],
-        access: { requireOrg: true, permission: 'org:finance:read' },
+        access: { requireMembership: true, permission: 'org:finance:read' },
         items: []
       }
     ]
@@ -107,7 +107,7 @@ export const dashboardNavGroups: NavGroup[] = [
         icon: 'notification',
         isActive: false,
         shortcut: ['i', 'i'],
-        access: { requireOrg: true, permission: 'org:notifications:read' },
+        access: { requireMembership: true, permission: 'org:notifications:read' },
         items: []
       },
       {
@@ -116,7 +116,7 @@ export const dashboardNavGroups: NavGroup[] = [
         icon: 'chat',
         isActive: false,
         shortcut: ['c', 'c'],
-        access: { requireOrg: true, permission: 'org:chat:read' },
+        access: { requireMembership: true, permission: 'org:chat:read' },
         items: []
       }
     ]
@@ -130,16 +130,16 @@ export const dashboardNavGroups: NavGroup[] = [
         icon: 'lock',
         isActive: false,
         shortcut: ['a', 'a'],
-        access: { requireOrg: true, permission: 'org:access:read' },
+        access: { requireMembership: true, permission: 'org:access:read' },
         items: []
       },
       {
-        title: 'School Organisation',
-        url: '/dashboard/workspaces/team',
+        title: 'School access',
+        url: '/dashboard/school-access',
         icon: 'settings',
         isActive: false,
         shortcut: ['o', 'g'],
-        access: { requireOrg: true, permission: 'org:admin:manage' },
+        access: { requireMembership: true, permission: 'org:admin:manage' },
         items: []
       }
     ]

@@ -4,6 +4,7 @@ import type { Id, Doc } from './_generated/dataModel';
 import { v } from 'convex/values';
 
 import { requireFinanceReadUser, requireFinanceWriteUser } from './lib/auth';
+import { resolveSchoolRelationship } from './lib/schoolRelationships';
 
 const BILLING_STATUSES = ['Current', 'Overdue', 'Scholarship', 'Custom'] as const;
 const SCHOLARSHIP_TYPES = [
@@ -374,6 +375,7 @@ async function ensureFamilyAccount(
   }
 
   const payload = {
+    schoolId: student.schoolId,
     accountLabel,
     primaryGuardianName: student.guardianName.trim(),
     primaryGuardianPhone: student.guardianPhone.trim(),
@@ -381,12 +383,15 @@ async function ensureFamilyAccount(
   };
 
   if (existingProfile?.familyAccountId) {
-    const existingAccount = await ctx.db.get(existingProfile.familyAccountId);
+    const existingAccount = resolveSchoolRelationship(
+      student.schoolId,
+      await ctx.db.get(existingProfile.familyAccountId)
+    );
     if (existingAccount) {
       const linkedProfiles = await ctx.db
         .query('studentBillingProfiles')
-        .withIndex('by_familyAccount', (q) =>
-          q.eq('familyAccountId', existingProfile.familyAccountId)
+        .withIndex('by_school_familyAccount', (q) =>
+          q.eq('schoolId', student.schoolId).eq('familyAccountId', existingProfile.familyAccountId)
         )
         .collect();
       if (existingAccount.accountLabel === accountLabel || linkedProfiles.length <= 1) {
@@ -398,7 +403,9 @@ async function ensureFamilyAccount(
 
   const existingByLabel = await ctx.db
     .query('financeFamilyAccounts')
-    .withIndex('by_label', (q) => q.eq('accountLabel', accountLabel))
+    .withIndex('by_school_label', (q) =>
+      q.eq('schoolId', student.schoolId).eq('accountLabel', accountLabel)
+    )
     .order('desc')
     .first();
   if (existingByLabel) {
@@ -436,14 +443,17 @@ type FamilyAccountSummary = {
 
 async function buildFamilyAccountSummary(
   ctx: QueryCtx | MutationCtx,
-  familyAccountId: Id<'financeFamilyAccounts'>
+  familyAccountId: Id<'financeFamilyAccounts'>,
+  expectedSchoolId: Id<'schools'>
 ): Promise<FamilyAccountSummary | null> {
-  const account = await ctx.db.get(familyAccountId);
+  const account = resolveSchoolRelationship(expectedSchoolId, await ctx.db.get(familyAccountId));
   if (!account) return null;
 
   const profiles = await ctx.db
     .query('studentBillingProfiles')
-    .withIndex('by_familyAccount', (q) => q.eq('familyAccountId', familyAccountId))
+    .withIndex('by_school_familyAccount', (q) =>
+      q.eq('schoolId', account.schoolId).eq('familyAccountId', familyAccountId)
+    )
     .order('desc')
     .collect();
   const enrichedProfiles = (
@@ -579,27 +589,40 @@ async function enrichProfile(
   ctx: QueryCtx | MutationCtx,
   profile: Doc<'studentBillingProfiles'>
 ): Promise<EnrichedProfile | null> {
-  const student = await ctx.db.get(profile.studentId);
+  const student = resolveSchoolRelationship(profile.schoolId, await ctx.db.get(profile.studentId));
   if (!student) return null;
+
+  const familyAccount = profile.familyAccountId
+    ? resolveSchoolRelationship(profile.schoolId, await ctx.db.get(profile.familyAccountId))
+    : null;
+  if (profile.familyAccountId && !familyAccount) return null;
 
   const charges = await ctx.db
     .query('financeCharges')
-    .withIndex('by_profile', (q) => q.eq('billingProfileId', profile._id))
+    .withIndex('by_school_profile', (q) =>
+      q.eq('schoolId', profile.schoolId).eq('billingProfileId', profile._id)
+    )
     .order('desc')
     .collect();
   const payments = await ctx.db
     .query('financePayments')
-    .withIndex('by_profile', (q) => q.eq('billingProfileId', profile._id))
+    .withIndex('by_school_profile', (q) =>
+      q.eq('schoolId', profile.schoolId).eq('billingProfileId', profile._id)
+    )
     .order('desc')
     .collect();
   const reminders = await ctx.db
     .query('financeReminderLogs')
-    .withIndex('by_profile', (q) => q.eq('billingProfileId', profile._id))
+    .withIndex('by_school_profile', (q) =>
+      q.eq('schoolId', profile.schoolId).eq('billingProfileId', profile._id)
+    )
     .order('desc')
     .collect();
   const applications = await ctx.db
     .query('financePaymentApplications')
-    .withIndex('by_profile', (q) => q.eq('billingProfileId', profile._id))
+    .withIndex('by_school_profile', (q) =>
+      q.eq('schoolId', profile.schoolId).eq('billingProfileId', profile._id)
+    )
     .collect();
   const appliedByChargeId = new Map<string, number>();
   for (const application of applications) {
@@ -608,11 +631,12 @@ async function enrichProfile(
       (appliedByChargeId.get(application.chargeId) ?? 0) + application.amount
     );
   }
-  const familyAccount = profile.familyAccountId ? await ctx.db.get(profile.familyAccountId) : null;
   const familyProfiles = profile.familyAccountId
     ? await ctx.db
         .query('studentBillingProfiles')
-        .withIndex('by_familyAccount', (q) => q.eq('familyAccountId', profile.familyAccountId))
+        .withIndex('by_school_familyAccount', (q) =>
+          q.eq('schoolId', profile.schoolId).eq('familyAccountId', profile.familyAccountId)
+        )
         .collect()
     : [];
   // eslint-disable-next-line unicorn/no-array-sort
@@ -685,11 +709,11 @@ function isProfile(value: EnrichedProfile | null): value is EnrichedProfile {
 export const list = query({
   args: { search: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    await requireFinanceReadUser(ctx);
+    const identity = await requireFinanceReadUser(ctx);
 
     const profiles = await ctx.db
       .query('studentBillingProfiles')
-      .withIndex('by_updatedAt')
+      .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
       .order('desc')
       .collect();
 
@@ -703,31 +727,31 @@ export const list = query({
 export const summary = query({
   args: {},
   handler: async (ctx) => {
-    await requireFinanceReadUser(ctx);
+    const identity = await requireFinanceReadUser(ctx);
 
     const profiles = await ctx.db
       .query('studentBillingProfiles')
-      .withIndex('by_updatedAt')
+      .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
       .order('desc')
       .collect();
     const charges = await ctx.db
       .query('financeCharges')
-      .withIndex('by_updatedAt')
+      .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
       .order('desc')
       .collect();
     const applications = await ctx.db
       .query('financePaymentApplications')
-      .withIndex('by_appliedAt')
+      .withIndex('by_school_appliedAt', (q) => q.eq('schoolId', identity.schoolId))
       .order('desc')
       .collect();
     const familyAccounts = await ctx.db
       .query('financeFamilyAccounts')
-      .withIndex('by_updatedAt')
+      .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
       .order('desc')
       .collect();
     const payments = await ctx.db
       .query('financePayments')
-      .withIndex('by_createdAt')
+      .withIndex('by_school_createdAt', (q) => q.eq('schoolId', identity.schoolId))
       .order('desc')
       .collect();
 
@@ -771,15 +795,17 @@ export const summary = query({
 export const familyAccountsOverview = query({
   args: {},
   handler: async (ctx) => {
-    await requireFinanceReadUser(ctx);
+    const identity = await requireFinanceReadUser(ctx);
 
     const accounts = await ctx.db
       .query('financeFamilyAccounts')
-      .withIndex('by_updatedAt')
+      .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
       .order('desc')
       .collect();
     return (
-      await Promise.all(accounts.map((account) => buildFamilyAccountSummary(ctx, account._id)))
+      await Promise.all(
+        accounts.map((account) => buildFamilyAccountSummary(ctx, account._id, identity.schoolId))
+      )
     ).filter((account): account is NonNullable<typeof account> => account !== null);
   }
 });
@@ -787,12 +813,12 @@ export const familyAccountsOverview = query({
 export const ledgerActivity = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
-    await requireFinanceReadUser(ctx);
+    const identity = await requireFinanceReadUser(ctx);
 
     const limit = Math.max(1, Math.min(Math.floor(args.limit ?? 12), 50));
     const profiles = await ctx.db
       .query('studentBillingProfiles')
-      .withIndex('by_updatedAt')
+      .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
       .order('desc')
       .collect();
 
@@ -802,7 +828,10 @@ export const ledgerActivity = query({
     >();
 
     for (const profile of profiles) {
-      const student = await ctx.db.get(profile.studentId);
+      const student = resolveSchoolRelationship(
+        identity.schoolId,
+        await ctx.db.get(profile.studentId)
+      );
       if (!student) continue;
       studentByProfileId.set(profile._id, {
         studentName: student.fullName,
@@ -812,7 +841,11 @@ export const ledgerActivity = query({
     }
 
     const charges = (
-      await ctx.db.query('financeCharges').withIndex('by_updatedAt').order('desc').collect()
+      await ctx.db
+        .query('financeCharges')
+        .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
+        .order('desc')
+        .collect()
     )
       .map((charge) => {
         const student = studentByProfileId.get(charge.billingProfileId);
@@ -838,7 +871,11 @@ export const ledgerActivity = query({
       .slice(0, limit);
 
     const payments = (
-      await ctx.db.query('financePayments').withIndex('by_createdAt').order('desc').collect()
+      await ctx.db
+        .query('financePayments')
+        .withIndex('by_school_createdAt', (q) => q.eq('schoolId', identity.schoolId))
+        .order('desc')
+        .collect()
     )
       .map((payment) => {
         const student = studentByProfileId.get(payment.billingProfileId);
@@ -862,7 +899,7 @@ export const ledgerActivity = query({
 
     const reminderLogs = await ctx.db
       .query('financeReminderLogs')
-      .withIndex('by_createdAt')
+      .withIndex('by_school_createdAt', (q) => q.eq('schoolId', identity.schoolId))
       .order('desc')
       .collect();
     const reminders = [...reminderLogs]
@@ -899,32 +936,41 @@ export const ledgerActivity = query({
 
 async function loadProfileDetail(
   ctx: QueryCtx | MutationCtx,
-  billingProfileId: Id<'studentBillingProfiles'>
+  billingProfileId: Id<'studentBillingProfiles'>,
+  schoolId: Id<'schools'>
 ): Promise<FinanceProfileDetail | null> {
   const profile = await ctx.db.get(billingProfileId);
-  if (!profile) return null;
+  if (!profile || profile.schoolId !== schoolId) return null;
 
   const enriched = await enrichProfile(ctx, profile);
   if (!enriched) return null;
 
   const charges = await ctx.db
     .query('financeCharges')
-    .withIndex('by_profile', (q) => q.eq('billingProfileId', billingProfileId))
+    .withIndex('by_school_profile', (q) =>
+      q.eq('schoolId', schoolId).eq('billingProfileId', billingProfileId)
+    )
     .order('desc')
     .collect();
   const payments = await ctx.db
     .query('financePayments')
-    .withIndex('by_profile', (q) => q.eq('billingProfileId', billingProfileId))
+    .withIndex('by_school_profile', (q) =>
+      q.eq('schoolId', schoolId).eq('billingProfileId', billingProfileId)
+    )
     .order('desc')
     .collect();
   const reminders = await ctx.db
     .query('financeReminderLogs')
-    .withIndex('by_profile', (q) => q.eq('billingProfileId', billingProfileId))
+    .withIndex('by_school_profile', (q) =>
+      q.eq('schoolId', schoolId).eq('billingProfileId', billingProfileId)
+    )
     .order('desc')
     .collect();
   const applications = await ctx.db
     .query('financePaymentApplications')
-    .withIndex('by_profile', (q) => q.eq('billingProfileId', billingProfileId))
+    .withIndex('by_school_profile', (q) =>
+      q.eq('schoolId', schoolId).eq('billingProfileId', billingProfileId)
+    )
     .collect();
   const appliedByChargeId = new Map<string, number>();
   const appliedByPaymentId = new Map<string, number>();
@@ -946,7 +992,11 @@ async function loadProfileDetail(
   // eslint-disable-next-line unicorn/no-array-sort
   const sortedReminders = [...reminders].sort(compareReminderRecency);
   const familyAccount = enriched.familyAccountId
-    ? await buildFamilyAccountSummary(ctx, enriched.familyAccountId as Id<'financeFamilyAccounts'>)
+    ? await buildFamilyAccountSummary(
+        ctx,
+        enriched.familyAccountId as Id<'financeFamilyAccounts'>,
+        schoolId
+      )
     : null;
 
   const applicationsByPaymentId = new Map<string, typeof applications>();
@@ -1062,22 +1112,24 @@ async function loadProfileDetail(
 export const getByProfileId = query({
   args: { billingProfileId: v.id('studentBillingProfiles') },
   handler: async (ctx, args) => {
-    await requireFinanceReadUser(ctx);
-    return await loadProfileDetail(ctx, args.billingProfileId);
+    const identity = await requireFinanceReadUser(ctx);
+    return await loadProfileDetail(ctx, args.billingProfileId, identity.schoolId);
   }
 });
 
 export const getByStudentId = query({
   args: { studentId: v.id('students') },
   handler: async (ctx, args) => {
-    await requireFinanceReadUser(ctx);
+    const identity = await requireFinanceReadUser(ctx);
     const profile = await ctx.db
       .query('studentBillingProfiles')
-      .withIndex('by_student', (q) => q.eq('studentId', args.studentId))
+      .withIndex('by_school_student', (q) =>
+        q.eq('schoolId', identity.schoolId).eq('studentId', args.studentId)
+      )
       .order('desc')
       .first();
     if (!profile) return null;
-    return await loadProfileDetail(ctx, profile._id);
+    return await loadProfileDetail(ctx, profile._id, identity.schoolId);
   }
 });
 
@@ -1105,13 +1157,19 @@ async function applyPaymentToCharges(
   paymentId: Id<'financePayments'>,
   amount: number
 ) {
+  const profile = await ctx.db.get(billingProfileId);
+  if (!profile) throw new Error('Billing profile not found.');
   const charges = await ctx.db
     .query('financeCharges')
-    .withIndex('by_profile', (q) => q.eq('billingProfileId', billingProfileId))
+    .withIndex('by_school_profile', (q) =>
+      q.eq('schoolId', profile.schoolId).eq('billingProfileId', billingProfileId)
+    )
     .collect();
   const applications = await ctx.db
     .query('financePaymentApplications')
-    .withIndex('by_profile', (q) => q.eq('billingProfileId', billingProfileId))
+    .withIndex('by_school_profile', (q) =>
+      q.eq('schoolId', profile.schoolId).eq('billingProfileId', billingProfileId)
+    )
     .collect();
 
   const appliedByChargeId = new Map<string, number>();
@@ -1140,6 +1198,7 @@ async function applyPaymentToCharges(
 
     const appliedAmount = Math.min(remaining, balanceRemaining);
     await ctx.db.insert('financePaymentApplications', {
+      schoolId: charge.schoolId,
       billingProfileId,
       paymentId,
       chargeId: charge._id,
@@ -1158,13 +1217,19 @@ async function syncChargeStatuses(
   billingProfileId: Id<'studentBillingProfiles'>,
   timestamp = Date.now()
 ) {
+  const profile = await ctx.db.get(billingProfileId);
+  if (!profile) throw new Error('Billing profile not found.');
   const charges = await ctx.db
     .query('financeCharges')
-    .withIndex('by_profile', (q) => q.eq('billingProfileId', billingProfileId))
+    .withIndex('by_school_profile', (q) =>
+      q.eq('schoolId', profile.schoolId).eq('billingProfileId', billingProfileId)
+    )
     .collect();
   const applications = await ctx.db
     .query('financePaymentApplications')
-    .withIndex('by_profile', (q) => q.eq('billingProfileId', billingProfileId))
+    .withIndex('by_school_profile', (q) =>
+      q.eq('schoolId', profile.schoolId).eq('billingProfileId', billingProfileId)
+    )
     .collect();
 
   const appliedByChargeId = new Map<string, number>();
@@ -1211,19 +1276,23 @@ export const createProfile = mutation({
     notesSummary: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireFinanceWriteUser(ctx);
+    const identity = await requireFinanceWriteUser(ctx);
+    const student = await ctx.db.get(args.studentId);
+    if (!student || student.schoolId !== identity.schoolId) throw new Error('Student not found.');
     const existing = await ctx.db
       .query('studentBillingProfiles')
-      .withIndex('by_student', (q) => q.eq('studentId', args.studentId))
+      .withIndex('by_school_student', (q) =>
+        q.eq('schoolId', identity.schoolId).eq('studentId', args.studentId)
+      )
       .first();
     if (existing) {
       throw new Error('Billing profile already exists for this student.');
     }
     const familyAccountId = await ensureFamilyAccount(ctx, args.studentId, args.familyLabel);
-    const billingProfileId = await ctx.db.insert(
-      'studentBillingProfiles',
-      normalizeProfile({ ...args, familyAccountId })
-    );
+    const billingProfileId = await ctx.db.insert('studentBillingProfiles', {
+      schoolId: identity.schoolId,
+      ...normalizeProfile({ ...args, familyAccountId })
+    });
     return { billingProfileId };
   }
 });
@@ -1248,9 +1317,10 @@ export const updateProfile = mutation({
     notesSummary: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireFinanceWriteUser(ctx);
+    const identity = await requireFinanceWriteUser(ctx);
     const existing = await ctx.db.get(args.billingProfileId);
-    if (!existing) throw new Error('Billing profile not found.');
+    if (!existing || existing.schoolId !== identity.schoolId)
+      throw new Error('Billing profile not found.');
     if (existing.studentId !== args.studentId) {
       throw new Error('Changing the student on an existing billing profile is not allowed.');
     }
@@ -1272,11 +1342,11 @@ export const generateBillingCycleCharges = mutation({
     billingCycleLabel: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireFinanceWriteUser(ctx);
+    const identity = await requireFinanceWriteUser(ctx);
 
     const profiles = await ctx.db
       .query('studentBillingProfiles')
-      .withIndex('by_updatedAt')
+      .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
       .order('desc')
       .collect();
 
@@ -1287,7 +1357,10 @@ export const generateBillingCycleCharges = mutation({
     let duplicateCharges = 0;
 
     for (const profile of profiles) {
-      const student = await ctx.db.get(profile.studentId);
+      const student = resolveSchoolRelationship(
+        identity.schoolId,
+        await ctx.db.get(profile.studentId)
+      );
       if (!student || student.status !== 'Active') {
         skippedProfiles += 1;
         continue;
@@ -1295,7 +1368,9 @@ export const generateBillingCycleCharges = mutation({
 
       const existingCharges = await ctx.db
         .query('financeCharges')
-        .withIndex('by_profile', (q) => q.eq('billingProfileId', profile._id))
+        .withIndex('by_school_profile', (q) =>
+          q.eq('schoolId', identity.schoolId).eq('billingProfileId', profile._id)
+        )
         .collect();
       const existingCycleTitles = new Set(
         existingCharges
@@ -1325,9 +1400,9 @@ export const generateBillingCycleCharges = mutation({
           continue;
         }
 
-        const chargeId = await ctx.db.insert(
-          'financeCharges',
-          normalizeCharge({
+        const chargeId = await ctx.db.insert('financeCharges', {
+          schoolId: identity.schoolId,
+          ...normalizeCharge({
             billingProfileId: profile._id,
             title: charge.title,
             category: charge.category,
@@ -1337,7 +1412,7 @@ export const generateBillingCycleCharges = mutation({
             billingCycleLabel: charge.billingCycleLabel,
             status: charge.status
           })
-        );
+        });
         generatedChargeIds.push(chargeId);
         existingCycleTitles.add(dedupeKey);
         generatedForProfile += 1;
@@ -1375,10 +1450,14 @@ export const addCharge = mutation({
     status: v.union(...CHARGE_STATUSES.map((item) => v.literal(item)))
   },
   handler: async (ctx, args) => {
-    await requireFinanceWriteUser(ctx);
+    const identity = await requireFinanceWriteUser(ctx);
     const existing = await ctx.db.get(args.billingProfileId);
-    if (!existing) throw new Error('Billing profile not found.');
-    const chargeId = await ctx.db.insert('financeCharges', normalizeCharge(args));
+    if (!existing || existing.schoolId !== identity.schoolId)
+      throw new Error('Billing profile not found.');
+    const chargeId = await ctx.db.insert('financeCharges', {
+      schoolId: identity.schoolId,
+      ...normalizeCharge(args)
+    });
     await ctx.db.patch(args.billingProfileId, { updatedAt: Date.now() });
     return { chargeId };
   }
@@ -1394,10 +1473,14 @@ export const addPayment = mutation({
     note: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireFinanceWriteUser(ctx);
+    const identity = await requireFinanceWriteUser(ctx);
     const existing = await ctx.db.get(args.billingProfileId);
-    if (!existing) throw new Error('Billing profile not found.');
-    const paymentId = await ctx.db.insert('financePayments', normalizePayment(args));
+    if (!existing || existing.schoolId !== identity.schoolId)
+      throw new Error('Billing profile not found.');
+    const paymentId = await ctx.db.insert('financePayments', {
+      schoolId: identity.schoolId,
+      ...normalizePayment(args)
+    });
     await applyPaymentToCharges(ctx, args.billingProfileId, paymentId, args.amount);
     await ctx.db.patch(args.billingProfileId, { updatedAt: Date.now() });
     return { paymentId };
@@ -1414,10 +1497,10 @@ export const allocateFamilyPayment = mutation({
     allocations: v.array(familyPaymentAllocationValidator)
   },
   handler: async (ctx, args) => {
-    await requireFinanceWriteUser(ctx);
+    const identity = await requireFinanceWriteUser(ctx);
 
     const familyAccount = await ctx.db.get(args.familyAccountId);
-    if (!familyAccount) {
+    if (!familyAccount || familyAccount.schoolId !== identity.schoolId) {
       throw new Error('Family account not found.');
     }
 
@@ -1441,16 +1524,16 @@ export const allocateFamilyPayment = mutation({
 
     for (const allocation of allocations) {
       const profile = await ctx.db.get(allocation.billingProfileId);
-      if (!profile) {
+      if (!profile || profile.schoolId !== identity.schoolId) {
         throw new Error('Allocated billing profile not found.');
       }
       if (profile.familyAccountId !== args.familyAccountId) {
         throw new Error('All allocations must belong to the selected family account.');
       }
 
-      const paymentId = await ctx.db.insert(
-        'financePayments',
-        normalizePayment({
+      const paymentId = await ctx.db.insert('financePayments', {
+        schoolId: identity.schoolId,
+        ...normalizePayment({
           billingProfileId: allocation.billingProfileId,
           amount: allocation.amount,
           paidAt: args.paidAt,
@@ -1460,7 +1543,7 @@ export const allocateFamilyPayment = mutation({
             .filter(Boolean)
             .join(' • ')
         })
-      );
+      });
       paymentIds.push(paymentId);
       await applyPaymentToCharges(ctx, allocation.billingProfileId, paymentId, allocation.amount);
       await ctx.db.patch(allocation.billingProfileId, { updatedAt: timestamp });
@@ -1485,10 +1568,10 @@ export const reallocatePaymentApplications = mutation({
     )
   },
   handler: async (ctx, args) => {
-    await requireFinanceWriteUser(ctx);
+    const identity = await requireFinanceWriteUser(ctx);
 
     const payment = await ctx.db.get(args.paymentId);
-    if (!payment) {
+    if (!payment || payment.schoolId !== identity.schoolId) {
       throw new Error('Payment not found.');
     }
 
@@ -1514,13 +1597,17 @@ export const reallocatePaymentApplications = mutation({
 
     const profileCharges = await ctx.db
       .query('financeCharges')
-      .withIndex('by_profile', (q) => q.eq('billingProfileId', payment.billingProfileId))
+      .withIndex('by_school_profile', (q) =>
+        q.eq('schoolId', identity.schoolId).eq('billingProfileId', payment.billingProfileId)
+      )
       .collect();
     const chargeById = new Map(profileCharges.map((charge) => [charge._id, charge]));
 
     const profileApplications = await ctx.db
       .query('financePaymentApplications')
-      .withIndex('by_profile', (q) => q.eq('billingProfileId', payment.billingProfileId))
+      .withIndex('by_school_profile', (q) =>
+        q.eq('schoolId', identity.schoolId).eq('billingProfileId', payment.billingProfileId)
+      )
       .collect();
     const currentPaymentApplications = profileApplications.filter(
       (application) => application.paymentId === args.paymentId
@@ -1568,6 +1655,7 @@ export const reallocatePaymentApplications = mutation({
 
     for (const allocation of normalizedAllocations) {
       await ctx.db.insert('financePaymentApplications', {
+        schoolId: identity.schoolId,
         billingProfileId: payment.billingProfileId,
         paymentId: args.paymentId,
         chargeId: allocation.chargeId,
@@ -1602,9 +1690,10 @@ export const addReminderLog = mutation({
     authorLabel: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireFinanceWriteUser(ctx);
+    const identity = await requireFinanceWriteUser(ctx);
     const existing = await ctx.db.get(args.billingProfileId);
-    if (!existing) throw new Error('Billing profile not found.');
+    if (!existing || existing.schoolId !== identity.schoolId)
+      throw new Error('Billing profile not found.');
 
     assertDateOnlyString(args.reminderDate, 'Reminder date');
 
@@ -1623,6 +1712,7 @@ export const addReminderLog = mutation({
     }
 
     const reminderId = await ctx.db.insert('financeReminderLogs', {
+      schoolId: identity.schoolId,
       billingProfileId: args.billingProfileId,
       reminderDate: args.reminderDate,
       channel: args.channel,
@@ -1662,7 +1752,7 @@ export const addReminderLogBatch = mutation({
     authorLabel: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireFinanceWriteUser(ctx);
+    const identity = await requireFinanceWriteUser(ctx);
 
     assertDateOnlyString(args.reminderDate, 'Reminder date');
 
@@ -1695,7 +1785,7 @@ export const addReminderLogBatch = mutation({
     for (const billingProfileId of normalizedProfileIds) {
       const profileId = billingProfileId as Id<'studentBillingProfiles'>;
       const existing = await ctx.db.get(profileId);
-      if (!existing) {
+      if (!existing || existing.schoolId !== identity.schoolId) {
         throw new Error('One or more billing profiles could not be found.');
       }
 
@@ -1710,6 +1800,7 @@ export const addReminderLogBatch = mutation({
       }
 
       const reminderId = await ctx.db.insert('financeReminderLogs', {
+        schoolId: identity.schoolId,
         billingProfileId: profileId,
         reminderDate: args.reminderDate,
         channel: args.channel,

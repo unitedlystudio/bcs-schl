@@ -7,8 +7,8 @@ This is the Schly codebase, built with Next.js 16 and shadcn/ui.
 - **[AGENTS.md](./AGENTS.md)** — Full project overview, tech stack, structure, conventions, data fetching patterns, deployment
 - **[docs/forms.md](./docs/forms.md)** — Form system: TanStack Form + Zod, composable fields, validation, multi-step, sheet/dialog forms
 - **[docs/themes.md](./docs/themes.md)** — Theme system: OKLCH colors, adding themes, font config
-- **[docs/nav-rbac.md](./docs/nav-rbac.md)** — Navigation RBAC: access control, Clerk integration
-- **[docs/clerk_setup.md](./docs/clerk_setup.md)** — Clerk auth setup: organizations, billing, environment variables
+- **[docs/nav-rbac.md](./docs/nav-rbac.md)** — Navigation RBAC: access control, Better Auth integration
+- **[docs/auth-setup.md](./docs/auth-setup.md)** — Better Auth, Convex, invitations, and environment variables
 
 ## Critical Conventions
 

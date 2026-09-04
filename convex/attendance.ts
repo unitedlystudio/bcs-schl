@@ -1,7 +1,7 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import { requireAuthenticatedUser } from './lib/auth';
+import { requirePermission } from './lib/auth';
 
 const ATTENDANCE_STATUSES = ['Present', 'Late', 'Absent', 'Excused'] as const;
 
@@ -68,30 +68,44 @@ function selectLatestRecordsByStudent<
   return latestByStudent;
 }
 
-async function listSessionsForClassDate(ctx: SessionCtx, className: string, sessionDate: string) {
+async function listSessionsForClassDate(
+  ctx: SessionCtx,
+  schoolId: never,
+  className: string,
+  sessionDate: string
+) {
   return ctx.db
     .query('attendanceSessions')
-    .withIndex('by_classAndDate', (query) =>
-      query.eq('className', className).eq('sessionDate', sessionDate)
+    .withIndex('by_school_classAndDate', (query) =>
+      query.eq('schoolId', schoolId).eq('className', className).eq('sessionDate', sessionDate)
     )
     .collect();
 }
 
-async function getCanonicalSession(ctx: SessionCtx, className: string, sessionDate: string) {
-  const sessions = await listSessionsForClassDate(ctx, className, sessionDate);
+async function getCanonicalSession(
+  ctx: SessionCtx,
+  schoolId: never,
+  className: string,
+  sessionDate: string
+) {
+  const sessions = await listSessionsForClassDate(ctx, schoolId, className, sessionDate);
   return pickCanonicalSession(sessions);
 }
 
 async function collapseSessionStudentRecords(
   ctx: MutationCtx,
+  schoolId: never,
   sessionId: string,
   studentId: string,
   fallback?: { status: AttendanceStatus; note?: string; updatedAt: number }
 ) {
   const records = await ctx.db
     .query('attendanceRecords')
-    .withIndex('by_session_student', (query) =>
-      query.eq('sessionId', sessionId as never).eq('studentId', studentId as never)
+    .withIndex('by_school_session_student', (query) =>
+      query
+        .eq('schoolId', schoolId)
+        .eq('sessionId', sessionId as never)
+        .eq('studentId', studentId as never)
     )
     .collect();
 
@@ -115,6 +129,7 @@ async function collapseSessionStudentRecords(
 
   if (!canonicalRecord && fallback) {
     const createdId = await ctx.db.insert('attendanceRecords', {
+      schoolId,
       sessionId: sessionId as never,
       studentId: studentId as never,
       status: fallback.status,
@@ -147,14 +162,16 @@ async function collapseSessionStudentRecords(
 
 async function ensureCanonicalSession(
   ctx: MutationCtx,
+  schoolId: never,
   className: string,
   sessionDate: string,
   updatedAt: number
 ) {
-  let sessions = await listSessionsForClassDate(ctx, className, sessionDate);
+  let sessions = await listSessionsForClassDate(ctx, schoolId, className, sessionDate);
 
   if (sessions.length === 0) {
     await ctx.db.insert('attendanceSessions', {
+      schoolId,
       className,
       sessionDate,
       status: 'In progress',
@@ -162,7 +179,7 @@ async function ensureCanonicalSession(
       sortKey: buildSortKey(sessionDate, className),
       updatedAt
     });
-    sessions = await listSessionsForClassDate(ctx, className, sessionDate);
+    sessions = await listSessionsForClassDate(ctx, schoolId, className, sessionDate);
   }
 
   const canonicalSession = pickCanonicalSession(sessions);
@@ -173,11 +190,13 @@ async function ensureCanonicalSession(
   for (const duplicateSession of sessions.slice(1)) {
     const duplicateRecords = await ctx.db
       .query('attendanceRecords')
-      .withIndex('by_session', (query) => query.eq('sessionId', duplicateSession._id))
+      .withIndex('by_school_session', (query) =>
+        query.eq('schoolId', schoolId).eq('sessionId', duplicateSession._id)
+      )
       .collect();
 
     for (const record of duplicateRecords) {
-      await collapseSessionStudentRecords(ctx, canonicalSession._id, record.studentId, {
+      await collapseSessionStudentRecords(ctx, schoolId, canonicalSession._id, record.studentId, {
         status: record.status,
         note: record.note,
         updatedAt: record.updatedAt
@@ -194,9 +213,13 @@ async function ensureCanonicalSession(
 export const listClasses = query({
   args: {},
   handler: async (ctx) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:attendance:read');
 
-    const students = await ctx.db.query('students').withIndex('by_sortName').order('asc').collect();
+    const students = await ctx.db
+      .query('students')
+      .withIndex('by_school_sortName', (q) => q.eq('schoolId', identity.schoolId))
+      .order('asc')
+      .collect();
     return students.reduce<string[]>((acc, student) => {
       if (acc.includes(student.className)) {
         return acc;
@@ -213,20 +236,24 @@ export const getSession = query({
     sessionDate: v.string()
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:attendance:read');
 
     const [students, session] = await Promise.all([
       ctx.db
         .query('students')
-        .withIndex('by_className', (query) => query.eq('className', args.className))
+        .withIndex('by_school_className', (query) =>
+          query.eq('schoolId', identity.schoolId).eq('className', args.className)
+        )
         .collect(),
-      getCanonicalSession(ctx, args.className, args.sessionDate)
+      getCanonicalSession(ctx, identity.schoolId as never, args.className, args.sessionDate)
     ]);
 
     const attendanceRecords = session
       ? await ctx.db
           .query('attendanceRecords')
-          .withIndex('by_session', (query) => query.eq('sessionId', session._id))
+          .withIndex('by_school_session', (query) =>
+            query.eq('schoolId', identity.schoolId).eq('sessionId', session._id)
+          )
           .collect()
       : [];
 
@@ -269,11 +296,11 @@ export const getSession = query({
 export const recentSessions = query({
   args: {},
   handler: async (ctx) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:attendance:read');
 
     const sessions = await ctx.db
       .query('attendanceSessions')
-      .withIndex('by_updatedAt')
+      .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
       .order('desc')
       .take(6);
 
@@ -281,7 +308,9 @@ export const recentSessions = query({
       sessions.map(async (session) => {
         const records = await ctx.db
           .query('attendanceRecords')
-          .withIndex('by_session', (query) => query.eq('sessionId', session._id))
+          .withIndex('by_school_session', (query) =>
+            query.eq('schoolId', identity.schoolId).eq('sessionId', session._id)
+          )
           .collect();
 
         const latestRecords = Array.from(selectLatestRecordsByStudent(records).values());
@@ -308,10 +337,16 @@ export const updateSessionDetails = mutation({
     notesSummary: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:attendance:write');
 
     const now = Date.now();
-    const session = await ensureCanonicalSession(ctx, args.className, args.sessionDate, now);
+    const session = await ensureCanonicalSession(
+      ctx,
+      identity.schoolId as never,
+      args.className,
+      args.sessionDate,
+      now
+    );
 
     await ctx.db.patch(session._id, {
       status: args.status,
@@ -335,11 +370,13 @@ export const bulkSetStatus = mutation({
     )
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:attendance:write');
 
     const classStudents = await ctx.db
       .query('students')
-      .withIndex('by_className', (query) => query.eq('className', args.className))
+      .withIndex('by_school_className', (query) =>
+        query.eq('schoolId', identity.schoolId).eq('className', args.className)
+      )
       .collect();
 
     if (classStudents.length === 0) {
@@ -347,11 +384,17 @@ export const bulkSetStatus = mutation({
     }
 
     const now = Date.now();
-    const session = await ensureCanonicalSession(ctx, args.className, args.sessionDate, now);
+    const session = await ensureCanonicalSession(
+      ctx,
+      identity.schoolId as never,
+      args.className,
+      args.sessionDate,
+      now
+    );
 
     await Promise.all(
       classStudents.map((student) =>
-        collapseSessionStudentRecords(ctx, session._id, student._id, {
+        collapseSessionStudentRecords(ctx, identity.schoolId as never, session._id, student._id, {
           status: args.status,
           updatedAt: now
         })
@@ -381,10 +424,10 @@ export const setStudentStatus = mutation({
     note: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:attendance:write');
 
     const student = await ctx.db.get(args.studentId);
-    if (!student) {
+    if (!student || student.schoolId !== identity.schoolId) {
       throw new Error('Student not found.');
     }
 
@@ -393,22 +436,38 @@ export const setStudentStatus = mutation({
     }
 
     const now = Date.now();
-    const session = await ensureCanonicalSession(ctx, args.className, args.sessionDate, now);
+    const session = await ensureCanonicalSession(
+      ctx,
+      identity.schoolId as never,
+      args.className,
+      args.sessionDate,
+      now
+    );
 
-    await collapseSessionStudentRecords(ctx, session._id, args.studentId, {
-      status: args.status,
-      note: args.note,
-      updatedAt: now
-    });
+    await collapseSessionStudentRecords(
+      ctx,
+      identity.schoolId as never,
+      session._id,
+      args.studentId,
+      {
+        status: args.status,
+        note: args.note,
+        updatedAt: now
+      }
+    );
 
     const [classStudents, allSessionRecords] = await Promise.all([
       ctx.db
         .query('students')
-        .withIndex('by_className', (query) => query.eq('className', args.className))
+        .withIndex('by_school_className', (query) =>
+          query.eq('schoolId', identity.schoolId).eq('className', args.className)
+        )
         .collect(),
       ctx.db
         .query('attendanceRecords')
-        .withIndex('by_session', (query) => query.eq('sessionId', session._id))
+        .withIndex('by_school_session', (query) =>
+          query.eq('schoolId', identity.schoolId).eq('sessionId', session._id)
+        )
         .collect()
     ]);
 

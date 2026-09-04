@@ -46,9 +46,7 @@ export function DashboardPermissionGate({
         </CardDescription>
       </CardHeader>
       <CardContent className='text-sm text-muted-foreground'>
-        {dashboardAccess.hasOrg
-          ? 'Your current organization membership does not include access to this dashboard area.'
-          : 'Switch into an organization with the required dashboard permission to open this area.'}
+        Your school membership does not include access to this dashboard area.
       </CardContent>
     </Card>
   );

@@ -3,7 +3,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 
-import { requireAuthenticatedUser } from './lib/auth';
+import { requirePermission } from './lib/auth';
 
 const LEAVE_TYPES = [
   'Annual',
@@ -151,15 +151,23 @@ function normalizeLeaveRequest(input: {
   };
 }
 
-async function loadTeachersById(ctx: Ctx) {
-  const teachers = await ctx.db.query('teachers').withIndex('by_sortName').order('asc').collect();
+async function loadTeachersById(ctx: Ctx, schoolId: Id<'schools'>) {
+  const teachers = await ctx.db
+    .query('teachers')
+    .withIndex('by_school_sortName', (q) => q.eq('schoolId', schoolId))
+    .order('asc')
+    .collect();
   return new Map(teachers.map((teacher) => [teacher._id, teacher]));
 }
 
 async function loadCoverAssignmentsForLeave(ctx: Ctx, leaveRequestId: Id<'staffLeaveRequests'>) {
+  const leaveRequest = await ctx.db.get(leaveRequestId);
+  if (!leaveRequest) return [];
   return ctx.db
     .query('staffCoverAssignments')
-    .withIndex('by_leaveRequest', (query) => query.eq('leaveRequestId', leaveRequestId))
+    .withIndex('by_school_leaveRequest', (query) =>
+      query.eq('schoolId', leaveRequest.schoolId).eq('leaveRequestId', leaveRequestId)
+    )
     .collect();
 }
 
@@ -194,7 +202,8 @@ async function mapLeaveRequest(
   teachersById?: Map<string, Doc<'teachers'>>
 ): Promise<LeaveRequestView> {
   const resolvedTeachersById =
-    teachersById ?? ((await loadTeachersById(ctx)) as Map<string, Doc<'teachers'>>);
+    teachersById ??
+    ((await loadTeachersById(ctx, leaveRequest.schoolId)) as Map<string, Doc<'teachers'>>);
   const teacher = resolvedTeachersById.get(leaveRequest.teacherId);
   const coverAssignments = await loadCoverAssignmentsForLeave(ctx, leaveRequest._id);
   const mappedCoverAssignments = sortCopy(
@@ -246,7 +255,7 @@ async function regenerateCoverAssignments(
   ctx: MutationCtx,
   leaveRequest: Doc<'staffLeaveRequests'>
 ) {
-  const teachersById = await loadTeachersById(ctx);
+  const teachersById = await loadTeachersById(ctx, leaveRequest.schoolId);
   const teacher = teachersById.get(leaveRequest.teacherId);
   if (!teacher) {
     throw new Error('Teacher not found for leave request.');
@@ -254,8 +263,16 @@ async function regenerateCoverAssignments(
 
   const [existingAssignments, timeSlots, timetableEntries] = await Promise.all([
     loadCoverAssignmentsForLeave(ctx, leaveRequest._id),
-    ctx.db.query('operationsTimeSlots').withIndex('by_sortOrder').order('asc').collect(),
-    ctx.db.query('classTimetableEntries').withIndex('by_updatedAt').order('desc').collect()
+    ctx.db
+      .query('operationsTimeSlots')
+      .withIndex('by_school_sortOrder', (q) => q.eq('schoolId', leaveRequest.schoolId))
+      .order('asc')
+      .collect(),
+    ctx.db
+      .query('classTimetableEntries')
+      .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', leaveRequest.schoolId))
+      .order('desc')
+      .collect()
   ]);
 
   const slotLabelById = new Map(timeSlots.map((slot) => [slot._id, slot.label]));
@@ -301,6 +318,7 @@ async function regenerateCoverAssignments(
       }
 
       await ctx.db.insert('staffCoverAssignments', {
+        schoolId: leaveRequest.schoolId,
         leaveRequestId: leaveRequest._id,
         coverDate: date,
         className,
@@ -324,9 +342,13 @@ async function regenerateCoverAssignments(
 export const listFilters = query({
   args: {},
   handler: async (ctx) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:staffing:read');
 
-    const teachers = await ctx.db.query('teachers').withIndex('by_sortName').order('asc').collect();
+    const teachers = await ctx.db
+      .query('teachers')
+      .withIndex('by_school_sortName', (q) => q.eq('schoolId', identity.schoolId))
+      .order('asc')
+      .collect();
 
     return {
       teachers: teachers.map((teacher) => ({
@@ -348,11 +370,19 @@ export const listFilters = query({
 export const summary = query({
   args: {},
   handler: async (ctx) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:staffing:read');
 
     const [leaveRequests, coverAssignments] = await Promise.all([
-      ctx.db.query('staffLeaveRequests').withIndex('by_updatedAt').order('desc').collect(),
-      ctx.db.query('staffCoverAssignments').withIndex('by_updatedAt').order('desc').collect()
+      ctx.db
+        .query('staffLeaveRequests')
+        .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
+        .order('desc')
+        .collect(),
+      ctx.db
+        .query('staffCoverAssignments')
+        .withIndex('by_school_updatedAt', (q) => q.eq('schoolId', identity.schoolId))
+        .order('desc')
+        .collect()
     ]);
 
     const today = toIsoDate(new Date());
@@ -396,12 +426,12 @@ export const list = query({
     date: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:staffing:read');
 
-    const teachersById = await loadTeachersById(ctx);
+    const teachersById = await loadTeachersById(ctx, identity.schoolId);
     let leaveRequests = await ctx.db
       .query('staffLeaveRequests')
-      .withIndex('by_startDate')
+      .withIndex('by_school_startDate', (q) => q.eq('schoolId', identity.schoolId))
       .order('desc')
       .collect();
     const search = args.search?.trim().toLowerCase() ?? '';
@@ -458,10 +488,10 @@ export const list = query({
 export const getById = query({
   args: { leaveRequestId: v.id('staffLeaveRequests') },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:staffing:read');
 
     const leaveRequest = await ctx.db.get(args.leaveRequestId);
-    if (!leaveRequest) return null;
+    if (!leaveRequest || leaveRequest.schoolId !== identity.schoolId) return null;
 
     return mapLeaveRequest(ctx, leaveRequest);
   }
@@ -470,12 +500,14 @@ export const getById = query({
 export const listDailyCoverBoard = query({
   args: { date: v.string() },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:staffing:read');
 
-    const teachersById = await loadTeachersById(ctx);
+    const teachersById = await loadTeachersById(ctx, identity.schoolId);
     const coverAssignments = await ctx.db
       .query('staffCoverAssignments')
-      .withIndex('by_coverDate', (query) => query.eq('coverDate', args.date))
+      .withIndex('by_school_coverDate', (query) =>
+        query.eq('schoolId', identity.schoolId).eq('coverDate', args.date)
+      )
       .collect();
 
     return sortCopy(
@@ -515,20 +547,21 @@ export const upsertLeaveRequest = mutation({
     requestedBy: v.string()
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:staffing:write');
 
     const teacher = await ctx.db.get(args.teacherId);
-    if (!teacher) {
+    if (!teacher || teacher.schoolId !== identity.schoolId) {
       throw new Error('Teacher not found.');
     }
 
     const normalized = normalizeLeaveRequest(args);
     const leaveRequestId =
-      args.leaveRequestId ?? (await ctx.db.insert('staffLeaveRequests', normalized));
+      args.leaveRequestId ??
+      (await ctx.db.insert('staffLeaveRequests', { schoolId: identity.schoolId, ...normalized }));
 
     if (args.leaveRequestId) {
       const existing = await ctx.db.get(args.leaveRequestId);
-      if (!existing) {
+      if (!existing || existing.schoolId !== identity.schoolId) {
         throw new Error('Leave request not found.');
       }
       await ctx.db.patch(args.leaveRequestId, normalized);
@@ -560,10 +593,10 @@ export const setLeaveStatus = mutation({
     )
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:staffing:write');
 
     const leaveRequest = await ctx.db.get(args.leaveRequestId);
-    if (!leaveRequest) {
+    if (!leaveRequest || leaveRequest.schoolId !== identity.schoolId) {
       throw new Error('Leave request not found.');
     }
 
@@ -594,16 +627,16 @@ export const assignCoverTeacher = mutation({
     note: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:staffing:write');
 
     const assignment = await ctx.db.get(args.coverAssignmentId);
-    if (!assignment) {
+    if (!assignment || assignment.schoolId !== identity.schoolId) {
       throw new Error('Cover assignment not found.');
     }
 
     if (args.coverTeacherId) {
       const teacher = await ctx.db.get(args.coverTeacherId);
-      if (!teacher) {
+      if (!teacher || teacher.schoolId !== identity.schoolId) {
         throw new Error('Cover teacher not found.');
       }
       if (args.coverTeacherId === assignment.primaryTeacherId) {
@@ -635,16 +668,16 @@ export const updateCoverAssignment = mutation({
     note: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:staffing:write');
 
     const assignment = await ctx.db.get(args.coverAssignmentId);
-    if (!assignment) {
+    if (!assignment || assignment.schoolId !== identity.schoolId) {
       throw new Error('Cover assignment not found.');
     }
 
     if (args.coverTeacherId) {
       const teacher = await ctx.db.get(args.coverTeacherId);
-      if (!teacher) {
+      if (!teacher || teacher.schoolId !== identity.schoolId) {
         throw new Error('Cover teacher not found.');
       }
       if (args.coverTeacherId === assignment.primaryTeacherId) {
@@ -681,10 +714,10 @@ export const setCoverStatus = mutation({
     )
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:staffing:write');
 
     const assignment = await ctx.db.get(args.coverAssignmentId);
-    if (!assignment) {
+    if (!assignment || assignment.schoolId !== identity.schoolId) {
       throw new Error('Cover assignment not found.');
     }
 

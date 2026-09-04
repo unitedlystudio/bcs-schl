@@ -13,7 +13,7 @@ function shouldAllowPermission(
   permission: string,
   dashboardAccess: ReturnType<typeof useDashboardAccess>
 ) {
-  if (!dashboardAccess.hasOrg) {
+  if (!dashboardAccess.hasMembership) {
     return false;
   }
 
@@ -29,11 +29,7 @@ function shouldAllowPermission(
     return dashboardAccess.hasPermission(permission);
   }
 
-  if (permission === 'org:access:read') {
-    return dashboardAccess.hasManagedProfile
-      ? dashboardAccess.hasPermission(permission)
-      : dashboardAccess.hasPermission('org:admin:manage');
-  }
+  if (permission === 'org:access:read') return dashboardAccess.hasPermission(permission);
 
   if (MANAGED_NAV_PERMISSION_KEYS.has(permission as never)) {
     return dashboardAccess.hasPermission(permission);
@@ -55,7 +51,7 @@ function canAccessItem(item: NavItem, dashboardAccess: ReturnType<typeof useDash
     return true;
   }
 
-  if (item.access.requireOrg && !dashboardAccess.hasOrg) {
+  if (item.access.requireMembership && !dashboardAccess.hasMembership) {
     return false;
   }
 
@@ -63,7 +59,7 @@ function canAccessItem(item: NavItem, dashboardAccess: ReturnType<typeof useDash
     return false;
   }
 
-  if (!isRoleMatch(item.access.role, dashboardAccess.clerkRole)) {
+  if (!isRoleMatch(item.access.role, dashboardAccess.role)) {
     return false;
   }
 

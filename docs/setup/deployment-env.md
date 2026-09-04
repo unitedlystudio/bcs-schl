@@ -1,29 +1,11 @@
-# Deployment env checklist
+# Deployment environment
 
-Do not commit local env files.
+Deploy Convex before the Next.js application. Convex requires backend-only `BETTER_AUTH_SECRET`, `INVITE_TOKEN_SECRET`, `SITE_URL`, and `INITIAL_ADMIN_EMAIL`. The production checkpoint value for `INITIAL_ADMIN_EMAIL` is `don@unitedly.co`; it must be set in Convex, not bundled into Next.js. Production secrets must be independent random values of at least 32 bytes, and `SITE_URL` must be the exact HTTPS Next.js origin.
 
-Vercel frontend envs needed for Schly dashboard:
-- NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-- CLERK_SECRET_KEY
-- NEXT_PUBLIC_CLERK_SIGN_IN_URL
-- NEXT_PUBLIC_CLERK_SIGN_UP_URL
-- NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL
-- NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL
-- NEXT_PUBLIC_CLERK_SIGN_UP_FORCE_REDIRECT_URL
-- NEXT_PUBLIC_CONVEX_URL
+Next.js requires `NEXT_PUBLIC_CONVEX_URL`, `NEXT_PUBLIC_CONVEX_SITE_URL`, `NEXT_PUBLIC_SITE_URL`, and the server-only `SITE_URL`. `NEXT_PUBLIC_SITE_URL` and `SITE_URL` are mandatory and must be byte-for-byte identical canonical origins: HTTPS with no path, query, fragment, credentials, or trailing slash in production. Only `http://localhost[:port]` or `http://127.0.0.1[:port]` is accepted during development. All state-changing same-origin routes validate the request `Origin` against this contract and reject missing, `null`, foreign, or malformed origins. Production validation rejects mismatched deployments, insecure URLs, and trailing slashes. Never put an administrator email, auth secret, invite secret, session token, or deploy key in a public variable.
 
-Convex deployment envs needed:
-- CLERK_JWT_ISSUER_DOMAIN
+Cut over backend first, then frontend. Rollback must revoke Better Auth sessions and must not restore legacy debug, bypass, or public seed surfaces.
 
-Expected Clerk JWT template name:
-- convex
+This schema change is an explicit fresh cutover: every sensitive domain row has a mandatory server-owned `schoolId` and school-leading indexes. There is intentionally no permissive legacy-row migration or fallback. Deploy only to an empty domain dataset (authentication bootstrap rows may remain), or export, validate, and re-import domain data with an operator-approved school assignment before deploying. Schema validation must fail closed if any legacy domain row lacks `schoolId`; never infer ownership from a client argument or silently attach orphaned rows to the primary school.
 
-Production notes:
-- Use production Clerk keys on Vercel. If the browser console says Clerk was loaded with development keys, production auth + Convex token exchange is not correctly configured.
-- The Clerk JWT template named `convex` must exist on the same Clerk instance used by the deployed publishable key.
-- Set `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/auth/sign-in` and `NEXT_PUBLIC_CLERK_SIGN_UP_URL=/auth/sign-up`.
-- Set `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/dashboard/workspaces`.
-- Set `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=/dashboard/workspaces` and `NEXT_PUBLIC_CLERK_SIGN_UP_FORCE_REDIRECT_URL=/dashboard/workspaces` to avoid Clerk-hosted fallback redirects landing on `accounts.dev/default-redirect` after invite acceptance.
-- `NEXT_PUBLIC_CONVEX_URL` should be the Convex cloud URL with no trailing slash. Example: `https://clear-wren-571.convex.cloud`
-- `CONVEX_DEPLOY_KEY` must also be present on Vercel so the trusted server-side dashboard-access bootstrap can act on behalf of the authenticated Clerk user when the Convex JWT does not carry their email claim.
-- A trailing slash can produce malformed websocket URLs like `wss://...cloud//api/...`.
+For Docker builds, pass `NEXT_PUBLIC_CONVEX_URL`, `NEXT_PUBLIC_CONVEX_SITE_URL`, `NEXT_PUBLIC_SITE_URL`, and `SITE_URL` as build arguments; pass `SITE_URL` again as a runtime environment variable. The two site-origin values must remain identical.

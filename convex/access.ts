@@ -1,6 +1,6 @@
 import { query } from './_generated/server';
 import { v } from 'convex/values';
-import { requireAuthenticatedUser } from './lib/auth';
+import { requirePermission } from './lib/auth';
 
 const splitFilter = (value?: string) =>
   value
@@ -20,14 +20,14 @@ export const list = query({
     sort: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:access:read');
 
     const categoryFilters = splitFilter(args.categories);
     const statusFilters = splitFilter(args.statuses);
 
     let records = await ctx.db
       .query('accessRecords')
-      .withIndex('by_sortOrder')
+      .withIndex('by_school_sortOrder', (query) => query.eq('schoolId', identity.schoolId))
       .order('asc')
       .collect();
 
@@ -92,7 +92,8 @@ export const list = query({
         fullName: record.fullName,
         loginUrl: record.loginUrl,
         username: record.username,
-        password: record.password,
+        secretManager: record.secretManager,
+        secretReference: record.secretReference,
         listingUrl: record.listingUrl,
         adminsAccess: record.adminsAccess,
         recoveryNumber: record.recoveryNumber,

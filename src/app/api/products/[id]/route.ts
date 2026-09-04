@@ -6,10 +6,13 @@
 
 import { fakeProducts } from '@/constants/mock-api';
 import { NextRequest, NextResponse } from 'next/server';
+import { authorizeApi, hasTrustedMutationOrigin } from '@/lib/server/api-authorization';
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(request: NextRequest, { params }: Params) {
+  if (!(await authorizeApi('org:overview:read')))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const { id } = await params;
   const data = await fakeProducts.getProductById(Number(id));
 
@@ -21,6 +24,8 @@ export async function GET(request: NextRequest, { params }: Params) {
 }
 
 export async function PUT(request: NextRequest, { params }: Params) {
+  if (!hasTrustedMutationOrigin(request) || !(await authorizeApi('org:admin:manage')))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const { id } = await params;
   const body = await request.json();
   const data = await fakeProducts.updateProduct(Number(id), body);
@@ -33,6 +38,8 @@ export async function PUT(request: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(request: NextRequest, { params }: Params) {
+  if (!hasTrustedMutationOrigin(request) || !(await authorizeApi('org:admin:manage')))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const { id } = await params;
   const data = await fakeProducts.deleteProduct(Number(id));
 

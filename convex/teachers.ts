@@ -1,6 +1,6 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
-import { requireAuthenticatedUser } from './lib/auth';
+import { requirePermission } from './lib/auth';
 
 function compareLabels(left: string, right: string) {
   return left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
@@ -75,9 +75,12 @@ function normalizeTeacher(input: {
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    await requireAuthenticatedUser(ctx);
-
-    const teachers = await ctx.db.query('teachers').withIndex('by_sortName').order('asc').collect();
+    const identity = await requirePermission(ctx, 'org:teachers:read');
+    const teachers = await ctx.db
+      .query('teachers')
+      .withIndex('by_school_sortName', (q) => q.eq('schoolId', identity.schoolId))
+      .order('asc')
+      .collect();
     return teachers.map(mapTeacher);
   }
 });
@@ -85,10 +88,10 @@ export const list = query({
 export const getById = query({
   args: { teacherId: v.id('teachers') },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:teachers:read');
 
     const teacher = await ctx.db.get(args.teacherId);
-    if (!teacher) return null;
+    if (!teacher || teacher.schoolId !== identity.schoolId) return null;
 
     return mapTeacher(teacher);
   }
@@ -97,9 +100,12 @@ export const getById = query({
 export const listFilterOptions = query({
   args: {},
   handler: async (ctx) => {
-    await requireAuthenticatedUser(ctx);
-
-    const teachers = await ctx.db.query('teachers').withIndex('by_sortName').order('asc').collect();
+    const identity = await requirePermission(ctx, 'org:teachers:read');
+    const teachers = await ctx.db
+      .query('teachers')
+      .withIndex('by_school_sortName', (q) => q.eq('schoolId', identity.schoolId))
+      .order('asc')
+      .collect();
     const academicYears: string[] = [];
     const homeroomClasses: string[] = [];
 
@@ -142,9 +148,11 @@ export const create = mutation({
     phone: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
-
-    const teacherId = await ctx.db.insert('teachers', normalizeTeacher(args));
+    const identity = await requirePermission(ctx, 'org:teachers:write');
+    const teacherId = await ctx.db.insert('teachers', {
+      schoolId: identity.schoolId,
+      ...normalizeTeacher(args)
+    });
     return { teacherId };
   }
 });
@@ -156,10 +164,13 @@ export const ensureFromDirectory = mutation({
     email: v.string()
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:teachers:write');
 
     const normalizedEmail = args.email.trim().toLowerCase();
-    const teachers = await ctx.db.query('teachers').collect();
+    const teachers = await ctx.db
+      .query('teachers')
+      .withIndex('by_school_sortName', (q) => q.eq('schoolId', identity.schoolId))
+      .collect();
     const existing = teachers.find(
       (teacher) => (teacher.email ?? '').trim().toLowerCase() === normalizedEmail
     );
@@ -168,16 +179,16 @@ export const ensureFromDirectory = mutation({
       return { teacherId: existing._id };
     }
 
-    const teacherId = await ctx.db.insert(
-      'teachers',
-      normalizeTeacher({
+    const teacherId = await ctx.db.insert('teachers', {
+      schoolId: identity.schoolId,
+      ...normalizeTeacher({
         fullName: args.fullName,
         preferredName: args.preferredName,
         role: 'Teacher',
         status: 'Active',
         email: normalizedEmail
       })
-    );
+    });
 
     return { teacherId };
   }
@@ -200,10 +211,10 @@ export const update = mutation({
     phone: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:teachers:write');
 
     const existing = await ctx.db.get(args.teacherId);
-    if (!existing) {
+    if (!existing || existing.schoolId !== identity.schoolId) {
       throw new Error('Teacher not found.');
     }
 
@@ -217,9 +228,13 @@ export const listForDirectory = query({
     academicYear: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const identity = await requirePermission(ctx, 'org:teachers:read');
 
-    let teachers = await ctx.db.query('teachers').withIndex('by_sortName').order('asc').collect();
+    let teachers = await ctx.db
+      .query('teachers')
+      .withIndex('by_school_sortName', (q) => q.eq('schoolId', identity.schoolId))
+      .order('asc')
+      .collect();
 
     if (args.academicYear) {
       teachers = teachers.filter((teacher) => (teacher.academicYear ?? '') === args.academicYear);
